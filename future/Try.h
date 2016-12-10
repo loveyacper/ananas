@@ -2,6 +2,11 @@
 #define BERT_TRY_H
 
 /*
+ * This class is modified from facebook folly
+ * Thanks to it for handling the nasty void thing! 
+ */
+
+/*
  * Copyright 2016 Facebook, Inc.
  *  
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,8 +24,10 @@
 
 #include <exception>
 #include <stdexcept>
-#include <iostream>
 #include <cassert>
+
+namespace ananas
+{
 
 template <typename T>
 class Try
@@ -36,23 +43,27 @@ public:
     {
     }
 
-    explicit Try(const T& t) : state_(State::Value)
-        ,value_(t)
+    explicit Try(const T& t) :
+        state_(State::Value),
+        value_(t)
     {
     }
 
-    Try(T&& t) : state_(State::Value)
-        ,value_(std::move(t))
+    Try(T&& t) :
+        state_(State::Value),
+        value_(std::move(t))
     {
     }
 
-    explicit Try(std::exception_ptr e) : state_(State::Exception)
-        ,exception_(std::move(e))
+    explicit Try(std::exception_ptr e) :
+        state_(State::Exception),
+        exception_(std::move(e))
     {
     }
 
     // move
-    Try(Try<T>&& t) : state_(t.state_)
+    Try(Try<T>&& t) :
+        state_(t.state_)
     {
         t.state_ = State::None;
         if (state_ == State::Value)
@@ -79,7 +90,8 @@ public:
     } 
 
     // copy
-    Try(const Try<T>& t) : state_(t.state_)
+    Try(const Try<T>& t) :
+        state_(t.state_)
     {
         if (state_ == State::Value)
             new (&value_)T(t.value_);
@@ -148,8 +160,7 @@ public:
         if (state_ == State::Exception)
             std::rethrow_exception(exception_);
         else if (state_ == State::None)
-            assert(false);
-            //throw UninitializedTry();
+            throw UninitializedTry();
     }
 
     // Amazing! Thanks to folly
@@ -176,17 +187,20 @@ class Try<void>
     };
 
 public:
-    Try() : state_(State::Value)
+    Try() :
+        state_(State::Value)
     {
     }
 
-    explicit Try(std::exception_ptr e) : state_(State::Exception)
-        , exception_(std::move(e))
+    explicit Try(std::exception_ptr e) :
+        state_(State::Exception),
+        exception_(std::move(e))
     {
     }
 
     // move
-    Try(Try<void>&& t) : state_(t.state_)
+    Try(Try<void>&& t) :
+        state_(t.state_)
     {
         if (state_ == State::Exception)
         {
@@ -213,7 +227,8 @@ public:
     }
 
     // copy
-    Try(const Try<void>& t) : state_(t.state_)
+    Try(const Try<void>& t) :
+        state_(t.state_)
     {
         if (state_ == State::Exception)
             new (&exception_)std::exception_ptr(t.exception_);
@@ -260,7 +275,7 @@ private:
 
 // Wrap function f(...) return by Try<T>
 template <typename F, typename... Args>
-typename std::enable_if <
+typename std::enable_if<
     !std::is_same<typename std::result_of<F (Args...)>::type, void>::value,
     Try<typename std::result_of<F (Args...)>::type >> ::type
     WrapWithTry(F&& f, Args&&... args)
@@ -294,6 +309,8 @@ typename std::enable_if <
         return Try<void>(std::current_exception());
     }
 }
+
+} // end namespace ananas
 
 #endif
 

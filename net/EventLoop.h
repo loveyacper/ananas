@@ -60,8 +60,11 @@ public:
 
     std::size_t Size() const { return eventSourceSet_.size(); }
 
+    static void ExitAll();
+
 private:
     bool stop_;
+    static bool s_exit;
 
     std::map<unsigned int, std::unique_ptr<internal::EventSource> > eventSourceSet_;
     std::unique_ptr<internal::Poller>  poller_;

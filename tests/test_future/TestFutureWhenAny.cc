@@ -1,13 +1,14 @@
 #include <thread>
 #include <iostream>
-#include "Future.h"
+#include "future/Future.h"
+
+using namespace ananas;
 
 template <typename Type>
 void ThreadFunc(Promise<Type>& pm)
 {
     static Type v = 10;
     std::this_thread::sleep_for(std::chrono::milliseconds(v));
-//    std::cout << "SetValue " << v << std::endl;
     pm.SetValue(v++);
 }
 

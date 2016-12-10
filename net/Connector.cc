@@ -143,14 +143,16 @@ void Connector::_OnFailed()
     if (state_ == ConnectState::failed)
         return;
 
-    state_ = ConnectState::failed;
 
     INF(internal::g_debug) << "Failed client socket " << localSock_ << " connected to " << peer_.GetIP();
 
     if (onConnectFail_) 
         onConnectFail_(loop_, peer_);
 
-    loop_->Unregister(eET_Write, this);
+    if (state_ != ConnectState::none)
+        loop_->Unregister(eET_Write, this);
+
+    state_ = ConnectState::failed;
 }
 
 } // end namespace internal

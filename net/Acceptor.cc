@@ -60,7 +60,8 @@ bool Acceptor::Bind(const SocketAddr& addr)
     int ret = ::bind(localSock_, (struct sockaddr*)&serv, sizeof serv);
     if (kError == ret)
     {
-        ERR(internal::g_debug) << "Cannot bind to port " << addr.GetPort();
+        ERR(internal::g_debug) << "Cannot bind to port " << addr.GetPort()
+                               << ", IP " << addr.GetIP();
         return false;
     }
 

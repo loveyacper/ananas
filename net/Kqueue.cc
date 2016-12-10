@@ -19,7 +19,7 @@ Kqueue::Kqueue()
 
 Kqueue::~Kqueue()
 {
-    INF(internal::g_debug)  << "close kqueue: " << multiplexer_;
+    INF(internal::g_debug) << "close kqueue: " << multiplexer_;
     if (multiplexer_ != -1)  
         ::close(multiplexer_);
 }

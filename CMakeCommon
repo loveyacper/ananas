@@ -11,7 +11,7 @@ ELSE()
     message(FATAL_ERROR "Only support linux or OS X")
 ENDIF()
 
-OPTION(DEBUG "Debug or release" OFF)
+OPTION(DEBUG "Debug or release" ON)
 
 IF(DEBUG)
     SET(CMAKE_BUILD_TYPE "Debug")

@@ -3,10 +3,12 @@
 
 #include <cassert>
 #include <thread>
+#include <signal.h>
 
 #include "Acceptor.h"
 #include "Connection.h"
 #include "Connector.h"
+#include "ThreadPool.h"
 
 #if defined(__APPLE__)
     #include "Kqueue.h"
@@ -17,10 +19,59 @@
 #endif
 
 #include "AnanasDebug.h"
+#include "AnanasLogo.h"
 #include "Util.h"
+
+static void SignalHandler(int num)
+{
+    ananas::EventLoop::ExitAll();
+}
+    
+static std::once_flag s_signalInit;
+
+static void InitSignal()
+{
+    struct sigaction sig;
+    ::memset(&sig, 0, sizeof(sig));
+   
+    sig.sa_handler = SignalHandler;
+    sigaction(SIGINT, &sig, NULL);
+                                  
+    // ignore sigpipe
+    sig.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &sig, NULL);
+
+#ifdef ANANAS_LOGO
+    // logo
+    std::cout << ananas::internal::logo << std::endl;
+#endif
+}
+
+
+static std::string ConvertIp(const char* ip)
+{
+    if (strncmp(ip, "loopback", 8) == 0)
+        return "127.0.0.1";
+
+    if (strncmp(ip, "localhost", 9) == 0)
+    {
+        ananas::SocketAddr tmp;
+        tmp.Init(ananas::GetLocalAddrInfo(), 0);
+        return tmp.GetIP();
+    }
+
+    return ip;
+}
 
 namespace ananas
 {
+
+bool EventLoop::s_exit = false;
+    
+void EventLoop::ExitAll()
+{
+    s_exit = true;
+}
 
 EventLoop::EventLoop() : stop_(false)
 {
@@ -43,8 +94,10 @@ EventLoop::~EventLoop()
 bool EventLoop::Listen(const char* ip, uint16_t hostPort,
                        NewConnCallback newConnCallback)
 {
-    SocketAddr  addr;
-    addr.Init(ip, hostPort);
+    std::string realIp = ConvertIp(ip);
+        
+    SocketAddr addr;
+    addr.Init(realIp.c_str(), hostPort);
 
     return Listen(addr, std::move(newConnCallback));
 }
@@ -65,8 +118,10 @@ bool EventLoop::Listen(const SocketAddr& listenAddr,
 
 bool EventLoop::Connect(const char* ip, uint16_t hostPort, NewConnCallback nccb, ConnFailCallback cfcb)
 {
-    SocketAddr  addr;
-    addr.Init(ip, hostPort);
+    std::string realIp = ConvertIp(ip);
+        
+    SocketAddr addr;
+    addr.Init(realIp.c_str(), hostPort);
 
     return Connect(addr, nccb, cfcb);
 }
@@ -123,11 +178,12 @@ void EventLoop::Unregister(int events, internal::EventSource* src)
     size_t nTask = eventSourceSet_.erase(src->GetUniqueId());
     if (1 != nTask)
     {
-        ERR(internal::g_debug) << "Can not find socket " << tmp;
+        ERR(internal::g_debug) << "Can not find socket id " << tmp;
         assert (false);
     }
     else
     {
+        INF(internal::g_debug) << "Unregister socket id " << tmp;
         poller_->Unregister(tmp, events);
     }
 }
@@ -139,7 +195,9 @@ bool EventLoop::Cancel(TimerId id)
 
 void EventLoop::Run()
 {
-    while (!stop_)
+    std::call_once(s_signalInit, InitSignal);
+
+    while (!stop_ && !s_exit)
     {
         const DurationMs kDefaultPollTime(10);
         const DurationMs kMinPollTime(1);
@@ -149,11 +207,27 @@ void EventLoop::Run()
 
         Loop(timeout);
     }
+        
+    for (auto& kv : eventSourceSet_)
+    {
+        poller_->Unregister(internal::eET_Read | internal::eET_Write, kv.second->Identifier());
+    }
+
+    eventSourceSet_.clear();
+    poller_.reset();
+
+    if (s_exit)
+    {
+        // thread safe exit
+        LogManager::Instance().Stop();
+        ThreadPool::Instance().JoinAll();
+    }
 }
 
 bool EventLoop::Loop(DurationMs timeout)
 {
-    DEFER {
+    DEFER
+    {
         decltype(functors_) tmp;
         tmp.swap(functors_);
 

@@ -98,7 +98,6 @@ bool Logger::_CheckChangeFile()
     if (!file_.IsOpen())
         return true;
     
-    //auto oldPos = file_.tellp();
     return file_.Offset() + kMaxCharPerLog > kDefaultLogSize;
 }
 
@@ -204,7 +203,7 @@ void Logger::Flush(enum LogLevel level)
 
         const auto& str = oss.str();
         tidLen_ = std::min<int>(str.size(), sizeof tid_);
-        tid_[0] = '@'; // @ thread_id
+        tid_[0] = '|'; // | thread_id
         memcpy(tid_ + 1, str.data(), tidLen_);
         tidLen_ += 1;
     }

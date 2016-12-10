@@ -11,7 +11,7 @@ ananas::Logger* log = nullptr;
 
 ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, size_t len)
 {
-    //INF(log) << "receive " << data;
+    DBG(log) << "Recv " << data;
     // echo package
     conn->SendPacket(data, len);
     return len;
@@ -47,10 +47,10 @@ void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 
 void ThreadFunc()
 {
-    const uint16_t port = 6379;
+    const uint16_t port = 6380;
 
     ananas::EventLoop loop;
-    loop.Connect("127.0.0.1", port, OnNewConnection, OnConnFail);
+    loop.Connect("localhost", port, OnNewConnection, OnConnFail);
 
     loop.Run();
 }
@@ -58,7 +58,9 @@ void ThreadFunc()
 int main(int ac, char* av[])
 {
     ananas::LogManager::Instance().Start();
-    log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "client_test_log");
+    log = ananas::LogManager::Instance().CreateLog(logALL, logConsole, "log_client_test");
+
+    INF(log) << "Starting...";
 
     ananas::ThreadPool::Instance().Execute(ThreadFunc);
     ananas::ThreadPool::Instance().JoinAll();

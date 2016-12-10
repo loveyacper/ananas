@@ -1,31 +1,70 @@
 #ifndef BERT_HELPER_H
 #define BERT_HELPER_H
 
+/*
+ * This file is modified from facebook folly, with my annotation
+ */
+
+/*
+ * Copyright 2016 Facebook, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 #include <tuple>
 #include <vector>
 
-template<typename F, typename... Args>
-using ResultOf = decltype(std::declval<F>()(std::declval<Args>()...));  // F (Args...)
+namespace ananas
+{
 
+template <typename T>
+class Future;
+
+template <typename T>
+class Promise;
+
+template <typename T>
+class Try;
+
+namespace internal
+{
+
+template<typename F, typename... Args>
+using ResultOf = decltype(std::declval<F>()(std::declval<Args>()...));
+
+// I don't know why, but must do it to cater compiler...
 template <typename F, typename... Args>                                   
 struct ResultOfWrapper
 {
     using Type = ResultOf<F, Args...>;
 };
 
+// Test if F can be called with Args type
 template<typename F, typename... Args>        
-struct CanCallWith {
-    template<typename T,       
-        // check if function T can accept Args as formal args.
-        typename Dummy = ResultOf<T, Args...>>   // std::enable_if
+struct CanCallWith
+{
+    // SFINAE  Check
+    template<typename T,
+        typename Dummy = ResultOf<T, Args...>>
         static constexpr std::true_type
-        Check(std::nullptr_t dummy) {
+        Check(std::nullptr_t dummy)
+        {
             return std::true_type{};
         };  
                          
     template<typename Dummy>
         static constexpr std::false_type
-        Check(...) {
+        Check(...)
+        {
             return std::false_type{};
         };
                                 
@@ -33,23 +72,23 @@ struct CanCallWith {
     static constexpr bool value = type::value; // the integral_constant's value            
 };              
 
+// simple traits
 template <typename T>
-class Future;
-
-template <typename T>
-struct IsFuture : std::false_type { 
+struct IsFuture : std::false_type
+{ 
     using Inner = T;
-    //using Inner = typename Unit::Lift<T>::type; 
 };
 
 template <typename T> 
-struct IsFuture<Future<T>> : std::true_type { 
+struct IsFuture<Future<T>> : std::true_type
+{ 
     typedef T Inner; 
 };
 
 template<typename F, typename T>
-struct CallableResult { 
-    // Test F call with arg type: void, T&&, T&, Do Not choose Try
+struct CallableResult
+{ 
+    // Test F call with arg type: void, T&&, T&, but do Not choose Try type as args
     typedef
         typename std::conditional<
                  CanCallWith<F>::value, // if true, F can call with void
@@ -58,55 +97,52 @@ struct CallableResult {
                           CanCallWith<F, T&&>::value, // if true, F(T&&) is valid
                           ResultOfWrapper<F, T&&>, // Yes, F(T&&) is ok
                           ResultOfWrapper<F, T&> >::type>::type Arg;  // Resort to F(T&)
-    typedef IsFuture<typename Arg::Type> IsReturnsFuture; // If ReturnsFuture::value is true, F returns another future type.
-    typedef Future<typename IsReturnsFuture::Inner> ReturnFutureType; // 如果是返回另一个future，inner是future的内嵌类型。如果不是，原样。
+
+    // If ReturnsFuture::value is true, F returns another future type.
+    typedef IsFuture<typename Arg::Type> IsReturnsFuture; 
+
+    // Future callback's result must be wrapped in another future
+    typedef Future<typename IsReturnsFuture::Inner> ReturnFutureType;
 };
 
-#if 1
-// TODO 这个可能有问题 I don't know why folly works, but I must specilize for void...
+
+// CallableResult specilization for void.
+// I don't know why folly works without this...
 template<typename F>
-struct CallableResult<F, void> { 
+struct CallableResult<F, void>
+{ 
     // Test F call with arg type: void
     typedef ResultOfWrapper<F> Arg;
-#if 0
-    typedef
-        typename std::conditional<
-                 CanCallWith<F>::value, // if true, F can call with void
-                 ResultOfWrapper<F>,
-                 void>::type Arg;  // Resort to F(T&)
-#endif
-    typedef IsFuture<typename Arg::Type> IsReturnsFuture; // If ReturnsFuture::value is true, F returns another future type.
-    typedef Future<typename IsReturnsFuture::Inner> ReturnFutureType; // 如果是返回另一个future，inner是future的内嵌类型。如果不是，原样。
+
+    // If ReturnsFuture::value is true, F returns another future type.
+    typedef IsFuture<typename Arg::Type> IsReturnsFuture; 
+
+    // Future callback's result must be wrapped in another future
+    typedef Future<typename IsReturnsFuture::Inner> ReturnFutureType;
 };
-#endif
 
-template <typename T>
-class Promise;
-template <typename T>
-class Future;
-template <typename T>
-class Try;
-
-#if 1
+// For when_all
+//
 template <typename... ELEM> 
-struct CollectAllVariadicContext {
+struct CollectAllVariadicContext
+{
     CollectAllVariadicContext() {}
+   
+    // Differ from folly: Do nothing here
+    ~CollectAllVariadicContext() { }
+
     CollectAllVariadicContext(const CollectAllVariadicContext& ) = delete;
     void operator= (const CollectAllVariadicContext& ) = delete;
     
     template <typename T, size_t I>
-    inline void SetPartialResult(Try<T>& t) {
+    inline void SetPartialResult(Try<T>& t)
+    {
         std::get<I>(results) = std::move(t);
         collects.push_back(I);
-        if (collects.size() == std::tuple_size<decltype(results)>::value) {
-            std::cout << "SetValue All!!! \n";
-                
+        if (collects.size() == std::tuple_size<decltype(results)>::value)
             pm.SetValue(std::move(results));
-        }
     }
         
-    ~CollectAllVariadicContext() {
-    }
     
     Promise<std::tuple<Try<ELEM>...>> pm;
     std::tuple<Try<ELEM>...> results;
@@ -115,6 +151,7 @@ struct CollectAllVariadicContext {
     typedef Future<std::tuple<Try<ELEM>...>> FutureType;
 };
 
+// base template
 template <template <typename...> class CTX, typename... Ts>
 void CollectVariadicHelper(const std::shared_ptr<CTX<Ts...>>& )
 {
@@ -129,12 +166,14 @@ void CollectVariadicHelper(const std::shared_ptr<CTX<Ts...>>& ctx,
          ctx->template SetPartialResult<typename THead::InnerType, 
          sizeof...(Ts) - sizeof...(TTail) - 1>(t); 
          }); 
- // template tail-recursion 
- CollectVariadicHelper(ctx, std::forward<TTail>(tail)...); 
+
+    CollectVariadicHelper(ctx, std::forward<TTail>(tail)...); 
 }
 
-#else
-#endif
+
+} // end namespace internal
+
+} // end namespace ananas
 
 #endif
 

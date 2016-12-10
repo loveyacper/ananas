@@ -1,31 +1,38 @@
 #include <iostream>
 #include <cassert>
-#include "Helper.h"
+#include <typeinfo>
+#include "future/Helper.h"
 
 using std::cerr;
 using std::endl;
 
-int f_void(void) {
-    return 0;
-}
+using namespace ananas::internal;
 
-int f_int(int a) {
-    return a++;
-}
+long f_void(void) { return 1; }
 
-void f_lvalue_int(int& a) {
-    ++a;
-}
+int f_int(int a) { return a++; }
 
-void f_rvalue_int(int&& a) {
-    ++a;
-}
+void f_lvalue_int(int& a) { ++a; }
 
-int main() {
+void f_rvalue_int(int&& a) { ++a; }
+
+int main()
+{
+    cerr << "--------------------\n";
+    cerr << typeid(CallableResult<decltype(f_void), int>::Arg::Type).name() << endl; // long 
+    cerr << typeid(CallableResult<decltype(f_int), int>::Arg::Type).name() << endl; // int
+    cerr << "--------------------\n";
+    auto lbd = []()-> int {
+        return 0;
+    };
+
+    cerr << typeid(CallableResult<decltype(lbd), void>::Arg::Type).name()<< endl;
+    cerr << typeid(CallableResult<decltype(lbd), int>::Arg::Type).name()<< endl;
+
     cerr << "Except [true false]\n";
-    auto lbd = []() {};
-    cerr << CanCallWith<decltype(lbd)>::value << endl; // true
-    cerr << CanCallWith<decltype(lbd), int>::value << endl; // false
+    auto vlbd = []() {};
+    cerr << CanCallWith<decltype(vlbd)>::value << endl; // true
+    cerr << CanCallWith<decltype(vlbd), int>::value << endl; // false
 
     cerr << "Except [true false]\n";
     cerr << CanCallWith<decltype(f_void)>::value << endl; // true
@@ -48,5 +55,7 @@ int main() {
     cerr << CanCallWith<decltype(f_rvalue_int)>::value << endl; // false
     cerr << CanCallWith<decltype(f_rvalue_int), int&>::value << endl; // false
     cerr << CanCallWith<decltype(f_rvalue_int), int&&>::value << endl; // true
+
+    return 0;
 }
 

@@ -2,6 +2,7 @@
 #include <thread>
 #include <chrono>
 #include "net/EventLoop.h"
+#include "net/ThreadPool.h"
 #include "net/log/Logger.h"
 
 using namespace ananas;
@@ -19,11 +20,10 @@ int main()
             INF(log) << "Hello, test timer...";
         });
 
-    // shutdown after 8s
-    loop.ScheduleAfter(std::chrono::seconds(8), [&loop]() {
+    // shutdown after 7s
+    loop.ScheduleAfter(std::chrono::seconds(7), [&loop]() {
             WRN(log) << "Now stop server.";
-            loop.Stop();
-            LogManager::Instance().Stop();
+            EventLoop::ExitAll();
         });
 
     int count = 0;
@@ -39,7 +39,7 @@ int main()
             if (times == 2)
             {
                 if (loop.Cancel(forever))
-                    WRN(log) << "Cancel timer\n";
+                    WRN(log) << "Cancel timer";
                 else
                     ERR(log) << "BUG: Cancel failed!!!";
             }

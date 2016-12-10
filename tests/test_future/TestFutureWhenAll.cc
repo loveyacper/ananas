@@ -1,6 +1,8 @@
 #include <thread>
 #include <iostream>
-#include "Future.h"
+#include "future/Future.h"
+
+using namespace ananas;
 
 template <typename Type>
 void ThreadFunc(Promise<Type>& pm)
@@ -25,7 +27,7 @@ int main()
     std::thread  t2(ThreadFuncV, std::ref(pm2));
 
     auto fall = WhenAll(pm1.GetFuture(), pm2.GetFuture());
-    //std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     fall.Then([](std::tuple<Try<int>, Try<void>>& results) {
             std::cerr << "Then collet all! goodbye!\n";
             std::cerr << std::get<0>(results) << std::endl;
@@ -36,3 +38,4 @@ int main()
 
     return 0;
 }
+

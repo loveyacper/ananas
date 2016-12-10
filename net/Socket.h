@@ -93,6 +93,7 @@ void SetRcvBuf(int sock, socklen_t size = 128 * 1024);
 void SetReuseAddr(int sock);
 bool GetLocalAddr(int sock, SocketAddr& );
 bool GetPeerAddr(int sock, SocketAddr& );
+in_addr_t GetLocalAddrInfo();
 
 } // end namespace ananas
 

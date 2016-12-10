@@ -1,2 +1,0 @@
-1.croutine函数只yield一次
-循环向它send，看返回值

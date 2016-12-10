@@ -1,20 +1,21 @@
 #include <thread>
 #include <iostream>
-#include "Future.h"
+#include "future/Future.h"
+
+using namespace ananas;
 
 template <typename Type>
 void ThreadFunc(Promise<Type>& pm)
 {
-    static Type v = 10;
-    std::this_thread::sleep_for(std::chrono::milliseconds(v));
-//    std::cout << "SetValue " << v << std::endl;
+    static std::atomic<Type> v{10};
+    std::this_thread::sleep_for(std::chrono::milliseconds(80 / v));
     pm.SetValue(v++);
 }
 
 int main()
 {
     std::vector<std::thread>  threads;
-    std::vector<Promise<int> > pmv(8);
+    std::vector<Promise<int> > pmv(9);
     for (auto& pm : pmv)
     {
         std::thread t(ThreadFunc<int>, std::ref(pm));
@@ -27,13 +28,13 @@ int main()
         futures.emplace_back(pm.GetFuture());
     }
 
-    auto fany = WhenAny(std::begin(futures), std::end(futures));
-    fany.Then([](std::pair<size_t, Try<int>>& result) {
+    auto fall = WhenAll(std::begin(futures), std::end(futures));
+    fall.Then([](std::vector<Try<int>>& results) {
             std::cerr << "Then collet all! goodbye!\n";
-            std::cerr << "Result " << result.first << " = " << result.second << std::endl;
+            for (auto& t : results)
+                std::cerr << t << std::endl;
          });
 
-    //std::this_thread::sleep_for(std::chrono::milliseconds(100));
     for (auto& t : threads)
         t.join();
 

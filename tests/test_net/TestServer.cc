@@ -11,22 +11,20 @@ ananas::Logger* log = nullptr;
 
 ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, ananas::PacketLen_t len)
 {
-    //INF(log) << "receive " << data;
     // echo package
     conn->SendPacket(data, len);
     return len;
 }
 
-
 void OnNewConnection(ananas::Connection* conn)
 {
     using ananas::Connection;
 
-    const std::string message = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+    std::string msg = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
-    conn->SetOnConnect([&message](Connection* conn) {
+    conn->SetOnConnect([msg](Connection* conn) {
             INF(log) << "A new connection " << conn->Identifier();
-            conn->SendPacket(message.data(), message.size());
+            conn->SendPacket(msg.data(), msg.size());
             });
 
     conn->SetOnMessage(OnMessage);
@@ -38,19 +36,21 @@ void OnNewConnection(ananas::Connection* conn)
 
 void ThreadFunc()
 {
-    static uint16_t port = 6379;
+    static uint16_t port = 6380;
     ananas::EventLoop loop;
-    loop.Listen("127.0.0.1", port++, OnNewConnection);
+    loop.Listen("localhost", port++, OnNewConnection);
 
     loop.ScheduleNextTick([]() {
             INF(log) << "Hello, I am listen on " << port - 1;
             });
 
+#if 0
     // shutdown after 30s
     loop.ScheduleAfter(std::chrono::seconds(30), [&]() {
             INF(log) << "Now stop server.";
             loop.Stop();
             });
+#endif
 
     loop.Run();
 }
@@ -66,7 +66,7 @@ void SanityCheck(int& threads)
 int main(int ac, char* av[])
 {
     ananas::LogManager::Instance().Start();
-    log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "server_test_log");
+    log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "log_server_test");
 
     int threads = 1;
     if (ac > 1)
