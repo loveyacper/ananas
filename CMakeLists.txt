@@ -4,3 +4,4 @@ PROJECT(ANANAS_TEST)
 
 SUBDIRS(net)
 SUBDIRS(tests)
+SUBDIRS(unittest)
