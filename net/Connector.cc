@@ -127,13 +127,15 @@ void Connector::_OnSuccess()
     std::unique_ptr<Connection> conn(new Connection(loop_));
     conn->Init(localSock_, peer_);
     conn->SetFailCallback(onConnectFail_);
-    this->newConnCallback_(conn.get());
+    newConnCallback_(conn.get());
 
-    this->localSock_ = kInvalid;
-    loop_->Unregister(eET_Write, this);
+    localSock_ = kInvalid;
+    const auto loop = loop_;
+    loop->Unregister(eET_Write, this);
 
+    // `this` is invalid now
     conn->OnConnect();
-    loop_->Register(eET_Read | eET_Write, conn.release());
+    loop->Register(eET_Read | eET_Write, conn.release());
 }
 
 void Connector::_OnFailed()
