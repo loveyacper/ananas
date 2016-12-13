@@ -66,7 +66,8 @@ bool Connector::Connect(const SocketAddr& addr)
     {
         if (EINPROGRESS == errno)
         {
-            INF(internal::g_debug) << "EINPROGRESS : client socket " << localSock_<< " connected to " << peer_.GetIP() << ":" << peer_.GetPort();
+            INF(internal::g_debug) << "EINPROGRESS : client socket " << localSock_
+                                   << " connected to " << peer_.GetIP() << ":" << peer_.GetPort();
 
             state_ = ConnectState::connecting;
             loop_->Register(eET_Write, this);
@@ -101,7 +102,9 @@ bool Connector::HandleWriteEvent()
         if (error != 0)
             errno = error;
 
-        ERR(internal::g_debug) << "HandleWriteEvent failed: clientsocket " << localSock_ << " connected to " << peer_.GetPort() << ", error is " << error;
+        ERR(internal::g_debug) << "HandleWriteEvent failed: clientsocket " << localSock_
+                               << " connected to " << peer_.GetPort()
+                               << ", error is " << error;
         return false;
     }
         
@@ -142,19 +145,21 @@ void Connector::_OnFailed()
 {
     assert (state_ != ConnectState::connected);
 
+    const auto oldState = state_;
+
     if (state_ == ConnectState::failed)
         return;
 
+    state_ = ConnectState::failed;
 
-    INF(internal::g_debug) << "Failed client socket " << localSock_ << " connected to " << peer_.GetIP();
+    INF(internal::g_debug) << "Failed client socket " << localSock_
+                           << " connected to " << peer_.GetIP();
 
     if (onConnectFail_) 
         onConnectFail_(loop_, peer_);
 
-    if (state_ != ConnectState::none)
+    if (oldState != ConnectState::none)
         loop_->Unregister(eET_Write, this);
-
-    state_ = ConnectState::failed;
 }
 
 } // end namespace internal

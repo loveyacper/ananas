@@ -616,15 +616,18 @@ void LogManager::Start()
 
 void LogManager::Stop()
 {
-    std::unique_lock<std::mutex> guard(mutex_);
-    if (shutdown_)
-        return;
+    {
+        std::unique_lock<std::mutex> guard(mutex_);
+        if (shutdown_)
+            return;
 
-    shutdown_ = true;
+        shutdown_ = true;
+        cond_.notify_all();
+    }
+        
+    std::lock_guard<std::mutex> guard(logsMutex_);
     for (auto& plog : logs_)
         plog->Shutdown();
-
-    cond_.notify_all();
 }
 
 Logger* LogManager::CreateLog(unsigned int level,

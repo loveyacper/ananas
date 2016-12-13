@@ -1,0 +1,3 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+
+SUBDIRS(redis_client_lite/)

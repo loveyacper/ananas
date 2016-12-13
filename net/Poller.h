@@ -2,7 +2,6 @@
 #define BERT_POLLER_H
 
 #include <vector>
-#include <iostream>
 
 namespace ananas
 {
@@ -20,20 +19,8 @@ enum EventType
 class EventSource
 {
 public:
-    static int objCount;
-
-    EventSource()
-    {
-        // for test
-        ++ objCount;
-        std::cerr << "Create objCount = " << objCount << std::endl;
-    }
-    virtual ~EventSource()
-    {
-        // for test
-        -- objCount;
-        std::cerr << "Destroy objCount = " << objCount << std::endl;
-    }
+    EventSource() { }
+    virtual ~EventSource() { }
 
     virtual int Identifier() const = 0; // the socket 
 

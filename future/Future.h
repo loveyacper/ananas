@@ -309,7 +309,7 @@ private:
 
 // Make ready future
 template <typename T2>
-Future<T2> MakeReadyFuture(T2&& value)
+inline Future<T2> MakeReadyFuture(T2&& value)
 {
     Promise<T2> pm;
     auto f(pm.GetFuture());
@@ -318,7 +318,7 @@ Future<T2> MakeReadyFuture(T2&& value)
     return f;
 }
 
-Future<void> MakeReadyFuture()
+inline Future<void> MakeReadyFuture()
 {
     Promise<void> pm;
     auto f(pm.GetFuture());
