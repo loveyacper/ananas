@@ -24,7 +24,7 @@ struct State
     {
     }
 
-    // TODO: use std::future/promise to avoid dirty work, but that's not good idea.
+    // TODO: Use std::future/promise to avoid dirty work, but it's not good idea.
     std::promise<T> pm_;
     std::future<T> ft_;
 
@@ -252,7 +252,7 @@ public:
         }
         else
         {
-            SetCallback([func = std::move(f), prom = std::move(pm)](Try<T>&& t) mutable {
+            SetCallback([func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
                 // run callback, T can be void, thanks to folly Try<>
                 auto result = WrapWithTry(func, t.template Get<Args>()...);
                 // set next future's result
@@ -286,8 +286,8 @@ public:
         }
         else
         {
-            SetCallback([func = std::move(f), prom = std::move(pm)](Try<T>&& t) mutable {
-                // because funcm return another future:f2, when f2 is done, nextFuture can be done
+            SetCallback([func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
+                // because func return another future:f2, when f2 is done, nextFuture can be done
                 auto f2 = func(t.template Get<Args>()...);
                 f2.SetCallback([p2 = std::move(prom)](Try<FReturnType>&& b) mutable {
                     p2.SetValue(std::move(b));
@@ -349,7 +349,7 @@ Future<
 {
     using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
     if (first == last)
-        ; // return ready future
+        return MakeReadyFuture(std::vector<Try<T>>());
 
     struct CollectAllContext
     {
@@ -407,7 +407,6 @@ WhenAny(InputIterator first, InputIterator last)
     {
         first->SetCallback([ctx, i](Try<T>&& t) {
             if (!ctx->done.exchange(true)) {
-                std::cerr << "set done = " << i << ": " << t << std::endl;
                 ctx->pm.SetValue(std::make_pair(i, std::move(t)));
             }
        });
@@ -416,6 +415,55 @@ WhenAny(InputIterator first, InputIterator last)
     return ctx->pm.GetFuture();
 }
 
+
+// When N 
+template <class InputIterator>
+Future<
+    std::vector<
+    std::pair<size_t, Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>
+    >
+    >
+    WhenN(size_t N, InputIterator first, InputIterator last)
+{
+    using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
+
+    size_t nFutures = std::distance(first, last);
+    const size_t needCollect = std::min(nFutures, N);
+
+    if (needCollect == 0)
+    {
+        return MakeReadyFuture(std::vector<std::pair<size_t, Try<T>>>());
+    }
+
+    struct CollectNContext
+    {
+        CollectNContext(size_t _needs) : needs(_needs) {}
+        Promise<std::vector<std::pair<size_t, Try<T>>>> pm;
+    
+        std::mutex mutex;
+        std::vector<std::pair<size_t, Try<T>>> results;
+        const size_t needs;
+        bool done {false};
+    };
+
+    auto ctx = std::make_shared<CollectNContext>(needCollect);
+    for (size_t i = 0; first != last; ++first, ++i)
+    {
+        first->SetCallback([ctx, i](Try<T>&& t) {
+                std::unique_lock<std::mutex> guard(ctx->mutex);
+                if (ctx->done)
+                    return;
+                    
+                ctx->results.push_back(std::make_pair(i, std::move(t)));
+                if (ctx->needs == ctx->results.size()) {
+                    ctx->done = true;
+                    ctx->pm.SetValue(std::move(ctx->results));
+                }
+            });
+    }
+           
+    return ctx->pm.GetFuture();
+}
 } // end namespace ananas
 
 #endif

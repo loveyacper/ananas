@@ -1,0 +1,9 @@
+INCLUDE(${PROJECT_SOURCE_DIR}/CMakeCommon)
+
+INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
+
+ADD_EXECUTABLE(coroutine_test TestCoroutine.cc)
+SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin)
+
+TARGET_LINK_LIBRARIES(coroutine_test coroutine)
+ADD_DEPENDENCIES(coroutine_test coroutine)

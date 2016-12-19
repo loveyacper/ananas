@@ -2,27 +2,46 @@
 #include "RedisContext.h"
 
 
-void OnConnect(std::shared_ptr<RedisContext> ctx, ananas::Connection* conn)
+void GetAndSetName(const std::shared_ptr<RedisContext>& ctx)
 {
-    std::cout << "RedisContext.OnConnect " << conn->Identifier() << std::endl;
-    
-    // issue set request
-    ctx->Set("name", "bertyoung").Then(RedisContext::PrintResponse);
+    // set name first, then get name.
+    ctx->Set("name", "bertyoung").Then(
+            [ctx](const std::pair<ResponseType, std::string>& rsp) {
+                RedisContext::PrintResponse(rsp);
+                return ctx->Get("name"); // get name, return another future
+            }).Then(
+                RedisContext::PrintResponse
+                );
+}
 
-    // issue get request
-    ctx->Get("name").Then(RedisContext::PrintResponse);
-
-    // issue 2 requests, and wait all
+void WaitMultiRequests(const std::shared_ptr<RedisContext>& ctx)
+{
+    // issue 2 requests, when they all return, callback
     auto fut1 = ctx->Set("city", "shenzhen");
     auto fut2 = ctx->Get("city");
 
     ananas::WhenAll(fut1, fut2).Then(
                     [](std::tuple<ananas::Try<std::pair<ResponseType, std::string> >,
                                   ananas::Try<std::pair<ResponseType, std::string> > >& results) {
-                        std::cout << "All requests returned\n";
+                        std::cout << "All requests returned:\n";
                         RedisContext::PrintResponse(std::get<0>(results));
                         RedisContext::PrintResponse(std::get<1>(results));
             });
+}
+
+void OnConnect(std::shared_ptr<RedisContext> ctx, ananas::Connection* conn)
+{
+    std::cout << "RedisContext.OnConnect " << conn->Identifier() << std::endl;
+
+    // set item = diamond and callback PrintResponse
+    ctx->Set("item", "diamond").Then(
+            RedisContext::PrintResponse
+            );
+
+    
+    GetAndSetName(ctx);
+
+    WaitMultiRequests(ctx);
 }
 
 

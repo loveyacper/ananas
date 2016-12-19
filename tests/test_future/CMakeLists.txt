@@ -7,6 +7,7 @@ ADD_EXECUTABLE(future_test TestFuture.cc)
 ADD_EXECUTABLE(future_whenall_test TestFutureWhenAll.cc)
 ADD_EXECUTABLE(future_whenall_iter_test TestFutureWhenAllIter.cc)
 ADD_EXECUTABLE(future_whenany_test TestFutureWhenAny.cc)
+ADD_EXECUTABLE(future_whenN_test TestFutureWhenN.cc)
 
 SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin)
 
