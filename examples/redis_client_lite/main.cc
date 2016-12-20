@@ -70,7 +70,7 @@ void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 
 int main()
 {
-    ananas::EventLoop loop;
+    auto& loop = ANANAS_EVENTLOOP;
     loop.Connect("loopback", 6379, OnNewConnection, OnConnFail);
 
     loop.Run();

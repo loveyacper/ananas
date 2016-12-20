@@ -34,16 +34,13 @@ void OnNewConnection(ananas::Connection* conn)
             });
 }
 
-//ananas::ThreadLocalSingleton<ananas::EventLoop> g_eventLoop;
 
 void ThreadFunc()
 {
     static std::atomic<uint16_t> port{ 6380 };
-#if 0
-    ananas::EventLoop loop;
-#else
-    auto& loop = ananas::g_eventloop.Instance();
-#endif
+
+    auto& loop = ANANAS_EVENTLOOP;
+
     const uint16_t myport = port ++;
     loop.Listen("localhost", myport, OnNewConnection);
 
@@ -77,7 +74,6 @@ int main(int ac, char* av[])
     for (int i = 0; i < threads; ++ i)
         ananas::ThreadPool::Instance().Execute(ThreadFunc);
 
-    ananas::ThreadPool::Instance().JoinAll();
     return 0;
 }
 

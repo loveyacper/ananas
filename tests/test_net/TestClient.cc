@@ -49,7 +49,7 @@ void ThreadFunc()
 {
     const uint16_t port = 6380;
 
-    ananas::EventLoop& loop = ananas::g_eventloop.Instance();
+    auto& loop = ANANAS_EVENTLOOP;
     loop.Connect("localhost", port, OnNewConnection, OnConnFail);
 
     loop.Run();
@@ -63,7 +63,6 @@ int main(int ac, char* av[])
     INF(log) << "Starting...";
 
     ananas::ThreadPool::Instance().Execute(ThreadFunc);
-    ananas::ThreadPool::Instance().JoinAll();
 
     return 0;
 }

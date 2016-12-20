@@ -21,6 +21,9 @@ namespace internal
 class  Connector;
 }
 
+#define ANANAS_EVENTLOOP (ananas::g_eventloop.Instance())
+#define ANANAS_EVENTLOOP_PTR (&ananas::g_eventloop.Instance())
+
 class EventLoop : public TimeScheduler // for future timeout
 {
 public:
@@ -32,6 +35,8 @@ public:
 
     EventLoop(const EventLoop& ) = delete;
     void operator= (const EventLoop& ) = delete;
+    EventLoop(EventLoop&& ) = delete;
+    void operator= (EventLoop&& ) = delete;
 
     // listener
     bool Listen(const SocketAddr& listenAddr, NewConnCallback cb);
@@ -96,6 +101,7 @@ void EventLoop::ScheduleNextTick(F&& f, Args&&... args)
     auto func = [temp]() { (void)temp(); };
     functors_.emplace_back(std::move(func));
 }
+
 
 } // end namespace ananas
 

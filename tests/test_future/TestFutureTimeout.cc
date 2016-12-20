@@ -16,7 +16,7 @@ void ThreadFunc(Promise<Type>& pm)
 
 int main()
 {
-    auto& loop = ananas::g_eventloop.Instance();
+    auto& loop = ANANAS_EVENTLOOP;
 
     Promise<int> pm;
     std::thread t(ThreadFunc<int>, std::ref(pm));
@@ -26,7 +26,7 @@ int main()
     ft.Then([](int v) {
             std::cerr << "1.Then got int value " << v << std::endl;
             })
-            .OnTimeout(std::chrono::milliseconds(1500), []() {
+            .OnTimeout(std::chrono::milliseconds(500), []() {
                     std::cerr << " Timeout..." << std::endl;
                 },
                 &loop
