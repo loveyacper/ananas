@@ -42,10 +42,13 @@ class Logger
 public:
     friend class LogManager;
 
+    Logger();
    ~Logger();
 
     Logger(const Logger& ) = delete;
     void operator= (const Logger& ) = delete;
+    Logger(Logger&& ) = delete;
+    void operator= (Logger&& ) = delete;
 
     bool Init(unsigned int level = logDEBUG,
               unsigned int dest = logConsole,
@@ -81,7 +84,6 @@ public:
     bool Update();
 
 private:
-    Logger();
 
     static const size_t kMaxCharPerLog = 2048;
     // parallel format log string
@@ -133,9 +135,9 @@ public:
     void Start();
     void Stop();
 
-    Logger* CreateLog(unsigned int level,
-                      unsigned int dest,
-                      const char* dir = nullptr);
+    std::shared_ptr<Logger> CreateLog(unsigned int level,
+                                      unsigned int dest,
+                                      const char* dir = nullptr);
 
     void AddBusyLog(Logger* );
     Logger* NullLog()  {  return  &nullLog_;  }
@@ -146,7 +148,7 @@ private:
     void Run();
 
     std::mutex logsMutex_;
-    std::vector<std::unique_ptr<Logger>> logs_;
+    std::vector<std::shared_ptr<Logger>> logs_;
 
     std::mutex mutex_;
     std::condition_variable cond_;
@@ -175,11 +177,11 @@ private:
 #undef ERR
 #undef USR
 
-#define  LOG_DBG(x) (ananas::LogHelper(logDEBUG))=(x ? x : ananas::LogManager::Instance().NullLog())->SetCurLevel(logDEBUG)
-#define  LOG_INF(x) (ananas::LogHelper(logINFO))=(x ? x : ananas::LogManager::Instance().NullLog())->SetCurLevel(logINFO)
-#define  LOG_WRN(x) (ananas::LogHelper(logWARN))=(x ? x : ananas::LogManager::Instance().NullLog())->SetCurLevel(logWARN)
-#define  LOG_ERR(x) (ananas::LogHelper(logERROR))=(x ? x : ananas::LogManager::Instance().NullLog())->SetCurLevel(logERROR)
-#define  LOG_USR(x) (ananas::LogHelper(logUSR))=(x ? x : ananas::LogManager::Instance().NullLog())->SetCurLevel(logUSR)
+#define  LOG_DBG(x) (ananas::LogHelper(logDEBUG))=(x ? x.get() : ananas::LogManager::Instance().NullLog())->SetCurLevel(logDEBUG)
+#define  LOG_INF(x) (ananas::LogHelper(logINFO))=(x ? x.get() : ananas::LogManager::Instance().NullLog())->SetCurLevel(logINFO)
+#define  LOG_WRN(x) (ananas::LogHelper(logWARN))=(x ? x.get() : ananas::LogManager::Instance().NullLog())->SetCurLevel(logWARN)
+#define  LOG_ERR(x) (ananas::LogHelper(logERROR))=(x ? x.get() : ananas::LogManager::Instance().NullLog())->SetCurLevel(logERROR)
+#define  LOG_USR(x) (ananas::LogHelper(logUSR))=(x ? x.get() : ananas::LogManager::Instance().NullLog())->SetCurLevel(logUSR)
 
 #define  DBG      LOG_DBG
 #define  INF      LOG_INF

@@ -88,6 +88,8 @@ private:
     };
 
     std::multimap<TimePoint, Timer> timers_;
+
+    TimePoint now_;
 };
 
 
@@ -99,7 +101,8 @@ TimerId TimerManager::ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... 
     using namespace std::chrono;
 
     Timer t(triggerTime);
-    t.interval_ = duration_cast<DurationMs>(triggerTime - steady_clock::now());
+    // precision: milliseconds
+    t.interval_ = std::max(DurationMs(1), duration_cast<DurationMs>(triggerTime - now_));
     t.count_ = RepeatCount;
     TimerId id = t.Id();
 
@@ -111,8 +114,8 @@ TimerId TimerManager::ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
 TimerId TimerManager::ScheduleAfter(const Duration& duration, F&& f, Args&&... args)
 {
-    //static_assert(std::is_base_of<std::chrono::duration, Duration>(), "duration must be chrono::duration type");
-    return ScheduleAt<RepeatCount>(std::chrono::steady_clock::now() + duration,
+    this->now_ = std::chrono::steady_clock::now();
+    return ScheduleAt<RepeatCount>(now_ + duration,
                                    std::forward<F>(f),
                                    std::forward<Args>(args)...);
 }

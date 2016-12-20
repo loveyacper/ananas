@@ -7,6 +7,8 @@
 #include <functional>
 #include "Timer.h"
 #include "Poller.h"
+#include "util/ThreadLocalSingleton.h"
+#include "util/TimeScheduler.h"
 
 namespace ananas
 {
@@ -19,7 +21,7 @@ namespace internal
 class  Connector;
 }
 
-class EventLoop // Singleton per thread
+class EventLoop : public TimeScheduler // for future timeout
 {
 public:
     using NewConnCallback = std::function<void (Connection* )>;
@@ -43,6 +45,9 @@ public:
     template <int RepeatCount = 1, typename Duration, typename F, typename... Args>
     TimerId ScheduleAfter(const Duration& duration, F&& f, Args&&... args);
     bool Cancel(TimerId id);
+
+    // for future
+    void ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void()> f) override;
 
     // 
     template <typename F, typename... Args>
@@ -75,6 +80,8 @@ private:
     
     static thread_local unsigned int s_id;
 };
+
+extern ThreadLocalSingleton<EventLoop> g_eventloop; // Singleton per thread
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
 TimerId EventLoop::ScheduleAfter(const Duration& duration, F&& f, Args&&... args)

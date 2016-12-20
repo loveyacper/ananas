@@ -4,10 +4,12 @@
 #include "Coroutine.h"
 
 
+namespace ananas
+{
+
 unsigned int Coroutine::sid_ = 0;
 Coroutine Coroutine::main_;
 Coroutine* Coroutine::current_ = nullptr;
-
 
 #if defined(__gnu_linux__) || defined(__APPLE__)
 Coroutine::Coroutine(std::size_t size) :
@@ -15,7 +17,7 @@ Coroutine::Coroutine(std::size_t size) :
 Coroutine::Coroutine() :
 #endif
     id_( ++ sid_),
-    state_(State_init)
+    state_(State::Init)
 #if defined(__gnu_linux__) || defined(__APPLE__)
     ,stack_(size > kDefaultStackSize ? size : kDefaultStackSize)
 #endif
@@ -70,7 +72,7 @@ AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
     if (param)
     {
         // just behave like python's generator
-        if (crt->state_ == State_init && crt != &Coroutine::main_)
+        if (crt->state_ == State::Init && crt != &Coroutine::main_)
             throw std::runtime_error("Can't send non-void value to a just-created coroutine");
 
         // set old coroutine's yield value
@@ -90,7 +92,7 @@ AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
 
 #endif
 
-    return crt->yieldValue;
+    return std::move(crt->yieldValue); // only return once
 }
 
 AnyPointer Coroutine::_Yield(const AnyPointer& param)
@@ -103,12 +105,12 @@ void Coroutine::_Run(Coroutine* crt)
     assert (&Coroutine::main_ != crt);
     assert (Coroutine::current_ == crt);
 
-    crt->state_ = State_running;
+    crt->state_ = State::Running;
 
     if (crt->func_)
         crt->func_();
 
-    crt->state_ = State_finish;
+    crt->state_ = State::Finish;
     crt->_Yield(crt->result_);
 }
 
@@ -131,8 +133,10 @@ AnyPointer CoroutineMgr::Send(unsigned int id, AnyPointer param)
 
 AnyPointer CoroutineMgr::Send(const CoroutinePtr& crt, AnyPointer param)
 {
-    if (crt->state_ == Coroutine::State_finish) {
+    if (crt->state_ == Coroutine::State::Finish)
+    {
         throw std::runtime_error("Send to a finished coroutine.");
+        return AnyPointer();
     }
 
     if (!Coroutine::current_)
@@ -169,4 +173,6 @@ CoroutineMgr::~CoroutineMgr()
 
 #endif
 }
+
+} // end namespace ananas
 

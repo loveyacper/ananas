@@ -7,7 +7,7 @@
 #include "net/EventLoop.h"
 #include "net/log/Logger.h"
 
-ananas::Logger* log = nullptr;
+std::shared_ptr<ananas::Logger> log;
 
 ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, size_t len)
 {
@@ -49,7 +49,7 @@ void ThreadFunc()
 {
     const uint16_t port = 6380;
 
-    ananas::EventLoop loop;
+    ananas::EventLoop& loop = ananas::g_eventloop.Instance();
     loop.Connect("localhost", port, OnNewConnection, OnConnFail);
 
     loop.Run();
@@ -58,7 +58,7 @@ void ThreadFunc()
 int main(int ac, char* av[])
 {
     ananas::LogManager::Instance().Start();
-    log = ananas::LogManager::Instance().CreateLog(logALL, logConsole, "log_client_test");
+    log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "log_client_test");
 
     INF(log) << "Starting...";
 

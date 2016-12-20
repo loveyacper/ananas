@@ -27,7 +27,7 @@ int main(int ac, char* av[])
 
     for (int i = 0; i < g_threads; ++ i)
     {
-        ananas::Logger* log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "logtestdir");
+        std::shared_ptr<ananas::Logger> log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "logtestdir");
         ananas::ThreadPool::Instance().Execute([=]() {
                 for (int n = 0; n < (kLogs/ g_threads); n ++) {
                     DBG(log) << n << "|abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy|";

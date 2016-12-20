@@ -1,13 +1,13 @@
 #include <unistd.h>
-#include <iostream>
-#include <assert.h>
+#include <atomic>
 
 #include "net/ThreadPool.h"
 #include "net/Connection.h"
 #include "net/EventLoop.h"
 #include "net/log/Logger.h"
+//#include "util/ThreadLocalSingleton.h"
             
-ananas::Logger* log = nullptr;
+std::shared_ptr<ananas::Logger> log;
 
 ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, ananas::PacketLen_t len)
 {
@@ -34,23 +34,22 @@ void OnNewConnection(ananas::Connection* conn)
             });
 }
 
+//ananas::ThreadLocalSingleton<ananas::EventLoop> g_eventLoop;
+
 void ThreadFunc()
 {
-    static uint16_t port = 6380;
-    ananas::EventLoop loop;
-    loop.Listen("localhost", port++, OnNewConnection);
-
-    loop.ScheduleNextTick([]() {
-            INF(log) << "Hello, I am listen on " << port - 1;
-            });
-
+    static std::atomic<uint16_t> port{ 6380 };
 #if 0
-    // shutdown after 30s
-    loop.ScheduleAfter(std::chrono::seconds(30), [&]() {
-            INF(log) << "Now stop server.";
-            loop.Stop();
-            });
+    ananas::EventLoop loop;
+#else
+    auto& loop = ananas::g_eventloop.Instance();
 #endif
+    const uint16_t myport = port ++;
+    loop.Listen("localhost", myport, OnNewConnection);
+
+    loop.ScheduleNextTick([myport]() {
+            INF(log) << "Hello, I am listen on " << myport;
+            });
 
     loop.Run();
 }
@@ -66,7 +65,7 @@ void SanityCheck(int& threads)
 int main(int ac, char* av[])
 {
     ananas::LogManager::Instance().Start();
-    log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "log_server_test");
+    log = ananas::LogManager::Instance().CreateLog(logALL, logALL, "log_server_test");
 
     int threads = 1;
     if (ac > 1)

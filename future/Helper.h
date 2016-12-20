@@ -22,6 +22,7 @@
  */
 #include <tuple>
 #include <vector>
+#include <memory>
 
 namespace ananas
 {

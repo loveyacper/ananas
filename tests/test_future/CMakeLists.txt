@@ -8,6 +8,10 @@ ADD_EXECUTABLE(future_whenall_test TestFutureWhenAll.cc)
 ADD_EXECUTABLE(future_whenall_iter_test TestFutureWhenAllIter.cc)
 ADD_EXECUTABLE(future_whenany_test TestFutureWhenAny.cc)
 ADD_EXECUTABLE(future_whenN_test TestFutureWhenN.cc)
+ADD_EXECUTABLE(future_timeout TestFutureTimeout.cc)
+
+TARGET_LINK_LIBRARIES(future_timeout ananas)
+ADD_DEPENDENCIES(future_timeout ananas)
 
 SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin)
 

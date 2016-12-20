@@ -20,7 +20,7 @@
 
 #include "AnanasDebug.h"
 #include "AnanasLogo.h"
-#include "Util.h"
+#include "util/Util.h"
 
 static void SignalHandler(int num)
 {
@@ -65,6 +65,8 @@ static std::string ConvertIp(const char* ip)
 
 namespace ananas
 {
+
+ThreadLocalSingleton<EventLoop> g_eventloop;
 
 bool EventLoop::s_exit = false;
     
@@ -279,6 +281,11 @@ bool EventLoop::Loop(DurationMs timeout)
     return ready >= 0;
 }
 
+    
+void EventLoop::ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void()> f)
+{
+    this->ScheduleAfter<1>(duration, std::move(f));
+}
 
 } // end namespace ananas
 

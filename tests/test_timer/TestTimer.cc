@@ -7,14 +7,14 @@
 
 using namespace ananas;
 
-Logger* log = nullptr;
+std::shared_ptr<Logger> log;
 
 int main()
 {
     LogManager::Instance().Start();
     log = LogManager::Instance().CreateLog(logALL, logConsole);
 
-    EventLoop loop;
+    EventLoop& loop = g_eventloop.Instance();
 
     loop.ScheduleNextTick([]() {
             INF(log) << "Hello, test timer...";
@@ -22,7 +22,7 @@ int main()
 
     // shutdown after 7s
     loop.ScheduleAfter(std::chrono::seconds(7), [&loop]() {
-            WRN(log) << "Now stop server.";
+            WRN(log) << "Now stop app.";
             EventLoop::ExitAll();
         });
 

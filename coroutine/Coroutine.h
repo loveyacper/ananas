@@ -1,9 +1,7 @@
 #ifndef BERT_COROUTINE_H
 #define BERT_COROUTINE_H
 
-// Only linux & windows
-// If you use coroutine with multi threads, you must declare a coroutine mgr for each thread
-
+// Only linux & windows & MAC OS
 
 #if defined(__APPLE__)
 #define _XOPEN_SOURCE
@@ -23,6 +21,8 @@
 #include <memory>
 #include <functional>
 
+namespace ananas
+{
     
 using AnyPointer = std::shared_ptr<void>;
 
@@ -30,11 +30,11 @@ class Coroutine
 {
     friend class CoroutineMgr;
 
-    enum State
+    enum class State
     {
-        State_init,
-        State_running,
-        State_finish,
+        Init,
+        Running,
+        Finish,
     };
 
 public:
@@ -98,7 +98,7 @@ private:
     static void _Run(Coroutine* cxt);
 
     unsigned int id_;  // 1: main
-    int state_;
+    State state_;
     AnyPointer yieldValue;
 
 #if defined(__gnu_linux__)
@@ -153,6 +153,8 @@ private:
     using CoroutineMap = std::map<unsigned int, CoroutinePtr >;
     CoroutineMap coroutines_;
 };
+
+} // end namespace ananas
 
 #endif
 

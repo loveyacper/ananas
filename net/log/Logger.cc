@@ -630,16 +630,16 @@ void LogManager::Stop()
         plog->Shutdown();
 }
 
-Logger* LogManager::CreateLog(unsigned int level,
+std::shared_ptr<Logger> LogManager::CreateLog(unsigned int level,
                               unsigned int dest,
                               const char* dir)
 {
-    Logger* result = nullptr;
-    std::unique_ptr<Logger> log(result = new Logger);
+    std::shared_ptr<Logger> log(std::make_shared<Logger>());
             
     if (!log->Init(level, dest, dir))
     {   
-        return &nullLog_;
+        std::shared_ptr<Logger> nulllog(&nullLog_, [](Logger* ) {});
+        return nulllog;
     }   
     else
     {  
@@ -647,13 +647,15 @@ Logger* LogManager::CreateLog(unsigned int level,
         if (shutdown_)
         {
             std::cerr << "Warning: Please call LogManager::Start() first\n";
-            return &nullLog_;
+            //return &nullLog_;
+            std::shared_ptr<Logger> nulllog(&nullLog_, [](Logger* ) {});
+            return nulllog;
         }
 
-        logs_.emplace_back(std::move(log));
+        logs_.emplace_back(log);
     }   
 
-    return result;
+    return log;
 }
 
     

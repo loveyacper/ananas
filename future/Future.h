@@ -5,6 +5,7 @@
 #include <atomic>
 #include "Helper.h"
 #include "Try.h"
+#include "util/TimeScheduler.h"
 
 namespace ananas
 {
@@ -24,7 +25,7 @@ struct State
     {
     }
 
-    // TODO: Use std::future/promise to avoid dirty work, but it's not good idea.
+    // TODO: Use std::future/promise to avoid dirty work, but it's not a good idea.
     std::promise<T> pm_;
     std::future<T> ft_;
 
@@ -54,18 +55,8 @@ public:
     Promise(const Promise&) = default;
     Promise& operator = (const Promise&) = default;
 
-    Promise(Promise&& pm)
-    {
-        this->state_ = std::move(pm.state_);
-    }
-
-    Promise& operator= (Promise&& pm) 
-    {
-        if (this != &pm)
-            this->state_ = std::move(pm.state_);
-
-        return *this;
-    }
+    Promise(Promise&& pm) = default;
+    Promise& operator= (Promise&& pm) = default;
 
     template <typename SHIT = T>
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
@@ -167,18 +158,8 @@ public:
     Future(const Future&) = delete;
     void operator = (const Future&) = delete;
 
-    Future(Future&& fut)
-    {
-        this->state_ = std::move(fut.state_);
-    }
-
-    Future& operator= (Future&& fut)
-    {
-        if (&fut != this)
-            this->state_ = std::move(fut.state_);
-
-        return *this;
-    }
+    Future(Future&& fut) = default;
+    Future& operator= (Future&& fut) = default;
 
     explicit
     Future(std::shared_ptr<internal::State<T>> state) :
@@ -237,7 +218,9 @@ public:
     typename std::enable_if<!R::IsReturnsFuture::value, typename R::ReturnFutureType>::type
     _ThenImpl(F&& f, internal::ResultOfWrapper<F, Args...> )
     {
-        static_assert(sizeof...(Args) <= 1, "Then callback must take zero/one argument");
+        static_assert(std::is_void<T>::value ? sizeof...(Args) == 0 : sizeof...(Args) == 1,
+                      "Then callback must take 0/1 argument");
+
         using FReturnType = typename R::IsReturnsFuture::Inner;
 
         Promise<FReturnType> pm;
@@ -301,6 +284,15 @@ public:
     void SetCallback(decltype(std::declval<internal::State<T>>().then_)&& func)
     {
         this->state_->then_ = std::move(func);
+    }
+
+    void OnTimeout(std::chrono::milliseconds duration, std::function<void()> f, TimeScheduler* scheduler)
+    {
+        scheduler->ScheduleOnceAfter(duration, [state = this->state_, cb = std::move(f)]() {
+                if (state->ft_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+                    cb();
+                }
+        });
     }
 
 private:

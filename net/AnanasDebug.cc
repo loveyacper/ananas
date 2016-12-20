@@ -6,7 +6,7 @@ namespace ananas
 namespace internal
 {
 
-Logger* g_debug = nullptr;
+std::shared_ptr<Logger> g_debug;
 std::once_flag g_logInit;
 
 void InitDebugLog(unsigned int level)
