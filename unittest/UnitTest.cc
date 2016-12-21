@@ -47,11 +47,9 @@ UnitTestBase& UnitTestBase::SetInfo(const std::string& exprInfo, bool pass, bool
 void  UnitTestBase::Print() const
 {
     SetColor(Color_red);
-    for (std::vector<std::string>::const_iterator it(m_errors.begin());
-         it !=m_errors.end();
-         ++ it)
+    for (const auto& err : m_errors)
     {
-        std::cout << *it << std::endl;
+        std::cout << err << std::endl;
     }
     SetColor(Color_normal);
 }
@@ -78,16 +76,16 @@ void UnitTestBase::FlushError()
 // test mgr
 UnitTestManager& UnitTestManager::Instance()
 {
-    static UnitTestManager  mgr;
+    static UnitTestManager mgr;
     return mgr;
 }
 
-void    UnitTestManager::AddTest(UnitTestBase* test)
+void UnitTestManager::AddTest(UnitTestBase* test)
 {
     m_tests.push_back(test);
 }
 
-void    UnitTestManager::Clear()
+void UnitTestManager::Clear()
 {
     m_tests.clear();
 }
@@ -97,25 +95,23 @@ void UnitTestManager::Run()
     std::size_t  pass = 0;
     std::size_t  fail = 0;
 
-    for (std::vector<UnitTestBase* >::const_iterator it(m_tests.begin());
-                       it != m_tests.end();
-                       ++ it)
+    for (auto ut : m_tests)
     {
-        (*it)->Run();
-        if ((*it)->IsFine())
+        ut->Run();
+        if (ut->IsFine())
         {
             ++ pass;
 
             SetColor(Color_white);
-            std::cout << "ALL PASSED! " << (*it)->GetName() << std::endl;
+            std::cout << "ALL PASSED! " << ut->GetName() << std::endl;
         }
         else
         {
             ++ fail;
 
-            (*it)->Print();
+            ut->Print();
             SetColor(Color_purple);
-            std::cout << "FAILED! " << (*it)->GetName() << std::endl;
+            std::cout << "FAILED! " << ut->GetName() << std::endl;
         }
     }
 
@@ -129,6 +125,7 @@ void UnitTestManager::Run()
 }
 
 #define HELLO_TEST  0
+
 #if HELLO_TEST
 bool f(bool b)
 {
@@ -153,10 +150,4 @@ TEST_CASE(test2)
     ASSERT_FALSE(-1 == 0) << "fuck, why -1 == 0 passed? ";
 }
 #endif
-
-int main()
-{
-    RUN_ALL_TESTS();
-    return 0;
-}
 

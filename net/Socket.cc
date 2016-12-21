@@ -106,6 +106,7 @@ bool GetPeerAddr(int sock, SocketAddr& addr)
 in_addr_t GetLocalAddrInfo()
 {
 #ifdef __APPLE__
+    // TODO can not work on mac os
     return 0;
 #else
     char buff[512];
@@ -138,6 +139,49 @@ in_addr_t GetLocalAddrInfo()
     ::close(sock);
     return result;
 #endif
+}
+
+rlim_t GetMaxOpenFd()
+{
+    struct rlimit rlp;
+
+    if (getrlimit(RLIMIT_NOFILE, &rlp) == 0)
+        return rlp.rlim_cur;
+
+    return 0;
+}
+
+bool SetMaxOpenFd(rlim_t maxfdPlus1)
+{
+    struct rlimit rlp;
+
+    if (getrlimit(RLIMIT_NOFILE, &rlp) != 0)
+        return false;
+
+    if (maxfdPlus1 <= rlp.rlim_cur)
+        return true;
+
+    if (maxfdPlus1 > rlp.rlim_max)
+        return false;
+
+    rlp.rlim_cur = maxfdPlus1;
+
+    return setrlimit(RLIMIT_NOFILE, &rlp) == 0;
+}
+
+std::string ConvertIp(const char* ip)
+{
+    if (strncmp(ip, "loopback", 8) == 0)
+        return "127.0.0.1";
+
+    if (strncmp(ip, "localhost", 9) == 0)
+    {
+        ananas::SocketAddr tmp;
+        tmp.Init(ananas::GetLocalAddrInfo(), 0);
+        return tmp.GetIP();
+    }
+
+    return ip;
 }
 
 } // end namespace ananas

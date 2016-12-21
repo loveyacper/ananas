@@ -75,7 +75,7 @@ public:
         UnitTestBase##name() {                      \
             m_name = #name;                         \
         }                                           \
-        virtual void Run();                         \
+        virtual void Run() override;                \
     } test_##name##_obj;                            \
     void    UnitTestBase##name::Run()
 

@@ -50,3 +50,10 @@ TEST_CASE(CanCallWith)
     EXPECT_TRUE((CanCallWith<decltype(f_rvalue_int), int&&>::value));
 }
 
+
+int main()
+{
+    RUN_ALL_TESTS();
+    return 0;
+}
+

@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <functional>
+#include <sys/resource.h>
 #include "Timer.h"
 #include "Poller.h"
 #include "util/ThreadLocalSingleton.h"
@@ -72,6 +73,8 @@ public:
 
     static void ExitAll();
 
+    static void SetMaxOpenFd(rlim_t maxfdPlus1);
+
 private:
     bool stop_;
     static bool s_exit;
@@ -84,6 +87,9 @@ private:
     std::vector<std::function<void ()> > functors_;
     
     static thread_local unsigned int s_id;
+
+    // max open fd + 1
+    static rlim_t s_maxOpenFdPlus1;
 };
 
 extern ThreadLocalSingleton<EventLoop> g_eventloop; // Singleton per thread

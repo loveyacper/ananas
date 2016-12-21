@@ -42,11 +42,12 @@ void ThreadFunc()
     auto& loop = ANANAS_EVENTLOOP;
 
     const uint16_t myport = port ++;
-    loop.Listen("localhost", myport, OnNewConnection);
-
-    loop.ScheduleNextTick([myport]() {
-            INF(log) << "Hello, I am listen on " << myport;
-            });
+    if (loop.Listen("localhost", myport, OnNewConnection))
+    {
+        loop.ScheduleNextTick([myport]() {
+                INF(log) << "Hello, I am listen on " << myport;
+                });
+    }
 
     loop.Run();
 }

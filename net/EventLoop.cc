@@ -48,21 +48,6 @@ static void InitSignal()
 }
 
 
-static std::string ConvertIp(const char* ip)
-{
-    if (strncmp(ip, "loopback", 8) == 0)
-        return "127.0.0.1";
-
-    if (strncmp(ip, "localhost", 9) == 0)
-    {
-        ananas::SocketAddr tmp;
-        tmp.Init(ananas::GetLocalAddrInfo(), 0);
-        return tmp.GetIP();
-    }
-
-    return ip;
-}
-
 namespace ananas
 {
 
@@ -75,6 +60,12 @@ void EventLoop::ExitAll()
     s_exit = true;
 }
 
+void EventLoop::SetMaxOpenFd(rlim_t maxfdPlus1)
+{
+    if (ananas::SetMaxOpenFd(maxfdPlus1))
+        s_maxOpenFdPlus1 = maxfdPlus1;
+}
+
 EventLoop::EventLoop() : stop_(false)
 {
 #if defined(__APPLE__)
@@ -82,7 +73,7 @@ EventLoop::EventLoop() : stop_(false)
 #elif defined(__gnu_linux__)
     poller_.reset(new internal::Epoller); 
 #else
-    #error "Only support osx and linux"
+    #error "Only support mac os and linux"
 #endif
 
     internal::InitDebugLog(logALL);
@@ -148,6 +139,8 @@ bool EventLoop::Connect(const SocketAddr& dst, NewConnCallback nccb, ConnFailCal
 
 thread_local unsigned int EventLoop::s_id = 0;
 
+rlim_t EventLoop::s_maxOpenFdPlus1 = ananas::GetMaxOpenFd();
+
 bool EventLoop::Register(int events, internal::EventSource* src)
 {
     if (events == 0)
@@ -155,6 +148,20 @@ bool EventLoop::Register(int events, internal::EventSource* src)
 
     if (src->GetUniqueId() != 0)
         assert(false);
+
+    /* man getrlimit:
+     * RLIMIT_NOFILE
+     * Specifies a value one greater than the maximum file descriptor number that can be opened by this process.
+     * Attempts (open(2), pipe(2), dup(2), etc.)  to exceed this limit yield the error EMFILE.
+     */
+    if (src->Identifier() + 1 >= static_cast<int>(s_maxOpenFdPlus1))
+    {
+        ERR(internal::g_debug)
+            << "Register failed! Max open fd " << s_maxOpenFdPlus1
+            << ", current fd " << src->Identifier();
+
+        return false;
+    }
 
     ++ s_id;
     if (s_id == 0) // wrap around
@@ -235,9 +242,9 @@ bool EventLoop::Loop(DurationMs timeout)
 
         for (const auto& f : tmp)
             f();
+    
+        timers_.Update();
     };
-
-    timers_.Update();
 
     if (eventSourceSet_.empty())
     {

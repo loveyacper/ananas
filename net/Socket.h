@@ -3,6 +3,7 @@
 #define BERT_SOCKET_H
 
 #include <arpa/inet.h>
+#include <sys/resource.h>
 #include <string.h>
 #include <string>
 #include <memory>
@@ -88,12 +89,18 @@ int CreateUDPSocket();
 void CloseSocket(int &sock);
 void SetNonBlock(int sock, bool nonBlock = true);
 void SetNodelay(int sock);
-void SetSndBuf(int sock, socklen_t size = 128 * 1024);
-void SetRcvBuf(int sock, socklen_t size = 128 * 1024);
+void SetSndBuf(int sock, socklen_t size = 64 * 1024);
+void SetRcvBuf(int sock, socklen_t size = 64 * 1024);
 void SetReuseAddr(int sock);
 bool GetLocalAddr(int sock, SocketAddr& );
 bool GetPeerAddr(int sock, SocketAddr& );
+
 in_addr_t GetLocalAddrInfo();
+
+rlim_t GetMaxOpenFd();
+bool SetMaxOpenFd(rlim_t maxfdPlus1);
+
+std::string ConvertIp(const char* ip);
 
 } // end namespace ananas
 
