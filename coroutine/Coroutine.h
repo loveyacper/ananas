@@ -145,6 +145,12 @@ public:
     AnyPointer Send(const CoroutinePtr& pCrt, AnyPointer = AnyPointer(nullptr));
     static AnyPointer Yield(const AnyPointer& = AnyPointer(nullptr));
 
+    CoroutineMgr(const CoroutineMgr& ) = delete;
+    void operator= (const CoroutineMgr& ) = delete;
+    CoroutineMgr(CoroutineMgr&& ) = delete;
+    void operator= (CoroutineMgr&& ) = delete;
+
+    CoroutineMgr() {}
     ~CoroutineMgr();
 
 private:

@@ -109,6 +109,46 @@ bool EventLoop::Listen(const SocketAddr& listenAddr,
     return true;
 }
 
+bool EventLoop::ListenUDP(const SocketAddr& listenAddr,
+        DatagramSocket::MessageCallback mcb,
+        DatagramSocket::CreateCallback ccb)
+{
+    std::unique_ptr<DatagramSocket> s(new DatagramSocket(this));
+    s->SetMessageCallback(mcb);
+    s->SetCreateCallback(ccb);
+    if (!s->Bind(&listenAddr))
+        return false;
+    
+    s.release();
+    return true;
+}
+
+bool EventLoop::ListenUDP(const char* ip, uint16_t hostPort,
+        DatagramSocket::MessageCallback mcb,
+        DatagramSocket::CreateCallback ccb)
+{
+    std::string realIp = ConvertIp(ip);
+        
+    SocketAddr addr;
+    addr.Init(realIp.c_str(), hostPort);
+
+    return ListenUDP(addr, mcb, ccb);
+}
+
+
+bool EventLoop::CreateClientUDP(DatagramSocket::MessageCallback mcb,
+                                DatagramSocket::CreateCallback ccb)
+{
+    std::unique_ptr<DatagramSocket> s(new DatagramSocket(this));
+    s->SetMessageCallback(mcb);
+    s->SetCreateCallback(ccb);
+    if (!s->Bind(nullptr))
+        return false;
+    
+    s.release();
+    return true;
+}
+
 bool EventLoop::Connect(const char* ip, uint16_t hostPort, NewConnCallback nccb, ConnFailCallback cfcb)
 {
     std::string realIp = ConvertIp(ip);
@@ -235,7 +275,7 @@ void EventLoop::Run()
 
 bool EventLoop::Loop(DurationMs timeout)
 {
-    DEFER
+    ANANAS_DEFER
     {
         decltype(functors_) tmp;
         tmp.swap(functors_);

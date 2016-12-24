@@ -14,6 +14,9 @@
 namespace ananas
 {
 
+namespace
+{
+
 enum LogColor
 {
     Red = 1,
@@ -25,6 +28,8 @@ enum LogColor
     White,
     Max,
 };
+
+}
 
 // TODO config
 static const size_t kDefaultLogSize = 32 * 1024 * 1024;

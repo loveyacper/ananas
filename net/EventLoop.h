@@ -8,6 +8,7 @@
 #include <sys/resource.h>
 #include "Timer.h"
 #include "Poller.h"
+#include "DatagramSocket.h"
 #include "util/ThreadLocalSingleton.h"
 #include "util/TimeScheduler.h"
 
@@ -42,6 +43,17 @@ public:
     // listener
     bool Listen(const SocketAddr& listenAddr, NewConnCallback cb);
     bool Listen(const char* ip, uint16_t hostPort, NewConnCallback cb);
+    bool ListenUDP(const SocketAddr& listenAddr,
+            DatagramSocket::MessageCallback mcb,
+            DatagramSocket::CreateCallback ccb);
+    bool ListenUDP(const char* ip, uint16_t hostPort,
+            DatagramSocket::MessageCallback mcb,
+            DatagramSocket::CreateCallback ccb);
+
+    // udp client
+    bool CreateClientUDP(DatagramSocket::MessageCallback mcb,
+                         DatagramSocket::CreateCallback ccb);
+
 
     // connector 
     bool Connect(const SocketAddr& dst, NewConnCallback nccb, ConnFailCallback cfcb);

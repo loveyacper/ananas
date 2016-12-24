@@ -8,6 +8,9 @@
 namespace ananas
 {
 
+namespace
+{
+
 // The defer class for C++11
 class ExecuteOnScopeExit
 {
@@ -38,11 +41,13 @@ private:
     std::function<void ()> func_;
 };
     
-#define CONCAT(a, b) a##b
-#define _MAKE_DEFER_HELPER_(line)  ananas::ExecuteOnScopeExit CONCAT(defer, line) = [&]()
+} // end namespace
 
-#undef DEFER
-#define DEFER _MAKE_DEFER_HELPER_(__LINE__)
+#define _CONCAT(a, b) a##b
+#define _MAKE_DEFER_HELPER_(line)  ananas::ExecuteOnScopeExit _CONCAT(defer, line) = [&]()
+
+#undef ANANAS_DEFER
+#define ANANAS_DEFER _MAKE_DEFER_HELPER_(__LINE__)
 
 } // end namespace ananas
 
