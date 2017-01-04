@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <memory>
 
 #include "DatagramSocket.h"
 #include "EventLoop.h"
@@ -77,7 +78,7 @@ int DatagramSocket::Identifier() const
     
 bool DatagramSocket::HandleReadEvent()
 {
-    std::vector<char> recvbuf(maxPacketSize_);
+    std::unique_ptr<char []> recvbuf(new char[maxPacketSize_]);
     while (true)
     {
         socklen_t len = sizeof srcAddr_;

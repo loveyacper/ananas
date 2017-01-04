@@ -16,6 +16,7 @@ typedef size_t PacketLen_t;
 class Connection : public internal::EventSource
 {
 public:
+    explicit
     Connection(EventLoop* loop);
     ~Connection();
 
@@ -24,6 +25,8 @@ public:
 
     bool Init(int sock, const SocketAddr& peer);
     void SetMaxPacketSize(std::size_t s);
+    const SocketAddr& Peer() const { return peer_; }
+    void Close();
 
     int Identifier() const override;
     bool HandleReadEvent() override;
@@ -31,6 +34,7 @@ public:
     void HandleErrorEvent() override;
 
     bool SendPacket(const void* data, std::size_t len);
+    bool SendPacket(const BufferVector& datum); // TODO
 
     void SetOnConnect(std::function<void (Connection* )> cb);
     void SetOnDisconnect(std::function<void (Connection* )> cb);

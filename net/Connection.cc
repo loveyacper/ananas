@@ -1,5 +1,8 @@
+#include <cassert>
+
 #include <errno.h>
 #include <unistd.h>
+#include <sys/uio.h>
 
 #include "EventLoop.h"
 #include "Connection.h"
@@ -17,6 +20,7 @@ Connection::Connection(EventLoop* loop) :
 
 Connection::~Connection()
 {
+    Close();
 }
 
 bool Connection::Init(int fd, const SocketAddr& peer)
@@ -34,6 +38,11 @@ bool Connection::Init(int fd, const SocketAddr& peer)
 void Connection::SetMaxPacketSize(std::size_t  s)
 {
     maxPacketSize_ = s;
+}
+
+void Connection::Close()
+{
+    CloseSocket(localSock_);
 }
 
 int Connection::Identifier() const
@@ -70,6 +79,7 @@ bool Connection::HandleReadEvent()
         }
     }
 
+    recvBuf_.Shrink();
 	return true;
 }
 
@@ -82,12 +92,12 @@ int Connection::_Send(const void* pData, size_t len)
 
     return bytes;
 }
-
+    
 bool Connection::HandleWriteEvent()
 {
     if (sendBuf_.IsEmpty())
     {
-        sendBuf_.Clear();
+        sendBuf_.Shrink();
         loop_->Modify(internal::eET_Read, this);
         return true;
     }
@@ -96,7 +106,7 @@ bool Connection::HandleWriteEvent()
 
     if (static_cast<std::size_t>(bytes) == sendBuf_.ReadableSize())
     {
-        sendBuf_.Clear();
+        sendBuf_.Shrink();
         loop_->Modify(internal::eET_Read, this);
     }
     else if (bytes > 0)
@@ -144,6 +154,144 @@ bool Connection::SendPacket(const void* data, std::size_t  size)
 	return true;
 }
 
+// iovec for writev
+namespace
+{
+
+struct IOVecBuffer
+{
+    static const int kIOVecCount = 16; // be care of IOV_MAX
+
+    iovec iovecs[kIOVecCount];
+    int iovCount = 0;
+
+    IOVecBuffer()
+    {
+        Reset();
+    }
+
+    void Reset()
+    {
+        iovCount = 0;
+    }
+
+    bool PushBuffer(iovec v)
+    {
+        if (iovCount == kIOVecCount)
+            return false;
+
+        iovecs[iovCount++] = v;
+        return true;
+    }
+
+    size_t TotalBytes() const
+    {
+        size_t total = 0;
+        for (int i = 0; i < iovCount; ++ i)
+            total += iovecs[i].iov_len;
+
+        return total;
+    }
+};
+
+int WriteV(int sock, const iovec* buffers, int cnt)
+{
+    if (cnt == 0)
+        return 0;
+
+    int bytes = static_cast<int>(::writev(sock, buffers, cnt));
+
+    assert (bytes != 0);
+
+    if (kError == bytes && (EAGAIN == errno || EWOULDBLOCK == errno))
+        bytes = 0;
+
+    return bytes;
+}
+
+void CollectBuffer(const iovec* buffers, int cnt, size_t skipped, Buffer& dst)
+{
+    for (int i = 0; i < cnt; ++ i)
+    {
+        if (skipped >= buffers[i].iov_len)
+        {
+            skipped -= buffers[i].iov_len;
+        }
+        else
+        {
+            const char* data = (const char*)buffers[i].iov_base;
+            size_t len = buffers[i].iov_len;
+
+            dst.PushData(data + skipped, len - skipped); 
+            if (skipped != 0)
+                skipped = 0;
+        }
+    }
+}
+
+} // end namespace
+
+
+bool Connection::SendPacket(const BufferVector& data)
+{
+    IOVecBuffer buffers;
+    bool save = false; // true for send, else for save
+
+    for (const auto& e : data)
+    {
+        char* const dataAddr = const_cast<BufferVector::value_type& >(e).ReadAddr(); 
+        if (save)
+        {
+            sendBuf_.PushData(dataAddr, e.ReadableSize());
+            continue;
+        }
+
+        iovec ivc; 
+        ivc.iov_base = dataAddr;
+        ivc.iov_len = e.ReadableSize();
+
+        if (!buffers.PushBuffer(ivc))
+        {
+            assert (buffers.iovCount == IOVecBuffer::kIOVecCount);
+
+            int ret = WriteV(localSock_, buffers.iovecs, buffers.iovCount);
+            if (ret == kError)
+                return false; // should close
+
+            assert (ret >= 0);
+
+            size_t alreadySent = static_cast<size_t>(ret);
+            size_t expectSend = buffers.TotalBytes();
+
+            if (alreadySent < expectSend ) // EAGAIN
+            {
+                save = true;
+                CollectBuffer(buffers.iovecs, buffers.iovCount, alreadySent, sendBuf_);
+            }
+            else if (alreadySent == expectSend)
+            {
+                buffers.Reset();
+            }
+        }
+    }
+
+    if (!save)
+    {
+        int ret = WriteV(localSock_, buffers.iovecs, buffers.iovCount);
+        if (ret == kError)
+            return false; // should close
+        
+        assert (ret >= 0);
+
+        size_t alreadySent = static_cast<size_t>(ret);
+        size_t expectSend = buffers.TotalBytes();
+
+        if (alreadySent < expectSend)
+            CollectBuffer(buffers.iovecs, buffers.iovCount, alreadySent, sendBuf_);
+    }
+
+    return true;
+}
     
 void Connection::SetOnConnect(std::function<void (Connection* )> cb)
 {

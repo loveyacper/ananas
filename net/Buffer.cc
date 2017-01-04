@@ -7,112 +7,159 @@
 namespace ananas
 {
 
-const std::size_t Buffer::kMaxBufferSize = std::numeric_limits<std::size_t>::max() / 2;
-const std::size_t Buffer::kWaterMark     = 1024;
-
-std::size_t Buffer::PushData(const void* pData, std::size_t nSize)
+inline static std::size_t RoundUp2Power(std::size_t size)
 {
-    std::size_t bytes  = PushDataAt(pData, nSize);
+    if (size == 0)
+        return 0;
+
+    std::size_t roundUp = 1;
+    while (roundUp < size)
+        roundUp *= 2;
+
+    return roundUp;
+}
+
+
+const std::size_t Buffer::kMaxBufferSize = std::numeric_limits<std::size_t>::max() / 2;
+const std::size_t Buffer::kHighWaterMark = 1 * 1024;
+const std::size_t Buffer::kDefaultSize = 64;
+
+std::size_t Buffer::PushData(const void* data, std::size_t size)
+{
+    std::size_t bytes = PushDataAt(data, size);
     Produce(bytes);
+
+    assert (bytes == size);
 
     return bytes;
 }
 
-std::size_t Buffer::PushDataAt(const void* pData, std::size_t nSize, std::size_t offset)
+std::size_t Buffer::PushDataAt(const void* data, std::size_t size, std::size_t offset)
 {
-    if (!pData || nSize == 0)
+    if (!data || size == 0)
         return 0;
 
     if (ReadableSize() == kMaxBufferSize)
         return 0;
 
-    AssureSpace(nSize + offset);
+    AssureSpace(size + offset);
 
-    assert (nSize + offset <= WritableSize());
+    assert (size + offset <= WritableSize());
 
-   	::memcpy(&buffer_[writePos_ + offset], pData, nSize);
-    return  nSize;
+   	::memcpy(&buffer_[writePos_ + offset], data, size);
+    return  size;
 }
 
-std::size_t Buffer::PeekData(void* pBuf, std::size_t nSize)
+std::size_t Buffer::PopData(void* buf, std::size_t size)
 {
-    std::size_t bytes  = PeekDataAt(pBuf, nSize);
+    std::size_t bytes = PeekDataAt(buf, size);
     Consume(bytes);
 
     return bytes;
 }
+    
+void Buffer::Consume(std::size_t bytes)
+{
+    assert (readPos_ + bytes <= writePos_);
 
-std::size_t Buffer::PeekDataAt(void* pBuf, std::size_t nSize, std::size_t offset)
+    readPos_  += bytes;
+    if (IsEmpty())
+        Clear();
+}
+
+std::size_t Buffer::PeekDataAt(void* buf, std::size_t size, std::size_t offset)
 {
     const std::size_t dataSize = ReadableSize();
-    if (!pBuf ||
-         nSize == 0 ||
+    if (!buf ||
+         size == 0 ||
          dataSize <= offset)
         return 0;
 
-    if (nSize + offset > dataSize)
-        nSize = dataSize - offset;
+    if (size + offset > dataSize)
+        size = dataSize - offset;
 
-	::memcpy(pBuf, &buffer_[readPos_ + offset], nSize);
+	::memcpy(buf, &buffer_[readPos_ + offset], size);
 
-    return nSize;
+    return size;
 }
 
 
-void Buffer::AssureSpace(std::size_t nSize)
+void Buffer::AssureSpace(std::size_t needsize)
 {
-    if (nSize <= WritableSize())
+    if (WritableSize() >= needsize)
         return;
 
-    std::size_t maxSize = buffer_.size();
+    const size_t dataSize = ReadableSize();
+    const size_t oldCap = capacity_;
 
-    while (nSize > WritableSize() + readPos_)
+    while (WritableSize() + readPos_ < needsize)
     {
-        if (maxSize < 64)
-            maxSize = 64;
-        else if (maxSize <= kMaxBufferSize)
-            maxSize <<= 1;
-            //maxSize = (maxSize * 3) / 2;
+        if (capacity_ < kDefaultSize)
+        {
+            capacity_ = kDefaultSize;
+        }
+        else if (capacity_ <= kMaxBufferSize)
+        {
+            auto newCapcity = RoundUp2Power(capacity_);
+            if (newCapcity == capacity_)
+                capacity_ = 2 * newCapcity;
+            else
+                capacity_ = newCapcity;
+        }
         else 
-            break;
+        {
+            assert (false);
+        }
+    }
 
-        buffer_.resize(maxSize);
-    }
-        
-    if (readPos_ > 0 && WritableSize() < kWaterMark)
+    if (oldCap < capacity_)
     {
-        std::size_t dataSize = ReadableSize();
-        ::memmove(&buffer_[0], &buffer_[readPos_], dataSize);
-        readPos_  = 0;
-        writePos_ = dataSize;
+        std::unique_ptr<char []> tmp(new char[capacity_]);
+
+        if (dataSize != 0)
+            memcpy(&tmp[0], &buffer_[readPos_], dataSize);
+
+        buffer_.swap(tmp);
+
+        std::cout << " expand to " << capacity_ << ", and data size " << dataSize << std::endl;
     }
+    else if (readPos_ > 0 && WritableSize() < needsize)
+    {
+        ::memmove(&buffer_[0], &buffer_[readPos_], dataSize);
+        std::cout << " move from " << readPos_ << std::endl;
+    }
+
+    readPos_ = 0;
+    writePos_ = dataSize;
 }
 
-void Buffer::Shrink(bool tight)
-{
-    assert (buffer_.capacity() == buffer_.size());
 
-    if (buffer_.empty())
-    { 
-        assert (readPos_ == 0);
-        assert (writePos_ == 0);
+void Buffer::Shrink()
+{
+    if (IsEmpty())
+    {
+        Clear();
+        capacity_ = 0;
+        buffer_.reset();
         return;
     }
 
-    std::size_t oldCap   = buffer_.size();
+    std::size_t oldCap = capacity_;
     std::size_t dataSize = ReadableSize();
-    if (!tight && dataSize > oldCap / 2)
+    if (dataSize > oldCap / 2)
         return;
 
-    std::vector<char>  tmp;
-    tmp.resize(dataSize);
+    std::size_t newCap = RoundUp2Power(dataSize); //;std::max(dataSize, oldCap / 2);
+
+    std::unique_ptr<char []> tmp(new char[newCap]);
     memcpy(&tmp[0], &buffer_[readPos_], dataSize);
-    tmp.swap(buffer_);
+    buffer_.swap(tmp);
+    capacity_ = newCap;
 
     readPos_  = 0;
     writePos_ = dataSize;
 
-    std::cout << oldCap << " shrink to " << buffer_.size() << std::endl;
+    std::cout << oldCap << " shrink to " << capacity_ << std::endl;
 }
 
 void Buffer::Clear()
@@ -123,48 +170,37 @@ void Buffer::Clear()
 
 void Buffer::Swap(Buffer& buf)
 {
-    buffer_.swap(buf.buffer_);
     std::swap(readPos_, buf.readPos_);
     std::swap(writePos_, buf.writePos_);
+    std::swap(capacity_, buf.capacity_);
+    buffer_.swap(buf.buffer_);
+}
+    
+Buffer::Buffer(Buffer&& other)
+{
+    _MoveFrom(std::move(other));
+}
+
+Buffer& Buffer::operator= (Buffer&& other) 
+{
+    return _MoveFrom(std::move(other));
+}
+
+Buffer& Buffer::_MoveFrom(Buffer&& other)
+{
+    if (this != &other)
+    {
+        this->readPos_ = other.readPos_;
+        this->writePos_ = other.writePos_;
+        this->capacity_ = other.capacity_;
+        this->buffer_ = std::move(other.buffer_);
+
+        other.Clear();
+        other.capacity_ = 0;
+    }
+
+    return *this;
 }
 
 } // end namespace ananas
-
-#if 0
-int main()
-{
-    Buffer    buf;
-    std::size_t ret = buf.PushData("hello", 5);
-    assert (ret == 5);
-
-    char tmp[10];
-    ret = buf.PeekData(tmp, sizeof tmp);
-    assert(ret == 5);
-    assert(tmp[0] == 'h');
-
-    assert(buf.IsEmpty());
-
-    ret = buf.PushData("world", 5);
-    assert (ret == 5);
-    ret = buf.PushData("abcde", 5);
-    assert (ret == 5);
-    ret = buf.PeekData(tmp, 5);
-    assert(tmp[0] == 'w');
-
-    buf.Clear();
-    buf.Shrink();
-
-#if 1
-    ret = buf.PeekData(tmp, 5);
-    if (ret == 5)
-    {
-        assert(tmp[0] == 'a');
-        assert(tmp[1] == 'b');
-    }
-#endif
-    buf.Shrink();
-
-    return 0;
-}
-#endif
 
