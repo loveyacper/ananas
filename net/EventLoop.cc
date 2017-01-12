@@ -51,7 +51,6 @@ static void InitSignal()
 namespace ananas
 {
 
-ThreadLocalSingleton<EventLoop> g_eventloop;
 
 bool EventLoop::s_exit = false;
     

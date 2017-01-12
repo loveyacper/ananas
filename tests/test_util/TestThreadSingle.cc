@@ -1,23 +1,35 @@
-#include "util/ThreadLocalSingleton.h"
 #include <thread>
 #include <vector>
 #include <atomic>
 #include <iostream>
 
-class Test
+#include "util/ThreadLocalSingleton.h"
+
+using namespace ananas;
+
+static std::mutex s_coutMutex;
+
+class Test : public ThreadLocalSingleton<Test>
 {
-public:
+private:
+    DECLARE_THREAD_SINGLETON(Test);
+
     Test() : id_(id ++ )
     {
+        std::unique_lock<std::mutex> guard(s_coutMutex);
         std::cout << __FUNCTION__ << " = " << id_ << std::endl;
     }
+
+public:
     ~Test()
     {
+        std::unique_lock<std::mutex> guard(s_coutMutex);
         std::cout << __FUNCTION__ << " = " << id_ << std::endl;
     }
 
     void Print() const 
     {
+        std::unique_lock<std::mutex> guard(s_coutMutex);
         std::cout << std::this_thread::get_id() << " = " << id_ << std::endl;
     }
 
@@ -29,20 +41,28 @@ public:
 };
 std::atomic<int> Test::id { 0 };
 
-class Foo
+
+class Foo : public ThreadLocalSingleton<Foo>
 {
-public:
+private:
+    DECLARE_THREAD_SINGLETON(Foo);
+
     Foo() : id_(id ++ )
     {
+        std::unique_lock<std::mutex> guard(s_coutMutex);
         std::cout << __FUNCTION__ << " = " << id_ << std::endl;
     }
+
+public:
     ~Foo()
     {
+        std::unique_lock<std::mutex> guard(s_coutMutex);
         std::cout << __FUNCTION__ << " = " << id_ << std::endl;
     }
 
     void Print() const 
     {
+        std::unique_lock<std::mutex> guard(s_coutMutex);
         std::cout << std::this_thread::get_id() << " = " << id_ << std::endl;
     }
 
@@ -56,20 +76,17 @@ public:
 std::atomic<int> Foo::id { 0 };
 
 
-ananas::ThreadLocalSingleton<Test>  g_t;
-//ananas::ThreadLocalSingleton<Test>  g_t2; raise exception
-ananas::ThreadLocalSingleton<Foo>  g_f;
 
 void ThreadFunc(int i)
 {
     if (i % 2 == 0)
     {
-        Test& t = g_t.Instance();
+        Test& t = Test::ThreadInstance();
         t.Print();
     }
     else
     {
-        Foo& f = g_f.Instance();
+        Foo& f = Foo::ThreadInstance();
         f.Print();
     }
 }
@@ -84,7 +101,7 @@ void SanityCheck(int& threads)
 
 int main(int ac, char* av[])
 {
-    int nThreads = 10;
+    int nThreads = 4;
     if (ac > 1)
         nThreads = std::stoi(av[1]);
 

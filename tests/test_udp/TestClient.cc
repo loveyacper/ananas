@@ -34,7 +34,7 @@ int main(int ac, char* av[])
 
     g_serverAddr.Init("127.0.0.1", port);
 
-    ananas::EventLoop loop;
+    auto& loop = ananas::EventLoop::ThreadInstance();
     if (!loop.CreateClientUDP(OnMessage, OnCreate))
     {
         ERR(logger) << "CreateClientUDP failed";

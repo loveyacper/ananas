@@ -5,6 +5,7 @@
 #include <thread>
 #include <map>
 #include <stdexcept>
+#include <cstdlib>
 
 namespace ananas
 {
@@ -12,41 +13,35 @@ namespace ananas
 template <typename T>
 class ThreadLocalSingleton
 {
-public:
+    friend T;
+
+private:
     ThreadLocalSingleton()
     {
-        std::unique_lock<std::mutex> guard(thisMutex_);
-        if (this_)
-            throw std::runtime_error("Don't declare multi ThreadLocalSingleton objects with the same inner type");
-        else
-            this_ = this;
     }
     
+public:
     // the public interface
-    static T& Instance() noexcept
+    static T& ThreadInstance() noexcept
     {
+        static std::once_flag s_init;
+
+        std::call_once(s_init, [&]() {
+            mutex_ = new std::mutex();
+            instances_ = new std::map<std::thread::id, T* >();
+
+            std::atexit(_Destroy);
+        });
+
         if (!inst_)
         {
             auto tid = std::this_thread::get_id();
 
-            std::unique_lock<std::mutex> guard(this_->mutex_);
-            this_->instances_[tid] = (inst_ = new T());
+            std::unique_lock<std::mutex> guard(*mutex_);
+            (*instances_)[tid] = (inst_ = new T());
         }
 
         return *inst_;
-    }
-
-    ~ThreadLocalSingleton() noexcept
-    {
-        decltype(instances_) tmp;
-
-        {
-            std::unique_lock<std::mutex> guard(mutex_);
-            tmp.swap(instances_);
-        }
-
-        for (const auto& kv : tmp)
-            delete kv.second;
     }
 
     // no copyable
@@ -58,23 +53,33 @@ public:
     void operator=(ThreadLocalSingleton&& ) = delete;
     
 private:
-    std::mutex mutex_;
-    std::map<std::thread::id, T* > instances_;
+    static void _Destroy()
+    {
+        std::unique_lock<std::mutex> guard(*mutex_);
+        for (const auto& kv : *instances_)
+            delete kv.second;
 
-    static std::mutex thisMutex_;
-    static ThreadLocalSingleton<T>* this_;
+        delete mutex_;
+        delete instances_;
+    }
+
+    static std::mutex* mutex_;
+    static std::map<std::thread::id, T* >* instances_;
+
     static thread_local T* inst_;
 };
 
 
 template <typename T>
-std::mutex ThreadLocalSingleton<T>::thisMutex_;
+std::mutex* ThreadLocalSingleton<T>::mutex_ = nullptr;
 
 template <typename T>
-ThreadLocalSingleton<T>* ThreadLocalSingleton<T>::this_ = nullptr;
+std::map<std::thread::id, T*>* ThreadLocalSingleton<T>::instances_ = nullptr;
 
 template <typename T>
 thread_local T* ThreadLocalSingleton<T>::inst_ = nullptr;
+
+#define DECLARE_THREAD_SINGLETON(type)  friend class ThreadLocalSingleton<type>
 
 } // end namespace ananas
 

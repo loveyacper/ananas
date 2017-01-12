@@ -34,7 +34,8 @@ public:
     void HandleErrorEvent() override;
 
     bool SendPacket(const void* data, std::size_t len);
-    bool SendPacket(const BufferVector& datum); // TODO
+    bool SendPacket(const BufferVector& datum);
+    bool SendPacket(const SliceVector& slice);
 
     void SetOnConnect(std::function<void (Connection* )> cb);
     void SetOnDisconnect(std::function<void (Connection* )> cb);

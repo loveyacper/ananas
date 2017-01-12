@@ -28,7 +28,7 @@ int main(int ac, char* av[])
     const uint16_t port = 7001;
     ananas::SocketAddr serverAddr("127.0.0.1", port);
 
-    ananas::EventLoop loop;
+    auto& loop = ananas::EventLoop::ThreadInstance();
     if (!loop.ListenUDP(serverAddr, OnMessage, OnCreate))
     {
         ERR(logger) << "ListenUDP failed";

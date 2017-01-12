@@ -23,16 +23,17 @@ namespace internal
 class  Connector;
 }
 
-#define ANANAS_EVENTLOOP (ananas::g_eventloop.Instance())
-#define ANANAS_EVENTLOOP_PTR (&ananas::g_eventloop.Instance())
 
-class EventLoop : public TimeScheduler // for future timeout
+class EventLoop : public ThreadLocalSingleton<ananas::EventLoop>, public TimeScheduler // for future timeout
 {
+private:
+    DECLARE_THREAD_SINGLETON(ananas::EventLoop);
+    EventLoop();
+
 public:
     using NewConnCallback = std::function<void (Connection* )>;
     using ConnFailCallback = std::function<void (EventLoop*, const SocketAddr& peer)>;
 
-    EventLoop();
     ~EventLoop();
 
     EventLoop(const EventLoop& ) = delete;
@@ -104,7 +105,6 @@ private:
     static rlim_t s_maxOpenFdPlus1;
 };
 
-extern ThreadLocalSingleton<EventLoop> g_eventloop; // Singleton per thread
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
 TimerId EventLoop::ScheduleAfter(const Duration& duration, F&& f, Args&&... args)

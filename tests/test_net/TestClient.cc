@@ -7,11 +7,11 @@
 #include "net/EventLoop.h"
 #include "net/log/Logger.h"
 
-std::shared_ptr<ananas::Logger> log;
+std::shared_ptr<ananas::Logger> logger;
 
 ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, size_t len)
 {
-    DBG(log) << "Recv " << data;
+    DBG(logger) << "Recv " << data;
     // echo package
     conn->SendPacket(data, len);
     return len;
@@ -19,12 +19,15 @@ ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, size_t
 
 void OnConnect(ananas::Connection* conn)
 {
-    INF(log) << "OnConnect " << conn->Identifier();
+    INF(logger) << "OnConnect " << conn->Identifier();
+            
+    std::string msg = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+    conn->SendPacket(msg.data(), msg.size());
 }
 
 void OnDisConnect(ananas::Connection* conn)
 {
-    INF(log) << "OnDisConnect " << conn->Identifier();
+    INF(logger) << "OnDisConnect " << conn->Identifier();
 }
 
 void OnNewConnection(ananas::Connection* conn)
@@ -37,7 +40,7 @@ void OnNewConnection(ananas::Connection* conn)
     
 void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 {
-    INF(log) << "OnConnFail " << peer.GetPort();
+    INF(logger) << "OnConnFail " << peer.GetPort();
 
     // reconnect
     loop->ScheduleAfter(std::chrono::seconds(2), [=]() {
@@ -48,21 +51,39 @@ void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 void ThreadFunc()
 {
     const uint16_t port = 6380;
+    const int kConnsPerThread = 10;
 
-    auto& loop = ANANAS_EVENTLOOP;
-    loop.Connect("localhost", port, OnNewConnection, OnConnFail);
+    auto& loop = ananas::EventLoop::ThreadInstance();
+    for (int i = 0; i < kConnsPerThread; ++ i)
+        loop.Connect("localhost", port, OnNewConnection, OnConnFail);
 
     loop.Run();
 }
 
+void SanityCheck(int& threads)
+{
+    if (threads < 1)
+        threads = 1;
+    else if (threads > 100)
+        threads = 100;
+}
+
 int main(int ac, char* av[])
 {
+    daemon(1, 0);
+
     ananas::LogManager::Instance().Start();
-    log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "log_client_test");
+    logger = ananas::LogManager::Instance().CreateLog(logALL, logFile, "logger_client_test");
 
-    INF(log) << "Starting...";
+    int threads = 1;
+    if (ac > 1)
+    {
+        threads = std::stoi(av[1]);
+        SanityCheck(threads);
+    }
 
-    ananas::ThreadPool::Instance().Execute(ThreadFunc);
+    for (int i = 0; i < threads; ++ i)
+        ananas::ThreadPool::Instance().Execute(ThreadFunc);
 
     return 0;
 }

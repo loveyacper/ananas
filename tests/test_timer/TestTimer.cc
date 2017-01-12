@@ -14,7 +14,7 @@ int main()
     LogManager::Instance().Start();
     log = LogManager::Instance().CreateLog(logALL, logConsole);
 
-    auto& loop = ANANAS_EVENTLOOP;
+    auto& loop = ananas::EventLoop::ThreadInstance();
 
     loop.ScheduleNextTick([]() {
             INF(log) << "Hello, test timer...";

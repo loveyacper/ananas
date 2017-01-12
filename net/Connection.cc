@@ -64,7 +64,9 @@ bool Connection::HandleReadEvent()
             return false; // eof
 
         if (bytes > 0)
+        {
             recvBuf_.Produce(bytes);
+        }
         else
             return false;
 
@@ -234,21 +236,31 @@ void CollectBuffer(const iovec* buffers, int cnt, size_t skipped, Buffer& dst)
 
 bool Connection::SendPacket(const BufferVector& data)
 {
+    SliceVector s;
+    for (const auto& d : data)
+    {
+        s.PushBack(const_cast<Buffer&>(d).ReadAddr(), d.ReadableSize());
+    }
+
+    return SendPacket(s);
+}
+
+bool Connection::SendPacket(const SliceVector& slice)
+{
     IOVecBuffer buffers;
     bool save = false; // true for send, else for save
 
-    for (const auto& e : data)
+    for (const auto& e : slice)
     {
-        char* const dataAddr = const_cast<BufferVector::value_type& >(e).ReadAddr(); 
         if (save)
         {
-            sendBuf_.PushData(dataAddr, e.ReadableSize());
+            sendBuf_.PushData(e.data, e.len);
             continue;
         }
 
         iovec ivc; 
-        ivc.iov_base = dataAddr;
-        ivc.iov_len = e.ReadableSize();
+        ivc.iov_base = const_cast<void*>(e.data);
+        ivc.iov_len = e.len;
 
         if (!buffers.PushBuffer(ivc))
         {
@@ -292,6 +304,7 @@ bool Connection::SendPacket(const BufferVector& data)
 
     return true;
 }
+    
     
 void Connection::SetOnConnect(std::function<void (Connection* )> cb)
 {

@@ -121,6 +121,47 @@ private:
     BufferContainer buffers;
 };
 
+struct SliceVector
+{
+private:
+    struct Slice
+    {
+        const void* data;
+        size_t len;
+
+        explicit
+        Slice(const void* d = nullptr, size_t l = 0) :
+            data(d),
+            len(l)
+        {}
+    };
+    typedef std::list<Slice> Slices;
+
+public:
+
+    typedef Slices::const_iterator const_iterator;
+    typedef Slices::iterator iterator;
+    typedef Slices::value_type value_type;
+    typedef Slices::reference reference;
+    typedef Slices::const_reference const_reference;
+
+    iterator begin() { return slices.begin(); }
+    iterator end() { return slices.end(); }
+
+    const_iterator begin() const { return slices.begin(); }
+    const_iterator end() const { return slices.end(); }
+
+    const_iterator cbegin() const { return slices.cbegin(); }
+    const_iterator cend() const { return slices.cend(); }
+
+    void PushBack(const void* data, size_t len)
+    {
+        slices.push_back(Slice(data, len));
+    }
+
+private:
+    Slices slices;
+};
 
 } // end namespace ananas
 
