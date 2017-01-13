@@ -137,8 +137,9 @@ void Connector::_OnSuccess()
     loop->Unregister(eET_Write, this);
 
     // `this` is invalid now
-    conn->OnConnect();
-    loop->Register(eET_Read | eET_Write, conn.release());
+    auto c = conn.release();
+    loop->Register(eET_Read | eET_Write, c);
+    c->OnConnect();
 }
 
 void Connector::_OnFailed()

@@ -96,8 +96,10 @@ bool Acceptor::HandleReadEvent()
             conn->Init(connfd, peer_);
             this->newConnCallback_(conn.get());
 
-            conn->OnConnect();
-            loop_->Register(eET_Read | eET_Write, conn.release());
+            // if send huge data OnConnect, may call Modify, so Register events first
+            auto c = conn.release();
+            loop_->Register(eET_Read | eET_Write, c);
+            c->OnConnect();
         }
         else
         {

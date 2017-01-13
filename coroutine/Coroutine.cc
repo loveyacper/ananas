@@ -3,7 +3,6 @@
 #include <string>
 #include "Coroutine.h"
 
-
 namespace ananas
 {
 
@@ -11,29 +10,20 @@ unsigned int Coroutine::sid_ = 0;
 Coroutine Coroutine::main_;
 Coroutine* Coroutine::current_ = nullptr;
 
-#if defined(__gnu_linux__) || defined(__APPLE__)
 Coroutine::Coroutine(std::size_t size) :
-#else
-Coroutine::Coroutine() :
-#endif
     id_( ++ sid_),
-    state_(State::Init)
-#if defined(__gnu_linux__) || defined(__APPLE__)
-    ,stack_(size > kDefaultStackSize ? size : kDefaultStackSize)
-#endif
+    state_(State::Init),
+    stack_(size > kDefaultStackSize ? size : kDefaultStackSize)
 {
     if (this == &main_)
     {
-#if defined(__gnu_linux__) || defined(__APPLE__)
         std::vector<char>().swap(stack_);
-#endif
         return;
     }
 
     if (id_ == main_.id_)
         id_ = ++ sid_;  // when sid_ overflow
 
-#if defined(__gnu_linux__) || defined(__APPLE__)
     int ret = ::getcontext(&handle_);
     assert (ret == 0);
 
@@ -42,22 +32,10 @@ Coroutine::Coroutine() :
     handle_.uc_link = 0;
 
     ::makecontext(&handle_, reinterpret_cast<void (*)(void)>(&Coroutine::_Run), 1, this);
-
-#else
-    handle_ = ::CreateFiberEx(0, 0, FIBER_FLAG_FLOAT_SWITCH,
-                               reinterpret_cast<PFIBER_START_ROUTINE>(&Coroutine::_Run), this);
-#endif
 }
 
 Coroutine::~Coroutine()
 {
-#if !defined(__gnu_linux__) && !defined(__APPLE__)
-    if (handle_ != INVALID_HANDLE_VALUE)
-    {
-        ::DeleteFiber(handle_);
-        handle_ = INVALID_HANDLE_VALUE;
-    }
-#endif
 }
 
 AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
@@ -79,18 +57,12 @@ AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
         this->yieldValue = std::move(param);
     }
 
-#if defined(__gnu_linux__) || defined(__APPLE__)
     int ret = ::swapcontext(&handle_, &crt->handle_);
     if (ret != 0)
     {
         perror("FATAL ERROR: swapcontext");
         throw std::runtime_error("FATAL ERROR: swapcontext failed");
     }
-
-#else
-    ::SwitchToFiber(crt->handle_);
-
-#endif
 
     return std::move(crt->yieldValue); // only return once
 }
@@ -142,11 +114,6 @@ AnyPointer CoroutineMgr::Send(const CoroutinePtr& crt, AnyPointer param)
     if (!Coroutine::current_)
     {
         Coroutine::current_ = &Coroutine::main_;
-
-#if !defined(__gnu_linux__) && !defined(__APPLE__)
-        Coroutine::main_.handle_ = ::ConvertThreadToFiberEx(&Coroutine::main_, FIBER_FLAG_FLOAT_SWITCH);
-
-#endif
     }
 
     return Coroutine::current_->_Send(crt.get(), param);
@@ -160,18 +127,6 @@ AnyPointer CoroutineMgr::Yield(const AnyPointer& param)
 
 CoroutineMgr::~CoroutineMgr()
 {
-#if !defined(__gnu_linux__) && !defined(__APPLE__)
-    if (::GetCurrentFiber() == Coroutine::main_.handle_)
-    {
-        ::ConvertFiberToThread();
-        Coroutine::main_.handle_ = INVALID_HANDLE_VALUE;
-    }
-    else
-    {
-        // What fucking happened???
-    }
-
-#endif
 }
 
 } // end namespace ananas

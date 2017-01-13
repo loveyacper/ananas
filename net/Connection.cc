@@ -64,9 +64,7 @@ bool Connection::HandleReadEvent()
             return false; // eof
 
         if (bytes > 0)
-        {
             recvBuf_.Produce(bytes);
-        }
         else
             return false;
 
@@ -138,7 +136,6 @@ bool Connection::SendPacket(const void* data, std::size_t  size)
     if (!sendBuf_.IsEmpty())
     {
         sendBuf_.PushData(data, size);
-        loop_->Modify(internal::eET_Read | internal::eET_Write, this);
         return true;
     }
         

@@ -1,20 +1,9 @@
 #ifndef BERT_COROUTINE_H
 #define BERT_COROUTINE_H
 
-// Only linux & windows & MAC OS
+// Only linux
 
-#if defined(__APPLE__)
-#define _XOPEN_SOURCE
-#endif
-
-#if defined(__gnu_linux__) || defined(__APPLE__)
 #include <ucontext.h>
-
-#else   // windows
-#include <Windows.h>
-#undef    Yield // cancel the windows macro
-
-#endif
 
 #include <vector>
 #include <map>
@@ -42,21 +31,13 @@ public:
     // NEVER define coroutine object, please use CoroutineMgr::CreateCoroutine.
     // Coroutine constructor should be private, 
     // BUT compilers demand template constructor must be public...
-#if defined(__gnu_linux__) || defined(__APPLE__)
     explicit
     Coroutine(std::size_t stackSize = 0);
-#else
-    Coroutine();
-#endif
 
     // if F return void
     template <typename F, typename... Args, 
               typename = typename std::enable_if<std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type, typename Dummy = void>
-    Coroutine(F&& f, Args&&... args) : Coroutine(
-#if defined(__gnu_linux__) || defined(__APPLE__)
-    kDefaultStackSize
-#endif
-    )
+    Coroutine(F&& f, Args&&... args) : Coroutine(kDefaultStackSize)
     {
         auto temp = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
         func_ =  [temp] () { (void)temp(); };
@@ -65,11 +46,7 @@ public:
     // if F return non-void
     template <typename F, typename... Args, 
               typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type>         
-    Coroutine(F&& f, Args&&... args) : Coroutine(
-#if defined(__gnu_linux__) || defined(__APPLE__)
-              kDefaultStackSize
-#endif
-              )
+    Coroutine(F&& f, Args&&... args) : Coroutine(kDefaultStackSize)
     {
         using ResultType = typename std::result_of<F (Args...)>::type;
 
@@ -101,22 +78,10 @@ private:
     State state_;
     AnyPointer yieldValue;
 
-#if defined(__gnu_linux__)
     typedef ucontext HANDLE;
 
     static const std::size_t kDefaultStackSize = 8 * 1024; 
     std::vector<char> stack_;
-#elif defined(__APPLE__)
-    typedef ucontext_t HANDLE;
-
-    // MAC OS needs bigger stack...
-    static const std::size_t kDefaultStackSize = 512 * 1024; 
-    std::vector<char> stack_;
-
-#else
-    typedef PVOID HANDLE;
-
-#endif
 
     HANDLE handle_;
     std::function<void ()> func_;
