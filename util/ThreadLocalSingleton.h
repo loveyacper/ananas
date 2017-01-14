@@ -55,7 +55,7 @@ public:
 private:
     static void _Destroy()
     {
-        std::unique_lock<std::mutex> guard(*mutex_);
+        // no need protect
         for (const auto& kv : *instances_)
             delete kv.second;
 
