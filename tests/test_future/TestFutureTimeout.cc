@@ -16,7 +16,7 @@ void ThreadFunc(Promise<Type>& pm)
 
 int main()
 {
-    auto& loop = ananas::EventLoop::ThreadInstance();
+    ananas::EventLoop loop;
 
     Promise<int> pm;
     std::thread t(ThreadFunc<int>, std::ref(pm));

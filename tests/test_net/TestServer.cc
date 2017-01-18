@@ -32,7 +32,7 @@ int main(int ac, char* av[])
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_server_test");
 
-    auto& loop = ananas::EventLoop::ThreadInstance();
+    ananas::EventLoop loop;
 
     const uint16_t myport = 6380;
     if (loop.Listen("localhost", myport, OnNewConnection))

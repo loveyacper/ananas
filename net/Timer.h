@@ -83,13 +83,15 @@ private:
         std::function<void ()> func_;
         DurationMs interval_;
         int count_;
-
-        static thread_local unsigned int s_id;
     };
 
     std::multimap<TimePoint, Timer> timers_;
 
     TimePoint now_;
+
+    friend class Timer;
+    // not thread-safe, but who cares?
+    static unsigned int s_timerIdGen_;
 };
 
 

@@ -53,7 +53,7 @@ void ThreadFunc()
     const uint16_t port = 6380;
     const int kConnsPerThread = 10;
 
-    auto& loop = ananas::EventLoop::ThreadInstance();
+    ananas::EventLoop loop;
     for (int i = 0; i < kConnsPerThread; ++ i)
         loop.Connect("localhost", port, OnNewConnection, OnConnFail);
 

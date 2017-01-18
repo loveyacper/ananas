@@ -7,6 +7,8 @@ namespace ananas
 namespace internal
 {
 
+unsigned int TimerManager::s_timerIdGen_ = 0;
+
 TimerManager::TimerManager()
 {
 }
@@ -76,10 +78,8 @@ DurationMs TimerManager::NearestTimer() const
         return std::chrono::duration_cast<DurationMs>(timer.Id()->first - now);
 }
 
-thread_local unsigned int TimerManager::Timer::s_id = 0;
-
 TimerManager::Timer::Timer(const TimePoint& tp) :
-    id_(new std::pair<TimePoint, unsigned int>{tp, ++ s_id}),
+    id_(new std::pair<TimePoint, unsigned int>{tp, ++ TimerManager::s_timerIdGen_}),
     count_(-1)
 {
 }

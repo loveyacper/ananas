@@ -21,7 +21,7 @@ struct State
 
     State() :
         ft_(pm_.get_future()),
-        retrieved_(ATOMIC_FLAG_INIT)
+        retrieved_ {false}
     {
     }
 
@@ -32,7 +32,7 @@ struct State
     // Protect then_, it's ineffecient, but for now I don't want to write future from scrath
     std::mutex thenLock_;
     std::function<void (Try<T>&& )> then_;
-    std::atomic_flag retrieved_;
+    std::atomic<bool> retrieved_;
 };
 
 } // end namespace internal
@@ -131,7 +131,8 @@ public:
 
     Future<T> GetFuture()
     {
-        if (state_->retrieved_.test_and_set())
+        bool expect = false;
+        if (!state_->retrieved_.compare_exchange_strong(expect, true))
         {
             struct FutureAlreadyRetrieved {};
             throw FutureAlreadyRetrieved();

@@ -9,7 +9,6 @@
 #include "Timer.h"
 #include "Poller.h"
 #include "DatagramSocket.h"
-#include "util/ThreadLocalSingleton.h"
 #include "util/TimeScheduler.h"
 
 namespace ananas
@@ -23,17 +22,13 @@ namespace internal
 class  Connector;
 }
 
-
-class EventLoop : public ThreadLocalSingleton<ananas::EventLoop>, public TimeScheduler // for future timeout
+class EventLoop : public TimeScheduler // for future timeout
 {
-private:
-    DECLARE_THREAD_SINGLETON(ananas::EventLoop);
-    EventLoop();
-
 public:
     using NewConnCallback = std::function<void (Connection* )>;
     using ConnFailCallback = std::function<void (EventLoop*, const SocketAddr& peer)>;
 
+    EventLoop();
     ~EventLoop();
 
     EventLoop(const EventLoop& ) = delete;

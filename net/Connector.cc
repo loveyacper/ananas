@@ -51,6 +51,9 @@ bool Connector::Connect(const SocketAddr& addr)
 
     peer_ = addr;
     localSock_ = CreateTCPSocket();
+    if (localSock_ == kInvalid)
+        return false;
+
     SetNonBlock(localSock_);
     SetNodelay(localSock_);
     SetRcvBuf(localSock_);
@@ -127,18 +130,24 @@ void Connector::_OnSuccess()
     state_  = ConnectState::connected;
     INF(internal::g_debug) << "Connect success! Socket " << localSock_ << ", connected to port " << peer_.GetPort();
 
-    std::unique_ptr<Connection> conn(new Connection(loop_));
-    conn->Init(localSock_, peer_);
-    conn->SetFailCallback(onConnectFail_);
-    newConnCallback_(conn.get());
+    // create new conn
+    Connection* c = new Connection(loop_);
+    c->Init(localSock_, peer_);
 
-    localSock_ = kInvalid;
-    const auto loop = loop_;
-    loop->Unregister(eET_Write, this);
+    // backup `this`
+    const auto loop = this->loop_;
+    const auto onFail = std::move(this->onConnectFail_);
+    const auto newCCB = std::move(this->newConnCallback_);
 
-    // `this` is invalid now
-    auto c = conn.release();
+    // unregister connector
+    this->localSock_ = kInvalid;
+    this->loop_->Unregister(eET_Write, this);
+    // `this` is invalid now.
+
+    // register new conn
+    c->SetFailCallback(onFail);
     loop->Register(eET_Read | eET_Write, c);
+    newCCB(c);
     c->OnConnect();
 }
 

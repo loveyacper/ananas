@@ -84,9 +84,12 @@ bool Connection::HandleReadEvent()
 }
 
 
-int Connection::_Send(const void* pData, size_t len)
+int Connection::_Send(const void* data, size_t len)
 {
-	int  bytes = ::send(localSock_, pData, len, 0);
+    if (len == 0)
+        return 0;
+
+	int  bytes = ::send(localSock_, data, len, 0);
     if (kError == bytes && (EAGAIN == errno || EWOULDBLOCK == errno))
         bytes = 0;
 
@@ -95,26 +98,19 @@ int Connection::_Send(const void* pData, size_t len)
     
 bool Connection::HandleWriteEvent()
 {
+    auto bytes = _Send(sendBuf_.ReadAddr(), sendBuf_.ReadableSize());
+    if (bytes == kError)
+        return false;
+
+    sendBuf_.Consume(bytes);
+
     if (sendBuf_.IsEmpty())
     {
         sendBuf_.Shrink();
         loop_->Modify(internal::eET_Read, this);
-        return true;
     }
 
-    auto bytes = _Send(sendBuf_.ReadAddr(), sendBuf_.ReadableSize());
-
-    if (static_cast<std::size_t>(bytes) == sendBuf_.ReadableSize())
-    {
-        sendBuf_.Shrink();
-        loop_->Modify(internal::eET_Read, this);
-    }
-    else if (bytes > 0)
-    {
-        sendBuf_.Consume(bytes);
-    }
-
-    return bytes != kError;
+    return true;
 }
 
 void  Connection::HandleErrorEvent()
