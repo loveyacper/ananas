@@ -35,7 +35,7 @@ private:
     int localSock_;
     uint16_t localPort_;
 
-    EventLoop* loop_; // which loop belong to
+    EventLoop* const loop_; // which loop belong to
 
     //register msg callback and on connect callback for conn
     EventLoop::NewConnCallback newConnCallback_;

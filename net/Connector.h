@@ -46,7 +46,7 @@ private:
 
     int localSock_ = kInvalid;
     SocketAddr peer_;
-    EventLoop* loop_;
+    EventLoop* const loop_;
 
     ConnectState state_ = ConnectState::none;
 

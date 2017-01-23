@@ -24,7 +24,7 @@
 
 static void SignalHandler(int num)
 {
-    ananas::EventLoop::ExitAll();
+    ananas::EventLoop::ExitApplication();
 }
     
 static std::once_flag s_signalInit;
@@ -43,7 +43,7 @@ static void InitSignal()
 
 #ifdef ANANAS_LOGO
     // logo
-    std::cout << ananas::internal::logo << std::endl;
+    printf("%s\n", ananas::internal::logo);
 #endif
 }
 
@@ -54,7 +54,7 @@ namespace ananas
 
 bool EventLoop::s_exit = false;
     
-void EventLoop::ExitAll()
+void EventLoop::ExitApplication()
 {
     s_exit = true;
 }

@@ -45,7 +45,7 @@ int main(int ac, char* av[])
     {
         loop.ScheduleNextTick([&loop, myport]() {
                 ERR(logger) << "Server stopped, can not listen on " << myport;
-                ananas::EventLoop::ExitAll();
+                ananas::EventLoop::ExitApplication();
                 });
     }
 

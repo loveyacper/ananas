@@ -1,5 +1,5 @@
 #include <thread>
-#include <iostream>
+#include <cstdio>
 #include "future/Future.h"
 #include "net/EventLoop.h"
 
@@ -8,8 +8,9 @@ using namespace ananas;
 template <typename Type>
 void ThreadFunc(Promise<Type>& pm)
 {
+    printf("Trying SetValue to 10 after 1 seconds\n");
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    std::cout << "SetValue 10 after 1 second\n";
+
     Type v = 10;
     pm.SetValue(v);
 }
@@ -23,18 +24,30 @@ int main()
 
     Future<int> ft(pm.GetFuture());
              
-    ft.Then([](int v) {
-            std::cerr << "1.Then got int value " << v << std::endl;
-            })
-            .OnTimeout(std::chrono::milliseconds(500), []() {
-                    std::cerr << " Timeout..." << std::endl;
+    // register timeout
+    ft.OnTimeout(std::chrono::seconds(1), []() {
+                    printf("FAILED: future is timeout now!\n");
                 },
                 &loop
                 );
 
-    loop.ScheduleAfter(std::chrono::seconds(3), EventLoop::ExitAll);
+    // register callbacks
+    ft.Then([](int v) {
+            printf("1.Then got int value %d\n", v);
+            return std::string("dummy string");
+            })
+            .Then([] (std::string s) {
+            printf("2.Then got string value %s\n", s.data());
+            });
+
+    loop.ScheduleAfter(std::chrono::seconds(3), []() {
+            printf("BYE: now exiting!\n");
+            EventLoop::ExitApplication();
+            });
     loop.Run();
+
     t.join();
 
     return 0;
 }
+

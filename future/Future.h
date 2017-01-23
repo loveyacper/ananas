@@ -13,6 +13,13 @@ namespace ananas
 namespace internal
 {
 
+enum class Progress
+{
+    None,
+    Timeout,
+    Done
+};
+
 template <typename T>
 struct State
 {
@@ -21,18 +28,22 @@ struct State
 
     State() :
         ft_(pm_.get_future()),
+        progress_(Progress::None),
         retrieved_ {false}
     {
     }
 
-    // TODO: Use std::future/promise to avoid dirty work, but it's not a good idea.
+    // TODO: Using std::future/promise to avoid dirty work, but it's not a good idea.
     std::promise<T> pm_;
     std::future<T> ft_;
 
     // Protect then_, it's ineffecient, but for now I don't want to write future from scrath
     std::mutex thenLock_;
     std::function<void (Try<T>&& )> then_;
+    Progress progress_;
+
     std::atomic<bool> retrieved_;
+
 };
 
 } // end namespace internal
@@ -62,8 +73,13 @@ public:
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
     SetValue(SHIT&& t)
     {
-        state_->pm_.set_value(t);
         std::unique_lock<std::mutex> guard(state_->thenLock_);
+        if (state_->progress_ != internal::Progress::None)
+            return;
+
+        state_->progress_ = internal::Progress::Done;
+
+        state_->pm_.set_value(t);
         if (state_->then_)
             state_->then_(std::move(t));
     }
@@ -73,8 +89,13 @@ public:
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
     SetValue(const SHIT& t)
     {
-        state_->pm_.set_value(t);
         std::unique_lock<std::mutex> guard(state_->thenLock_);
+        if (state_->progress_ != internal::Progress::None)
+            return;
+
+        state_->progress_ = internal::Progress::Done;
+
+        state_->pm_.set_value(t);
         if (state_->then_)
             state_->then_(t);
     }
@@ -83,8 +104,11 @@ public:
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
     SetValue(Try<SHIT>&& t)
     {
-        state_->pm_.set_value(t);
         std::unique_lock<std::mutex> guard(state_->thenLock_);
+        if (state_->progress_ != internal::Progress::None)
+            return;
+
+        state_->pm_.set_value(t);
         if (state_->then_)
             state_->then_(std::move(t));
     }
@@ -93,8 +117,13 @@ public:
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
     SetValue(const Try<SHIT>& t)
     {
-        state_->pm_.set_value(t);
         std::unique_lock<std::mutex> guard(state_->thenLock_);
+        if (state_->progress_ != internal::Progress::None)
+            return;
+
+        state_->progress_ = internal::Progress::Done;
+
+        state_->pm_.set_value(t);
         if (state_->then_)
             state_->then_(t);
     }
@@ -103,8 +132,13 @@ public:
     typename std::enable_if<std::is_void<SHIT>::value, void>::type
     SetValue(Try<void>&& )
     {
-        state_->pm_.set_value();
         std::unique_lock<std::mutex> guard(state_->thenLock_);
+        if (state_->progress_ != internal::Progress::None)
+            return;
+
+        state_->progress_ = internal::Progress::Done;
+
+        state_->pm_.set_value();
         if (state_->then_)
             state_->then_(Try<void>());
     }
@@ -113,8 +147,13 @@ public:
     typename std::enable_if<std::is_void<SHIT>::value, void>::type
     SetValue(const Try<void>& )
     {
-        state_->pm_.set_value();
         std::unique_lock<std::mutex> guard(state_->thenLock_);
+        if (state_->progress_ != internal::Progress::None)
+            return;
+
+        state_->progress_ = internal::Progress::Done;
+
+        state_->pm_.set_value();
         if (state_->then_)
             state_->then_(Try<void>());
     }
@@ -123,8 +162,13 @@ public:
     typename std::enable_if<std::is_void<SHIT>::value, void>::type
     SetValue()
     {
-        state_->pm_.set_value();
         std::unique_lock<std::mutex> guard(state_->thenLock_);
+        if (state_->progress_ != internal::Progress::None)
+            return;
+
+        state_->progress_ = internal::Progress::Done;
+
+        state_->pm_.set_value();
         if (state_->then_)
             state_->then_(Try<void>());
     }
@@ -236,6 +280,7 @@ public:
         }
         else
         {
+            // set this future's then callback
             SetCallback([func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
                 // run callback, T can be void, thanks to folly Try<>
                 auto result = WrapWithTry(func, t.template Get<Args>()...);
@@ -270,6 +315,7 @@ public:
         }
         else
         {
+            // set this future's then callback
             SetCallback([func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
                 // because func return another future:f2, when f2 is done, nextFuture can be done
                 auto f2 = func(t.template Get<Args>()...);
@@ -282,17 +328,27 @@ public:
         return std::move(nextFuture);
     }
 
-    void SetCallback(decltype(std::declval<internal::State<T>>().then_)&& func)
+    void SetCallback(std::function<void (Try<T>&& )>&& func)
     {
         this->state_->then_ = std::move(func);
     }
 
-    void OnTimeout(std::chrono::milliseconds duration, std::function<void()> f, TimeScheduler* scheduler)
+    void OnTimeout(std::chrono::milliseconds duration,
+                   std::function<void()> f,
+                   TimeScheduler* scheduler)
     {
         scheduler->ScheduleOnceAfter(duration, [state = this->state_, cb = std::move(f)]() {
-                if (state->ft_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-                    cb();
+                {
+                    std::unique_lock<std::mutex> guard(state->thenLock_);
+
+                    if (state->progress_ != internal::Progress::None)
+                        return;
+
+                    state->progress_ = internal::Progress::Timeout;
                 }
+
+                // timeout callback 
+                cb();
         });
     }
 

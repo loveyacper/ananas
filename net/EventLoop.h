@@ -79,7 +79,7 @@ public:
 
     std::size_t Size() const { return eventSourceSet_.size(); }
 
-    static void ExitAll();
+    static void ExitApplication();
 
     static void SetMaxOpenFd(rlim_t maxfdPlus1);
 

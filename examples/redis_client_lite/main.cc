@@ -36,9 +36,12 @@ void OnConnect(std::shared_ptr<RedisContext> ctx, ananas::Connection* conn)
     // set item = diamond and callback PrintResponse
     ctx->Set("item", "diamond").Then(
             RedisContext::PrintResponse
-            );
+            ).OnTimeout(std::chrono::seconds(3), []() {
+                std::cout << "OnTimeout request, now exit test\n";
+                ananas::EventLoop::ExitApplication();
+                },
+                conn->GetLoop());
 
-    
     GetAndSetName(ctx);
 
     WaitMultiRequests(ctx);
@@ -58,13 +61,21 @@ void OnNewConnection(ananas::Connection* conn)
 }
 
     
-void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
+void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 {
     std::cout << "OnConnFail from " << peer.GetPort() << std::endl;
+    if (-- maxTryCount <= 0)
+    {
+        std::cerr << "ReConnect failed, exit app\n";
+        ananas::EventLoop::ExitApplication();
+    }
 
     // reconnect
     loop->ScheduleAfter(std::chrono::seconds(2), [=]() {
-        loop->Connect(peer, OnNewConnection, OnConnFail);
+        loop->Connect(peer, OnNewConnection, std::bind(&OnConnFail,
+                                                        maxTryCount,
+                                                        std::placeholders::_1,
+                                                        std::placeholders::_2));
     });
 }
 
@@ -72,7 +83,11 @@ int main()
 {
     ananas::EventLoop loop;
 
-    loop.Connect("loopback", 6379, OnNewConnection, OnConnFail);
+    int maxTryCount = 5;
+    loop.Connect("loopback", 6379, OnNewConnection, std::bind(&OnConnFail,
+                                                               maxTryCount,
+                                                               std::placeholders::_1,
+                                                               std::placeholders::_2));
     loop.Run();
 
     return 0;

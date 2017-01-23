@@ -23,7 +23,7 @@ int main()
     // shutdown after 7s
     loop.ScheduleAfter(std::chrono::seconds(7), [&loop]() {
             WRN(log) << "Now stop app.";
-            EventLoop::ExitAll();
+            EventLoop::ExitApplication();
         });
 
     int count = 0;

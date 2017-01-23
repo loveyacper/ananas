@@ -27,6 +27,7 @@ public:
     void SetMaxPacketSize(std::size_t s);
     const SocketAddr& Peer() const { return peer_; }
     void Close();
+    EventLoop* GetLoop() const { return loop_; }
 
     int Identifier() const override;
     bool HandleReadEvent() override;
@@ -46,7 +47,7 @@ public:
 private:
     int _Send(const void* data, size_t len);
 
-    EventLoop* loop_;
+    EventLoop* const loop_;
     int localSock_;
     std::size_t maxPacketSize_;
 

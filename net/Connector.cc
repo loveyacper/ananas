@@ -12,9 +12,9 @@ namespace ananas
 namespace internal
 {
 
-Connector::Connector(EventLoop* loop)
+Connector::Connector(EventLoop* loop) :
+    loop_(loop)
 {
-    loop_ = loop;
 }
 
 Connector::~Connector()
