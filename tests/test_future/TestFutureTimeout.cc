@@ -24,26 +24,26 @@ int main()
 
     Future<int> ft(pm.GetFuture());
              
-    // register timeout
-    ft.OnTimeout(std::chrono::seconds(1), []() {
-                    printf("FAILED: future is timeout now!\n");
+    ft.Then([](int v) {
+                printf("!!!SUCC\n");
+                printf("1.Then got int value: %d\n", v);
+                return std::string("dummy string");
+          })
+        .Then([] (std::string s) {
+                printf("2.Then got string value: %s\n", s.data());
+          })
+        .OnTimeout(std::chrono::seconds(1), []() {
+                printf("!!!FAILED: future is timeout!\n");
                 },
                 &loop
-                );
+         );
 
-    // register callbacks
-    ft.Then([](int v) {
-            printf("1.Then got int value %d\n", v);
-            return std::string("dummy string");
-            })
-            .Then([] (std::string s) {
-            printf("2.Then got string value %s\n", s.data());
-            });
-
+    // exit after 3 seconds
     loop.ScheduleAfter(std::chrono::seconds(3), []() {
             printf("BYE: now exiting!\n");
             EventLoop::ExitApplication();
             });
+
     loop.Run();
 
     t.join();

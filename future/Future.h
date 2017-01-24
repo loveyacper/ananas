@@ -20,6 +20,8 @@ enum class Progress
     Done
 };
 
+using TimeoutCallback = std::function<void ()>;
+
 template <typename T>
 struct State
 {
@@ -42,8 +44,10 @@ struct State
     std::function<void (Try<T>&& )> then_;
     Progress progress_;
 
+    std::function<void (TimeoutCallback&& )> onTimeout_;
     std::atomic<bool> retrieved_;
 
+    bool IsRoot() const { return !onTimeout_; }
 };
 
 } // end namespace internal
@@ -74,7 +78,8 @@ public:
     SetValue(SHIT&& t)
     {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ != internal::Progress::None)
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != internal::Progress::None)
             return;
 
         state_->progress_ = internal::Progress::Done;
@@ -90,7 +95,8 @@ public:
     SetValue(const SHIT& t)
     {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ != internal::Progress::None)
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != internal::Progress::None)
             return;
 
         state_->progress_ = internal::Progress::Done;
@@ -105,7 +111,8 @@ public:
     SetValue(Try<SHIT>&& t)
     {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ != internal::Progress::None)
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != internal::Progress::None)
             return;
 
         state_->pm_.set_value(t);
@@ -118,7 +125,8 @@ public:
     SetValue(const Try<SHIT>& t)
     {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ != internal::Progress::None)
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != internal::Progress::None)
             return;
 
         state_->progress_ = internal::Progress::Done;
@@ -133,7 +141,8 @@ public:
     SetValue(Try<void>&& )
     {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ != internal::Progress::None)
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != internal::Progress::None)
             return;
 
         state_->progress_ = internal::Progress::Done;
@@ -148,7 +157,8 @@ public:
     SetValue(const Try<void>& )
     {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ != internal::Progress::None)
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != internal::Progress::None)
             return;
 
         state_->progress_ = internal::Progress::Done;
@@ -163,7 +173,8 @@ public:
     SetValue()
     {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ != internal::Progress::None)
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != internal::Progress::None)
             return;
 
         state_->progress_ = internal::Progress::Done;
@@ -280,7 +291,27 @@ public:
         }
         else
         {
-            // set this future's then callback
+            // 1. set pm's timeout callback
+            nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<internal::State<T>>(this->state_)](internal::TimeoutCallback&& cb) {
+                    auto parent = weak_parent.lock();
+                    if (!parent)
+                        return;
+
+                    {
+                        std::unique_lock<std::mutex> guard(parent->thenLock_);
+                        if (parent->progress_ != internal::Progress::None)
+                            return;
+                    
+                        parent->progress_ = internal::Progress::Timeout;
+                    }
+
+                    if (!parent->IsRoot())
+                        parent->onTimeout_(std::move(cb)); // propogate to the root
+                    else
+                        cb();
+                });
+
+            // 2. set this future's then callback
             SetCallback([func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
                 // run callback, T can be void, thanks to folly Try<>
                 auto result = WrapWithTry(func, t.template Get<Args>()...);
@@ -315,7 +346,28 @@ public:
         }
         else
         {
-            // set this future's then callback
+            // 1. set pm's timeout callback
+            nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<internal::State<T>>(this->state_)](internal::TimeoutCallback&& cb) {
+                    auto parent = weak_parent.lock();
+                    if (!parent)
+                        return;
+
+                    {
+                        std::unique_lock<std::mutex> guard(parent->thenLock_);
+                        if (parent->progress_ != internal::Progress::None)
+                            return;
+                    
+                        parent->progress_ = internal::Progress::Timeout;
+                    }
+
+                    if (!parent->IsRoot())
+                        parent->onTimeout_(std::move(cb)); // propogate to the root
+                    else
+                        cb();
+
+                });
+
+            // 2. set this future's then callback
             SetCallback([func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
                 // because func return another future:f2, when f2 is done, nextFuture can be done
                 auto f2 = func(t.template Get<Args>()...);
@@ -333,11 +385,28 @@ public:
         this->state_->then_ = std::move(func);
     }
 
+    void SetOnTimeout(std::function<void (internal::TimeoutCallback&& )>&& func)
+    {
+        this->state_->onTimeout_ = std::move(func);
+    }
+
+    /*
+     * When register callbacks and timeout for a future like this:
+     *
+     *      Future<int> f;
+     *      f.Then(xx).Then(yy).OnTimeout(zz);
+     *
+     * There will be 3 future objects created except f, we call f as root future.
+     * The zz callback is register on the last future, however, timeout and future satisfication
+     * can happened almost in the same time, we should ensure that both xx and yy will be called
+     * or zz will be called, but they can't happened both or neither. So we pass the cb
+     * to the root future, if we find out that root future is indeed timeout, we call cb there.
+     */
     void OnTimeout(std::chrono::milliseconds duration,
-                   std::function<void()> f,
+                   internal::TimeoutCallback f,
                    TimeScheduler* scheduler)
     {
-        scheduler->ScheduleOnceAfter(duration, [state = this->state_, cb = std::move(f)]() {
+        scheduler->ScheduleOnceAfter(duration, [state = this->state_, cb = std::move(f)]() mutable {
                 {
                     std::unique_lock<std::mutex> guard(state->thenLock_);
 
@@ -347,8 +416,11 @@ public:
                     state->progress_ = internal::Progress::Timeout;
                 }
 
-                // timeout callback 
-                cb();
+                // Process timeout
+                if (!state->IsRoot())
+                    state->onTimeout_(std::move(cb)); // propogate to the root future
+                else
+                    cb();
         });
     }
 
@@ -513,6 +585,7 @@ Future<
            
     return ctx->pm.GetFuture();
 }
+
 } // end namespace ananas
 
 #endif
