@@ -26,12 +26,12 @@ Connector::~Connector()
     }
 }
 
-void Connector::SetNewConnCallback(EventLoop::NewConnCallback cb)
+void Connector::SetNewConnCallback(NewTcpConnCallback cb)
 {
     this->newConnCallback_ = std::move(cb);
 }
 
-void Connector::SetFailCallback(EventLoop::ConnFailCallback cb)
+void Connector::SetFailCallback(TcpConnFailCallback cb)
 {
     onConnectFail_ = std::move(cb);
 }

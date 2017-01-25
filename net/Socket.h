@@ -86,6 +86,7 @@ extern const int kEof;
 
 int CreateTCPSocket();
 int CreateUDPSocket();
+bool CreateSocketPair(int& readSock, int& writeSock);
 void CloseSocket(int &sock);
 void SetNonBlock(int sock, bool nonBlock = true);
 void SetNodelay(int sock);

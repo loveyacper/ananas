@@ -11,10 +11,14 @@ std::shared_ptr<ananas::Logger> logger;
 
 ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, size_t len)
 {
-    DBG(logger) << "Recv " << data;
     // echo package
     conn->SendPacket(data, len);
     return len;
+}
+
+void OnWriteComplete(ananas::Connection* conn)
+{
+    INF(logger) << "OnWriteComplete for " << conn->Identifier();
 }
 
 void OnConnect(ananas::Connection* conn)
@@ -35,6 +39,7 @@ void OnNewConnection(ananas::Connection* conn)
     conn->SetOnConnect(OnConnect);
     conn->SetOnMessage(OnMessage);
     conn->SetOnDisconnect(OnDisConnect);
+    conn->SetOnWriteComplete(OnWriteComplete);
 }
 
     
@@ -73,7 +78,7 @@ int main(int ac, char* av[])
     daemon(1, 0);
 
     ananas::LogManager::Instance().Start();
-    logger = ananas::LogManager::Instance().CreateLog(logALL, logFile, "logger_client_test");
+    logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_client_test");
 
     int threads = 1;
     if (ac > 1)

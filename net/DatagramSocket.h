@@ -3,8 +3,8 @@
 #define BERT_DATAGRAMSOCKET_H
 
 #include <list>
-#include <functional>
 #include "Socket.h"
+#include "Typedefs.h"
 #include "Poller.h"
 
 namespace ananas
@@ -15,9 +15,6 @@ class EventLoop;
 class DatagramSocket : public internal::EventSource
 {
 public:
-    using MessageCallback = std::function<void (DatagramSocket* , const char* data, size_t len)>;
-    using CreateCallback = std::function<void (DatagramSocket* )>;
-
     explicit
     DatagramSocket(EventLoop* loop);
     ~DatagramSocket();
@@ -33,16 +30,16 @@ public:
     bool HandleWriteEvent() override;
     void HandleErrorEvent() override;
 
-    bool SendPacket(const char* , size_t , const SocketAddr* = nullptr);
+    bool SendPacket(const void* , size_t , const SocketAddr* = nullptr);
 
     const SocketAddr& PeerAddr() const { return srcAddr_; }
 
-    void SetMessageCallback(MessageCallback mcb) { onMessage_ = std::move(mcb); }
-    void SetCreateCallback(CreateCallback ccb) { onCreate_ = std::move(ccb); }
+    void SetMessageCallback(UDPMessageCallback mcb) { onMessage_ = std::move(mcb); }
+    void SetCreateCallback(UDPCreateCallback ccb) { onCreate_ = std::move(ccb); }
 
 private:
-    void _PutSendBuf(const char* data, size_t size, const SocketAddr* dst);
-    int _Send(const char* data, size_t size, const SocketAddr& dst);
+    void _PutSendBuf(const void* data, size_t size, const SocketAddr* dst);
+    int _Send(const void* data, size_t size, const SocketAddr& dst);
 
     EventLoop* const loop_;
     int localSock_;
@@ -56,8 +53,8 @@ private:
     };
     std::list<Package> sendList_;
     
-    MessageCallback onMessage_;
-    CreateCallback onCreate_;
+    UDPMessageCallback onMessage_;
+    UDPCreateCallback onCreate_;
 };
 
 } // namespace ananas

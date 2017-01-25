@@ -105,16 +105,16 @@ bool DatagramSocket::HandleReadEvent()
     return  true;
 }
 
-void DatagramSocket::_PutSendBuf(const char* data, size_t size, const SocketAddr* dst)
+void DatagramSocket::_PutSendBuf(const void* data, size_t size, const SocketAddr* dst)
 {
     Package pkg;
     pkg.dst = *dst;
-    pkg.data.assign(data, size);
+    pkg.data.assign(reinterpret_cast<const char* >(data), size);
 
     sendList_.emplace_back(std::move(pkg));
 }
 
-int DatagramSocket::_Send(const char* data, size_t size, const SocketAddr& dst)
+int DatagramSocket::_Send(const void* data, size_t size, const SocketAddr& dst)
 {
     int bytes = ::sendto(localSock_,
                          data, size,
@@ -130,7 +130,7 @@ int DatagramSocket::_Send(const char* data, size_t size, const SocketAddr& dst)
     return bytes;
 }
 
-bool DatagramSocket::SendPacket(const char* data, size_t size, const SocketAddr* dst)
+bool DatagramSocket::SendPacket(const void* data, size_t size, const SocketAddr* dst)
 {
     if (size == 0 || !data)
         return true;

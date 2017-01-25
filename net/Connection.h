@@ -6,12 +6,10 @@
 #include "Socket.h"
 #include "Poller.h"
 #include "Buffer.h"
-#include "EventLoop.h"
+#include "Typedefs.h"
 
 namespace ananas
 {
-
-typedef size_t PacketLen_t;
 
 class Connection : public internal::EventSource
 {
@@ -40,9 +38,10 @@ public:
 
     void SetOnConnect(std::function<void (Connection* )> cb);
     void SetOnDisconnect(std::function<void (Connection* )> cb);
-    void SetOnMessage(std::function<PacketLen_t (Connection*, const char* data, PacketLen_t len)> cb);
+    void SetOnMessage(TcpMessageCallback cb);
     void OnConnect();
-    void SetFailCallback(EventLoop::ConnFailCallback cb);
+    void SetFailCallback(TcpConnFailCallback cb);
+    void SetOnWriteComplete(TcpWriteCompleteCallback wccb);
 
 private:
     int _Send(const void* data, size_t len);
@@ -58,9 +57,10 @@ private:
 
     std::function<void (Connection* )> onConnect_;
     std::function<void (Connection* )> onDisconnect_;
-    std::function<PacketLen_t (Connection* , const char* data, PacketLen_t len)> onMessage_;
     
-    EventLoop::ConnFailCallback onConnFail_;
+    TcpMessageCallback onMessage_;
+    TcpConnFailCallback onConnFail_;
+    TcpWriteCompleteCallback onWriteComplete_;
 };
 
 } // end namespace ananas

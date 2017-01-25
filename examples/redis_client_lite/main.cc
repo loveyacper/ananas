@@ -1,5 +1,6 @@
 #include <iostream>
 #include "RedisContext.h"
+#include "net/EventLoop.h"
 
 
 void GetAndSetName(const std::shared_ptr<RedisContext>& ctx)

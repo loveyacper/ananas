@@ -2,9 +2,8 @@
 #ifndef BERT_CONNECTOR_H
 #define BERT_CONNECTOR_H
 
-#include <functional>
 #include "Socket.h"
-#include "EventLoop.h"
+#include "Typedefs.h"
 
 namespace ananas
 {
@@ -29,8 +28,8 @@ public:
     Connector(const Connector& ) = delete;
     void operator= (const Connector& ) = delete;
 
-    void SetNewConnCallback(EventLoop::NewConnCallback cb);
-    void SetFailCallback(EventLoop::ConnFailCallback cb);
+    void SetNewConnCallback(NewTcpConnCallback cb);
+    void SetFailCallback(TcpConnFailCallback cb);
     bool Connect(const SocketAddr& addr);
 
     int Identifier() const override;
@@ -51,8 +50,8 @@ private:
     ConnectState state_ = ConnectState::none;
 
 
-    EventLoop::ConnFailCallback onConnectFail_;
-    EventLoop::NewConnCallback newConnCallback_;
+    TcpConnFailCallback onConnectFail_;
+    NewTcpConnCallback newConnCallback_;
 };
 
 } // end namespace internal

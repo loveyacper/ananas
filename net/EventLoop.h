@@ -4,11 +4,10 @@
 
 #include <map>
 #include <memory>
-#include <functional>
 #include <sys/resource.h>
 #include "Timer.h"
 #include "Poller.h"
-#include "DatagramSocket.h"
+#include "Typedefs.h"
 #include "util/TimeScheduler.h"
 
 namespace ananas
@@ -25,9 +24,6 @@ class  Connector;
 class EventLoop : public TimeScheduler // for future timeout
 {
 public:
-    using NewConnCallback = std::function<void (Connection* )>;
-    using ConnFailCallback = std::function<void (EventLoop*, const SocketAddr& peer)>;
-
     EventLoop();
     ~EventLoop();
 
@@ -37,23 +33,25 @@ public:
     void operator= (EventLoop&& ) = delete;
 
     // listener
-    bool Listen(const SocketAddr& listenAddr, NewConnCallback cb);
-    bool Listen(const char* ip, uint16_t hostPort, NewConnCallback cb);
+    bool Listen(const SocketAddr& listenAddr, NewTcpConnCallback cb);
+    bool Listen(const char* ip, uint16_t hostPort, NewTcpConnCallback cb);
     bool ListenUDP(const SocketAddr& listenAddr,
-            DatagramSocket::MessageCallback mcb,
-            DatagramSocket::CreateCallback ccb);
+            UDPMessageCallback mcb,
+            UDPCreateCallback ccb);
     bool ListenUDP(const char* ip, uint16_t hostPort,
-            DatagramSocket::MessageCallback mcb,
-            DatagramSocket::CreateCallback ccb);
+            UDPMessageCallback mcb,
+            UDPCreateCallback ccb);
 
     // udp client
-    bool CreateClientUDP(DatagramSocket::MessageCallback mcb,
-                         DatagramSocket::CreateCallback ccb);
+    bool CreateClientUDP(UDPMessageCallback mcb,
+                         UDPCreateCallback ccb);
 
 
     // connector 
-    bool Connect(const SocketAddr& dst, NewConnCallback nccb, ConnFailCallback cfcb);
-    bool Connect(const char* ip, uint16_t hostPort, NewConnCallback nccb, ConnFailCallback cfcb);
+    bool Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnFailCallback cfcb);
+    bool Connect(const char* ip, uint16_t hostPort, NewTcpConnCallback nccb, TcpConnFailCallback cfcb);
+
+    // TODO socketpair
 
     // timer
     template <int RepeatCount = 1, typename Duration, typename F, typename... Args>

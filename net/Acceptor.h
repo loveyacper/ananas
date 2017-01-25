@@ -3,7 +3,7 @@
 #define BERT_ACCEPTOR_H
 
 #include "Socket.h"
-#include "EventLoop.h"
+#include "Typedefs.h"
 
 namespace ananas
 {
@@ -20,7 +20,7 @@ public:
     Acceptor(const Acceptor& ) = delete;
     void operator= (const Acceptor& ) = delete;
 
-    void SetNewConnCallback(EventLoop::NewConnCallback cb);
+    void SetNewConnCallback(NewTcpConnCallback cb);
     bool Bind(const SocketAddr& addr);
         
     int Identifier() const override;
@@ -38,7 +38,7 @@ private:
     EventLoop* const loop_; // which loop belong to
 
     //register msg callback and on connect callback for conn
-    EventLoop::NewConnCallback newConnCallback_;
+    NewTcpConnCallback newConnCallback_;
 
     static const int kListenQueue;
 };

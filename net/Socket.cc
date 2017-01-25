@@ -27,6 +27,19 @@ int CreateTCPSocket()
     return ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 }
 
+bool CreateSocketPair(int& readSock, int& writeSock)
+{
+    int s[2];
+    int ret = socketpair(AF_LOCAL, SOCK_STREAM, IPPROTO_TCP, s);
+    if (ret != 0)
+        return false;
+
+    readSock = s[0];
+    writeSock = s[1];
+
+    return true;
+}
+
 void CloseSocket(int& sock)
 {
     if (sock != kInvalid)

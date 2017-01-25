@@ -8,6 +8,7 @@
 #include "Acceptor.h"
 #include "Connection.h"
 #include "Connector.h"
+#include "DatagramSocket.h"
 #include "ThreadPool.h"
 
 #if defined(__APPLE__)
@@ -84,7 +85,7 @@ EventLoop::~EventLoop()
     
     
 bool EventLoop::Listen(const char* ip, uint16_t hostPort,
-                       NewConnCallback newConnCallback)
+                       NewTcpConnCallback newConnCallback)
 {
     std::string realIp = ConvertIp(ip);
         
@@ -95,7 +96,7 @@ bool EventLoop::Listen(const char* ip, uint16_t hostPort,
 }
     
 bool EventLoop::Listen(const SocketAddr& listenAddr,
-                       NewConnCallback newConnCallback)
+                       NewTcpConnCallback newConnCallback)
 {
     using internal::Acceptor;
 
@@ -109,8 +110,8 @@ bool EventLoop::Listen(const SocketAddr& listenAddr,
 }
 
 bool EventLoop::ListenUDP(const SocketAddr& listenAddr,
-        DatagramSocket::MessageCallback mcb,
-        DatagramSocket::CreateCallback ccb)
+        UDPMessageCallback mcb,
+        UDPCreateCallback ccb)
 {
     std::unique_ptr<DatagramSocket> s(new DatagramSocket(this));
     s->SetMessageCallback(mcb);
@@ -123,8 +124,8 @@ bool EventLoop::ListenUDP(const SocketAddr& listenAddr,
 }
 
 bool EventLoop::ListenUDP(const char* ip, uint16_t hostPort,
-        DatagramSocket::MessageCallback mcb,
-        DatagramSocket::CreateCallback ccb)
+        UDPMessageCallback mcb,
+        UDPCreateCallback ccb)
 {
     std::string realIp = ConvertIp(ip);
         
@@ -135,8 +136,8 @@ bool EventLoop::ListenUDP(const char* ip, uint16_t hostPort,
 }
 
 
-bool EventLoop::CreateClientUDP(DatagramSocket::MessageCallback mcb,
-                                DatagramSocket::CreateCallback ccb)
+bool EventLoop::CreateClientUDP(UDPMessageCallback mcb,
+                                UDPCreateCallback ccb)
 {
     std::unique_ptr<DatagramSocket> s(new DatagramSocket(this));
     s->SetMessageCallback(mcb);
@@ -148,7 +149,7 @@ bool EventLoop::CreateClientUDP(DatagramSocket::MessageCallback mcb,
     return true;
 }
 
-bool EventLoop::Connect(const char* ip, uint16_t hostPort, NewConnCallback nccb, ConnFailCallback cfcb)
+bool EventLoop::Connect(const char* ip, uint16_t hostPort, NewTcpConnCallback nccb, TcpConnFailCallback cfcb)
 {
     std::string realIp = ConvertIp(ip);
         
@@ -159,7 +160,7 @@ bool EventLoop::Connect(const char* ip, uint16_t hostPort, NewConnCallback nccb,
 }
 
 
-bool EventLoop::Connect(const SocketAddr& dst, NewConnCallback nccb, ConnFailCallback cfcb)
+bool EventLoop::Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnFailCallback cfcb)
 {
     using internal::Connector;
 
@@ -175,6 +176,7 @@ bool EventLoop::Connect(const SocketAddr& dst, NewConnCallback nccb, ConnFailCal
 
     return true;
 }
+
 
 thread_local unsigned int EventLoop::s_id = 0;
 
@@ -276,13 +278,12 @@ bool EventLoop::Loop(DurationMs timeout)
 {
     ANANAS_DEFER
     {
-        decltype(functors_) tmp;
-        tmp.swap(functors_);
-
-        for (const auto& f : tmp)
-            f();
-    
         timers_.Update();
+
+        for (const auto& f : functors_)
+            f();
+
+        functors_.clear();
     };
 
     if (eventSourceSet_.empty())
@@ -318,7 +319,7 @@ bool EventLoop::Loop(DurationMs timeout)
         
         if (fired[i].events & internal::eET_Error)
         {
-            ERR(internal::g_debug) << "eET_Error";
+            ERR(internal::g_debug) << "eET_Error for " << src->Identifier();
             src->HandleErrorEvent();
             continue;
         }

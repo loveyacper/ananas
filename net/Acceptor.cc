@@ -1,7 +1,8 @@
 #include <errno.h>
 #include <cassert>
-#include "Acceptor.h"
+#include "EventLoop.h"
 #include "Connection.h"
+#include "Acceptor.h"
 
 #include "AnanasDebug.h"
 
@@ -27,7 +28,7 @@ Acceptor::~Acceptor()
 }
 
 
-void Acceptor::SetNewConnCallback(EventLoop::NewConnCallback cb)
+void Acceptor::SetNewConnCallback(NewTcpConnCallback cb)
 {
     this->newConnCallback_ = std::move(cb);
 }

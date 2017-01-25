@@ -108,6 +108,9 @@ bool Connection::HandleWriteEvent()
     {
         sendBuf_.Shrink();
         loop_->Modify(internal::eET_Read, this);
+
+        if (onWriteComplete_)
+            onWriteComplete_(this);
     }
 
     return true;
@@ -144,6 +147,11 @@ bool Connection::SendPacket(const void* data, std::size_t  size)
         WRN(internal::g_debug) << localSock_ << " want send " << size << " bytes, but only send " << bytes;
         sendBuf_.PushData((char*)data + bytes, size - static_cast<std::size_t>(bytes));
         loop_->Modify(internal::eET_Read | internal::eET_Write, this);
+    }
+    else
+    {
+        if (onWriteComplete_)
+            onWriteComplete_(this);
     }
 
 	return true;
@@ -295,6 +303,9 @@ bool Connection::SendPacket(const SliceVector& slice)
             CollectBuffer(buffers.iovecs, buffers.iovCount, alreadySent, sendBuf_);
     }
 
+    if (sendBuf_.IsEmpty() && onWriteComplete_)
+        onWriteComplete_(this);
+
     return true;
 }
     
@@ -309,7 +320,7 @@ void Connection::SetOnDisconnect(std::function<void (Connection* )> cb)
     onDisconnect_ = std::move(cb);
 }
 
-void Connection::SetOnMessage(std::function<PacketLen_t (Connection*, const char* data, PacketLen_t len)> cb)
+void Connection::SetOnMessage(TcpMessageCallback cb)
 {
     onMessage_ = std::move(cb);
 }
@@ -320,9 +331,14 @@ void Connection::OnConnect()
         onConnect_(this);
 }
 
-void Connection::SetFailCallback(EventLoop::ConnFailCallback cb)
+void Connection::SetFailCallback(TcpConnFailCallback cb)
 {
     onConnFail_ = std::move(cb);
+}
+
+void Connection::SetOnWriteComplete(TcpWriteCompleteCallback wccb)
+{
+    onWriteComplete_ = std::move(wccb);
 }
 
 } // end namespace ananas
