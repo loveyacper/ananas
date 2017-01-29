@@ -224,17 +224,15 @@ bool EventLoop::Modify(int events, internal::EventSource* src)
 
 void EventLoop::Unregister(int events, internal::EventSource* src)
 {
-    auto tmp = src->Identifier();
+    const int fd = src->Identifier();
+    INF(internal::g_debug) << "Unregister socket id " << fd;
+    poller_->Unregister(fd, events);
+
     size_t nTask = eventSourceSet_.erase(src->GetUniqueId());
-    if (1 != nTask)
+    if (nTask != 1)
     {
-        ERR(internal::g_debug) << "Can not find socket id " << tmp;
+        ERR(internal::g_debug) << "Can not find socket id " << fd;
         assert (false);
-    }
-    else
-    {
-        INF(internal::g_debug) << "Unregister socket id " << tmp;
-        poller_->Unregister(tmp, events);
     }
 }
 

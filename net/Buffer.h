@@ -80,6 +80,8 @@ struct BufferVector
         PushBack(std::move(first));
     }
 
+    bool Empty() const { return buffers.empty(); }
+
     std::size_t TotalBytes() const
     {
         size_t s = 0;
@@ -121,20 +123,21 @@ private:
     BufferContainer buffers;
 };
 
+struct Slice
+{
+    const void* data;
+    size_t len;
+
+    explicit
+    Slice(const void* d = nullptr, size_t l = 0) :
+        data(d),
+        len(l)
+    {}
+};
+
 struct SliceVector
 {
 private:
-    struct Slice
-    {
-        const void* data;
-        size_t len;
-
-        explicit
-        Slice(const void* d = nullptr, size_t l = 0) :
-            data(d),
-            len(l)
-        {}
-    };
     typedef std::list<Slice> Slices;
 
 public:
@@ -153,6 +156,8 @@ public:
 
     const_iterator cbegin() const { return slices.cbegin(); }
     const_iterator cend() const { return slices.cend(); }
+
+    bool Empty() const { return slices.empty(); }
 
     void PushBack(const void* data, size_t len)
     {

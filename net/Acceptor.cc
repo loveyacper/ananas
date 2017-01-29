@@ -80,7 +80,6 @@ bool Acceptor::Bind(const SocketAddr& addr)
     return  true;
 }
 
-    
 int Acceptor::Identifier() const
 {
     return localSock_;
@@ -95,12 +94,18 @@ bool Acceptor::HandleReadEvent()
         {
             std::unique_ptr<Connection> conn(new Connection(loop_));
             conn->Init(connfd, peer_);
-            this->newConnCallback_(conn.get());
 
             // if send huge data OnConnect, may call Modify, so Register events first
-            auto c = conn.release();
-            loop_->Register(eET_Read | eET_Write, c);
-            c->OnConnect();
+            if (loop_->Register(eET_Read, conn.get()))
+            {
+                auto c = conn.release();
+                newConnCallback_(c);
+                c->OnConnect();
+            }
+            else
+            {
+                ERR(internal::g_debug) << "Accept but failed to register socket " << conn->Identifier();
+            }
         }
         else
         {
@@ -143,8 +148,7 @@ bool Acceptor::HandleWriteEvent()
 
 void Acceptor::HandleErrorEvent()
 {
-    loop_->Unregister(eET_Read | eET_Write, this);
-    loop_->Stop();
+    loop_->Unregister(eET_Read, this);
 }
 
 int Acceptor::_Accept()

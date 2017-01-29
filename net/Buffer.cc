@@ -39,8 +39,8 @@ std::size_t Buffer::PushDataAt(const void* data, std::size_t size, std::size_t o
     if (!data || size == 0)
         return 0;
 
-    if (ReadableSize() == kMaxBufferSize)
-        return 0;
+    if (ReadableSize() + size + offset >= kMaxBufferSize)
+        return 0; // overflow
 
     AssureSpace(size + offset);
 
@@ -76,7 +76,7 @@ std::size_t Buffer::PeekDataAt(void* buf, std::size_t size, std::size_t offset)
         return 0;
 
     if (size + offset > dataSize)
-        size = dataSize - offset;
+        size = dataSize - offset; // truncate
 
 	::memcpy(buf, &buffer_[readPos_ + offset], size);
 
@@ -100,11 +100,11 @@ void Buffer::AssureSpace(std::size_t needsize)
         }
         else if (capacity_ <= kMaxBufferSize)
         {
-            auto newCapcity = RoundUp2Power(capacity_);
-            if (newCapcity == capacity_)
-                capacity_ = 2 * newCapcity;
-            else
+            const auto newCapcity = RoundUp2Power(capacity_);
+            if (capacity_ < newCapcity)
                 capacity_ = newCapcity;
+            else
+                capacity_ = 2 * newCapcity;
         }
         else 
         {
@@ -120,13 +120,14 @@ void Buffer::AssureSpace(std::size_t needsize)
             memcpy(&tmp[0], &buffer_[readPos_], dataSize);
 
         buffer_.swap(tmp);
-
-        std::cout << " expand to " << capacity_ << ", and data size " << dataSize << std::endl;
+        //std::cout << " expand to " << capacity_ << ", and data size " << dataSize << std::endl;
     }
-    else if (readPos_ > 0 && WritableSize() < needsize)
+    else
     {
+        assert (readPos_ > 0);
+
         ::memmove(&buffer_[0], &buffer_[readPos_], dataSize);
-        std::cout << " move from " << readPos_ << std::endl;
+        std::cout << " move from " << readPos_ << ", and dataSize " << dataSize << std::endl;
     }
 
     readPos_ = 0;

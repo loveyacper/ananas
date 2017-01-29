@@ -7,6 +7,7 @@
 #include "EventLoop.h"
 #include "Connection.h"
 #include "AnanasDebug.h"
+#include "util/Util.h"
 
 namespace ananas
 {
@@ -14,7 +15,8 @@ namespace ananas
 Connection::Connection(EventLoop* loop) :
     loop_(loop),
     localSock_(kInvalid),
-    maxPacketSize_(1024)
+    minPacketSize_(0),
+    sendBufHighWater_(10 * 1024 * 1024)
 {
 }
 
@@ -35,11 +37,6 @@ bool Connection::Init(int fd, const SocketAddr& peer)
     return true;
 }
 
-void Connection::SetMaxPacketSize(std::size_t  s)
-{
-    maxPacketSize_ = s;
-}
-
 void Connection::Close()
 {
     CloseSocket(localSock_);
@@ -54,11 +51,17 @@ bool Connection::HandleReadEvent()
 {
     while (true)
     {
-        recvBuf_.AssureSpace(maxPacketSize_);
+        recvBuf_.AssureSpace(4 * 1024);
 
         int bytes = ::recv(localSock_, recvBuf_.WriteAddr(), recvBuf_.WritableSize(), 0);
-        if (kError == bytes && (EAGAIN == errno || EWOULDBLOCK == errno))
-            return true;
+        if (kError == bytes)
+        {
+            if (EAGAIN == errno || EWOULDBLOCK == errno)
+                return true;
+
+            if (EINTR == errno)
+                continue; // restart ::recv
+        }
 
         if (0 == bytes)
             return false; // eof
@@ -68,7 +71,7 @@ bool Connection::HandleReadEvent()
         else
             return false;
 
-        while (!recvBuf_.IsEmpty())
+        while (recvBuf_.ReadableSize() >= minPacketSize_)
         {
             auto bytes = onMessage_(this, recvBuf_.ReadAddr(), recvBuf_.ReadableSize());
 
@@ -90,8 +93,14 @@ int Connection::_Send(const void* data, size_t len)
         return 0;
 
 	int  bytes = ::send(localSock_, data, len, 0);
-    if (kError == bytes && (EAGAIN == errno || EWOULDBLOCK == errno))
-        bytes = 0;
+    if (kError == bytes)
+    {
+        if (EAGAIN == errno || EWOULDBLOCK == errno)
+            bytes = 0;
+
+        if (EINTR == errno)
+            bytes = 0; // later try ::send
+    }
 
     return bytes;
 }
@@ -132,6 +141,18 @@ bool Connection::SendPacket(const void* data, std::size_t  size)
     if (size == 0)
         return true;
 
+    const size_t oldSendBytes = sendBuf_.ReadableSize();
+    ANANAS_DEFER
+    {
+        size_t nowSendBytes = sendBuf_.ReadableSize();
+        if (oldSendBytes < sendBufHighWater_ &&
+            nowSendBytes >= sendBufHighWater_)
+        {
+            if (onWriteHighWater)
+                onWriteHighWater(this, nowSendBytes);
+        }
+    };
+
     if (!sendBuf_.IsEmpty())
     {
         sendBuf_.PushData(data, size);
@@ -163,10 +184,7 @@ namespace
 
 struct IOVecBuffer
 {
-    static const int kIOVecCount = 16; // be care of IOV_MAX
-
-    iovec iovecs[kIOVecCount];
-    int iovCount = 0;
+    std::vector<iovec> iovecs;
 
     IOVecBuffer()
     {
@@ -175,44 +193,58 @@ struct IOVecBuffer
 
     void Reset()
     {
-        iovCount = 0;
+        iovecs.clear();
     }
 
-    bool PushBuffer(iovec v)
+    void PushBuffer(iovec v)
     {
-        if (iovCount == kIOVecCount)
-            return false;
-
-        iovecs[iovCount++] = v;
-        return true;
+        iovecs.push_back(v);
     }
 
     size_t TotalBytes() const
     {
         size_t total = 0;
-        for (int i = 0; i < iovCount; ++ i)
-            total += iovecs[i].iov_len;
+        for (const auto& e : iovecs)
+            total += e.iov_len;
 
         return total;
     }
 };
 
-int WriteV(int sock, const iovec* buffers, int cnt)
+int WriteV(int sock, const std::vector<iovec>& buffers, int cnt)
 {
-    if (cnt == 0)
-        return 0;
+    const int kIOVecCount = 16; // be care of IOV_MAX
 
-    int bytes = static_cast<int>(::writev(sock, buffers, cnt));
+    int sent = 0;
+    while (cnt > 0)
+    {
+        const int vc = std::min(cnt, kIOVecCount);
+        int bytes = static_cast<int>(::writev(sock, &buffers[0], vc));
+        cnt -= vc;
 
-    assert (bytes != 0);
+        assert (bytes != 0);
 
-    if (kError == bytes && (EAGAIN == errno || EWOULDBLOCK == errno))
-        bytes = 0;
+        if (kError == bytes)
+        {
+            if (EAGAIN == errno || EWOULDBLOCK == errno)
+                return sent;
 
-    return bytes;
+            if (EINTR == errno)
+                return sent;
+
+            return kError;  // can not send any more
+        }
+        else
+        {
+            assert (bytes > 0);
+            sent += bytes;
+        }
+    }
+
+    return sent;
 }
 
-void CollectBuffer(const iovec* buffers, int cnt, size_t skipped, Buffer& dst)
+void CollectBuffer(const std::vector<iovec>& buffers, int cnt, size_t skipped, Buffer& dst)
 {
     for (int i = 0; i < cnt; ++ i)
     {
@@ -248,63 +280,59 @@ bool Connection::SendPacket(const BufferVector& data)
 
 bool Connection::SendPacket(const SliceVector& slice)
 {
-    IOVecBuffer buffers;
-    bool save = false; // true for send, else for save
+    if (slice.Empty())
+        return true;
 
+    const size_t oldSendBytes = sendBuf_.ReadableSize();
+    ANANAS_DEFER
+    {
+        size_t nowSendBytes = sendBuf_.ReadableSize();
+        if (oldSendBytes < sendBufHighWater_ &&
+            nowSendBytes >= sendBufHighWater_)
+        {
+            if (onWriteHighWater)
+                onWriteHighWater(this, nowSendBytes);
+        }
+    };
+
+    IOVecBuffer buffers;
     for (const auto& e : slice)
     {
-        if (save)
-        {
-            sendBuf_.PushData(e.data, e.len);
+        if (e.len == 0)
             continue;
-        }
 
         iovec ivc; 
         ivc.iov_base = const_cast<void*>(e.data);
         ivc.iov_len = e.len;
 
-        if (!buffers.PushBuffer(ivc))
-        {
-            assert (buffers.iovCount == IOVecBuffer::kIOVecCount);
-
-            int ret = WriteV(localSock_, buffers.iovecs, buffers.iovCount);
-            if (ret == kError)
-                return false; // should close
-
-            assert (ret >= 0);
-
-            size_t alreadySent = static_cast<size_t>(ret);
-            size_t expectSend = buffers.TotalBytes();
-
-            if (alreadySent < expectSend ) // EAGAIN
-            {
-                save = true;
-                CollectBuffer(buffers.iovecs, buffers.iovCount, alreadySent, sendBuf_);
-            }
-            else if (alreadySent == expectSend)
-            {
-                buffers.Reset();
-            }
-        }
+        buffers.PushBuffer(ivc);
     }
 
-    if (!save)
+    if (!sendBuf_.IsEmpty())
     {
-        int ret = WriteV(localSock_, buffers.iovecs, buffers.iovCount);
-        if (ret == kError)
-            return false; // should close
-        
-        assert (ret >= 0);
-
-        size_t alreadySent = static_cast<size_t>(ret);
-        size_t expectSend = buffers.TotalBytes();
-
-        if (alreadySent < expectSend)
-            CollectBuffer(buffers.iovecs, buffers.iovCount, alreadySent, sendBuf_);
+        CollectBuffer(buffers.iovecs, static_cast<int>(buffers.iovecs.size()), 0, sendBuf_);
+        return true;
     }
+            
+    int ret = WriteV(localSock_, buffers.iovecs, static_cast<int>(buffers.iovecs.size()));
+    if (ret == kError)
+        return false; // should close
 
-    if (sendBuf_.IsEmpty() && onWriteComplete_)
-        onWriteComplete_(this);
+    assert (ret >= 0);
+
+    size_t alreadySent = static_cast<size_t>(ret);
+    size_t expectSend = buffers.TotalBytes();
+
+    if (alreadySent < expectSend)
+    {
+        CollectBuffer(buffers.iovecs, static_cast<int>(buffers.iovecs.size()), alreadySent, sendBuf_);
+        loop_->Modify(internal::eET_Read | internal::eET_Write, this);
+    }
+    else
+    {
+        if (onWriteComplete_)
+            onWriteComplete_(this);
+    }
 
     return true;
 }
@@ -339,6 +367,21 @@ void Connection::SetFailCallback(TcpConnFailCallback cb)
 void Connection::SetOnWriteComplete(TcpWriteCompleteCallback wccb)
 {
     onWriteComplete_ = std::move(wccb);
+}
+
+void Connection::SetMinPacketSize(size_t s)
+{
+    minPacketSize_ = s;
+}
+
+void Connection::SetWriteHighWater(size_t s)
+{
+    sendBufHighWater_ = s;
+}
+
+void Connection::SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb)
+{
+    onWriteHighWater = std::move(whwcb);
 }
 
 } // end namespace ananas

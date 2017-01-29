@@ -21,8 +21,11 @@ Connector::~Connector()
 {
     if (localSock_ != kInvalid)
     {
-        INF(internal::g_debug) << __FUNCTION__ << localSock_ ;
-        CloseSocket(localSock_);
+        if (state_ != ConnectState::connected)
+        {
+            INF(internal::g_debug) << __FUNCTION__ << localSock_ ;
+            CloseSocket(localSock_);
+        }
     }
 }
 
@@ -132,6 +135,7 @@ void Connector::_OnSuccess()
 
     // create new conn
     Connection* c = new Connection(loop_);
+    std::unique_ptr<Connection> conn(c);
     c->Init(localSock_, peer_);
 
     // backup `this`
@@ -140,15 +144,21 @@ void Connector::_OnSuccess()
     const auto newCCB = std::move(this->newConnCallback_);
 
     // unregister connector
-    this->localSock_ = kInvalid;
     this->loop_->Unregister(eET_Write, this);
     // `this` is invalid now.
 
     // register new conn
-    c->SetFailCallback(onFail);
-    loop->Register(eET_Read | eET_Write, c);
-    newCCB(c);
-    c->OnConnect();
+    if (loop->Register(eET_Read, c))
+    {
+        conn.release();
+        c->SetFailCallback(onFail);
+        newCCB(c);
+        c->OnConnect();
+    }
+    else
+    {
+        ERR(internal::g_debug) << "_OnSuccess but register socket " << c->Identifier() << " failed!";
+    }
 }
 
 void Connector::_OnFailed()

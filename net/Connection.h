@@ -42,13 +42,18 @@ public:
     void OnConnect();
     void SetFailCallback(TcpConnFailCallback cb);
     void SetOnWriteComplete(TcpWriteCompleteCallback wccb);
+    void SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb);
+
+    void SetMinPacketSize(size_t s);
+    void SetWriteHighWater(size_t s);
 
 private:
     int _Send(const void* data, size_t len);
 
     EventLoop* const loop_;
     int localSock_;
-    std::size_t maxPacketSize_;
+    size_t minPacketSize_;
+    size_t sendBufHighWater_;
 
     Buffer recvBuf_;
     Buffer sendBuf_;
@@ -61,6 +66,7 @@ private:
     TcpMessageCallback onMessage_;
     TcpConnFailCallback onConnFail_;
     TcpWriteCompleteCallback onWriteComplete_;
+    TcpWriteHighWaterCallback onWriteHighWater;
 };
 
 } // end namespace ananas
