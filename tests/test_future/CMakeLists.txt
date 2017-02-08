@@ -11,7 +11,9 @@ ADD_EXECUTABLE(future_whenN_test TestFutureWhenN.cc)
 ADD_EXECUTABLE(future_timeout TestFutureTimeout.cc)
 
 TARGET_LINK_LIBRARIES(future_timeout ananas)
+TARGET_LINK_LIBRARIES(future_test ananas)
 ADD_DEPENDENCIES(future_timeout ananas)
+ADD_DEPENDENCIES(future_test ananas)
 
 SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin)
 

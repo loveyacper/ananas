@@ -278,10 +278,12 @@ bool EventLoop::Loop(DurationMs timeout)
     {
         timers_.Update();
 
-        for (const auto& f : functors_)
-            f();
+        // Use tmp : if f add callback to functors_
+        decltype(functors_) tmp;
+        tmp.swap(functors_);
 
-        functors_.clear();
+        for (const auto& f : tmp)
+            f();
     };
 
     if (eventSourceSet_.empty())
@@ -330,6 +332,11 @@ bool EventLoop::Loop(DurationMs timeout)
 void EventLoop::ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void()> f)
 {
     this->ScheduleAfter<1>(duration, std::move(f));
+}
+
+void EventLoop::ScheduleOnce(std::function<void()> f)
+{
+    this->ScheduleNextTick(std::move(f));
 }
 
 } // end namespace ananas

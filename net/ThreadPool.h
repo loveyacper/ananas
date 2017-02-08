@@ -49,6 +49,7 @@ private:
     std::deque<std::function<void ()> > tasks_;
     
     static const int kMaxThreads = 256;
+    static std::thread::id s_mainThread;
 };
 
 

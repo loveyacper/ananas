@@ -75,8 +75,6 @@ void SanityCheck(int& threads)
 
 int main(int ac, char* av[])
 {
-    daemon(1, 0);
-
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_client_test");
 

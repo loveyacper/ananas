@@ -4,12 +4,16 @@ namespace ananas
 {
 
 thread_local bool ThreadPool::working_ = true;
+std::thread::id ThreadPool::s_mainThread;
 
 ThreadPool::ThreadPool() : waiters_(0), shutdown_(false)
 {
     monitor_ = std::thread([this]() { this->_MonitorRoutine(); } );
     maxIdleThread_ = std::max(1U, std::thread::hardware_concurrency());
     pendingStopSignal_ = 0;
+
+    // init main thread id 
+    s_mainThread = std::this_thread::get_id();
 }
 
 ThreadPool::~ThreadPool()
@@ -31,6 +35,9 @@ void    ThreadPool::SetMaxIdleThread(unsigned int m)
 
 void    ThreadPool::JoinAll()
 {
+    if (s_mainThread != std::this_thread::get_id())
+        return;
+
     decltype(workers_)  tmp;
     
     {
@@ -42,7 +49,6 @@ void    ThreadPool::JoinAll()
         cond_.notify_all();
         
         tmp.swap(workers_);
-        workers_.clear();
     }
     
     for (auto& t : tmp)
@@ -52,7 +58,9 @@ void    ThreadPool::JoinAll()
     }
     
     if (monitor_.joinable())
+    {
         monitor_.join();
+    }
 }
 
 void   ThreadPool::_CreateWorker()
@@ -99,7 +107,7 @@ void   ThreadPool::_MonitorRoutine()
         std::unique_lock<std::mutex>   guard(mutex_);
         if (shutdown_)
             return;
-        
+
         auto nw = waiters_;
 
         // if there is any pending stop signal to consume waiters

@@ -27,8 +27,6 @@ void OnNewConnection(ananas::Connection* conn)
 
 int main(int ac, char* av[])
 {
-    daemon(1, 0);
-
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_server_test");
 

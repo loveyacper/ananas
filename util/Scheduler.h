@@ -1,14 +1,15 @@
-#ifndef BERT_TIMESCHEDULER_H
-#define BERT_TIMESCHEDULER_H
+#ifndef BERT_SCHEDULER_H
+#define BERT_SCHEDULER_H
 
 namespace ananas
 {
 
-class TimeScheduler
+class Scheduler
 {
 public:
-    virtual ~TimeScheduler() {}
+    virtual ~Scheduler() {}
     virtual void ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void()> f) = 0;
+    virtual void ScheduleOnce(std::function<void()> f) = 0;
 };
 
 } // end namespace ananas

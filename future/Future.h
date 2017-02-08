@@ -5,7 +5,7 @@
 #include <atomic>
 #include "Helper.h"
 #include "Try.h"
-#include "util/TimeScheduler.h"
+#include "util/Scheduler.h"
 
 namespace ananas
 {
@@ -265,14 +265,23 @@ public:
     auto Then(F&& f) -> typename R::ReturnFutureType 
     {
         typedef typename R::Arg Arguments;
-        return _ThenImpl<F, R>(std::forward<F>(f), Arguments());  
+        return _ThenImpl<F, R>(nullptr, std::forward<F>(f), Arguments());  
+    }
+
+    // f will be called in sched
+    template <typename F,
+              typename R = internal::CallableResult<F, T> > 
+    auto Then(Scheduler* sched, F&& f) -> typename R::ReturnFutureType 
+    {
+        typedef typename R::Arg Arguments;
+        return _ThenImpl<F, R>(sched, std::forward<F>(f), Arguments());  
     }
 
     // modified from folly
     //1. F does not return future type
     template <typename F, typename R, typename... Args>
     typename std::enable_if<!R::IsReturnsFuture::value, typename R::ReturnFutureType>::type
-    _ThenImpl(F&& f, internal::ResultOfWrapper<F, Args...> )
+    _ThenImpl(Scheduler* sched, F&& f, internal::ResultOfWrapper<F, Args...> )
     {
         static_assert(std::is_void<T>::value ? sizeof...(Args) == 0 : sizeof...(Args) == 1,
                       "Then callback must take 0/1 argument");
@@ -286,8 +295,16 @@ public:
         if (IsReady())
         {
             Try<T> t(GetValue());
-            auto result = WrapWithTry(f, t.template Get<Args>()...);
-            pm.SetValue(std::move(result));
+
+            auto func = [res = std::move(t), f = std::move((typename std::decay<F>::type)f), prom = std::move(pm)]() mutable {
+                auto result = WrapWithTry(f, res.template Get<Args>()...);
+                prom.SetValue(std::move(result));
+            };
+
+            if (sched)
+                sched->ScheduleOnce(std::move(func));
+            else
+                func();
         }
         else
         {
@@ -312,11 +329,19 @@ public:
                 });
 
             // 2. set this future's then callback
-            SetCallback([func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
-                // run callback, T can be void, thanks to folly Try<>
-                auto result = WrapWithTry(func, t.template Get<Args>()...);
-                // set next future's result
-                prom.SetValue(std::move(result));
+            SetCallback([sched, func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
+
+                auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
+                    // run callback, T can be void, thanks to folly Try<>
+                    auto result = WrapWithTry(func, t.template Get<Args>()...);
+                    // set next future's result
+                    prom.SetValue(std::move(result));
+                };
+
+                if (sched)
+                    sched->ScheduleOnce(std::move(cb));
+                else
+                    cb();
             });
         }
 
@@ -326,7 +351,7 @@ public:
     //2. F return another future type
     template <typename F, typename R, typename... Args>
     typename std::enable_if<R::IsReturnsFuture::value, typename R::ReturnFutureType>::type
-    _ThenImpl(F&& f, internal::ResultOfWrapper<F, Args...>)
+    _ThenImpl(Scheduler* sched, F&& f, internal::ResultOfWrapper<F, Args...>)
     {
         static_assert(sizeof...(Args) <= 1, "Then must take zero/one argument");
 
@@ -339,10 +364,18 @@ public:
         if (IsReady())
         {
             Try<T> t(GetValue());
-            auto f2 = f(t.template Get<Args>()...);
-            f2.SetCallback([p2 = std::move(pm)](Try<FReturnType>&& b) mutable {
-                p2.SetValue(std::move(b));
-            });  
+
+            auto cb = [res = std::move(t), f = std::move((typename std::decay<F>::type)f), prom = std::move(pm)]() mutable {
+                auto f2 = f(res.template Get<Args>()...);
+                f2.SetCallback([p2 = std::move(prom)](Try<FReturnType>&& b) mutable {
+                    p2.SetValue(std::move(b));
+                });  
+            };
+
+            if (sched)
+                sched->ScheduleOnce(std::move(cb));
+            else
+                cb();
         }
         else
         {
@@ -368,12 +401,19 @@ public:
                 });
 
             // 2. set this future's then callback
-            SetCallback([func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
-                // because func return another future:f2, when f2 is done, nextFuture can be done
-                auto f2 = func(t.template Get<Args>()...);
-                f2.SetCallback([p2 = std::move(prom)](Try<FReturnType>&& b) mutable {
-                    p2.SetValue(std::move(b));
-                });
+            SetCallback([sched = sched, func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
+                auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
+                    // because func return another future:f2, when f2 is done, nextFuture can be done
+                    auto f2 = func(t.template Get<Args>()...);
+                    f2.SetCallback([p2 = std::move(prom)](Try<FReturnType>&& b) mutable {
+                        p2.SetValue(std::move(b));
+                    });
+                };
+
+                if (sched)
+                    sched->ScheduleOnce(std::move(cb));
+                else
+                    cb();
             }); 
         }
 
@@ -404,7 +444,7 @@ public:
      */
     void OnTimeout(std::chrono::milliseconds duration,
                    internal::TimeoutCallback f,
-                   TimeScheduler* scheduler)
+                   Scheduler* scheduler)
     {
         scheduler->ScheduleOnceAfter(duration, [state = this->state_, cb = std::move(f)]() mutable {
                 {
@@ -416,7 +456,6 @@ public:
                     state->progress_ = internal::Progress::Timeout;
                 }
 
-                // Process timeout
                 if (!state->IsRoot())
                     state->onTimeout_(std::move(cb)); // propogate to the root future
                 else

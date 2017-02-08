@@ -5,10 +5,11 @@
 #include <map>
 #include <memory>
 #include <sys/resource.h>
+
 #include "Timer.h"
 #include "Poller.h"
 #include "Typedefs.h"
-#include "util/TimeScheduler.h"
+#include "util/Scheduler.h"
 
 namespace ananas
 {
@@ -21,7 +22,7 @@ namespace internal
 class  Connector;
 }
 
-class EventLoop : public TimeScheduler // for future timeout
+class EventLoop : public Scheduler
 {
 public:
     EventLoop();
@@ -59,7 +60,8 @@ public:
     bool Cancel(TimerId id);
 
     // for future
-    void ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void()> f) override;
+    void ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void ()> f) override;
+    void ScheduleOnce(std::function<void ()> f) override;
 
     // 
     template <typename F, typename... Args>
