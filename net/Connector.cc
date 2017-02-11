@@ -80,10 +80,9 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
 
             if (timeout != DurationMs::max())
             {
-                ERR(internal::g_debug) << "Set timeout";
-
                 loop_->ScheduleAfter(timeout, [this]() {
-                        this->_OnFailed();
+                        if (this->state_ != ConnectState::connected)
+                            this->_OnFailed();
                     });
             }
 
