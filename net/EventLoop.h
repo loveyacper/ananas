@@ -49,8 +49,8 @@ public:
 
 
     // connector 
-    bool Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnFailCallback cfcb);
-    bool Connect(const char* ip, uint16_t hostPort, NewTcpConnCallback nccb, TcpConnFailCallback cfcb);
+    bool Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnFailCallback cfcb, DurationMs timeout = DurationMs::max());
+    bool Connect(const char* ip, uint16_t hostPort, NewTcpConnCallback nccb, TcpConnFailCallback cfcb, DurationMs timeout = DurationMs::max());
 
     // TODO socketpair
 

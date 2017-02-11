@@ -39,7 +39,7 @@ void Connector::SetFailCallback(TcpConnFailCallback cb)
     onConnectFail_ = std::move(cb);
 }
 
-bool Connector::Connect(const SocketAddr& addr)
+bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
 {
     if (!addr.IsValid())
         return false;
@@ -77,6 +77,16 @@ bool Connector::Connect(const SocketAddr& addr)
 
             state_ = ConnectState::connecting;
             loop_->Register(eET_Write, this);
+
+            if (timeout != DurationMs::max())
+            {
+                ERR(internal::g_debug) << "Set timeout";
+
+                loop_->ScheduleAfter(timeout, [this]() {
+                        this->_OnFailed();
+                    });
+            }
+
             return true;
         }
 
@@ -84,7 +94,7 @@ bool Connector::Connect(const SocketAddr& addr)
         return false;
     }
 
-    return true;
+    return false; // never here
 }
 
 int Connector::Identifier() const

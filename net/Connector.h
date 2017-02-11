@@ -30,7 +30,7 @@ public:
 
     void SetNewConnCallback(NewTcpConnCallback cb);
     void SetFailCallback(TcpConnFailCallback cb);
-    bool Connect(const SocketAddr& addr);
+    bool Connect(const SocketAddr& addr, DurationMs timeout);
 
     int Identifier() const override;
     bool HandleReadEvent() override;

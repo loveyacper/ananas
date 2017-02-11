@@ -149,18 +149,18 @@ bool EventLoop::CreateClientUDP(UDPMessageCallback mcb,
     return true;
 }
 
-bool EventLoop::Connect(const char* ip, uint16_t hostPort, NewTcpConnCallback nccb, TcpConnFailCallback cfcb)
+bool EventLoop::Connect(const char* ip, uint16_t hostPort, NewTcpConnCallback nccb, TcpConnFailCallback cfcb, DurationMs timeout)
 {
     std::string realIp = ConvertIp(ip);
         
     SocketAddr addr;
     addr.Init(realIp.c_str(), hostPort);
 
-    return Connect(addr, nccb, cfcb);
+    return Connect(addr, nccb, cfcb, timeout);
 }
 
 
-bool EventLoop::Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnFailCallback cfcb)
+bool EventLoop::Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnFailCallback cfcb, DurationMs timeout)
 {
     using internal::Connector;
 
@@ -168,7 +168,7 @@ bool EventLoop::Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnF
     cli->SetFailCallback(cfcb);
     cli->SetNewConnCallback(nccb);
 
-    if (!cli->Connect(dst))
+    if (!cli->Connect(dst, timeout))
         return false;
 
     if (cli->State() == internal::ConnectState::connecting)

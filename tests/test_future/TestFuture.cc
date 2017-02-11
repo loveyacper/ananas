@@ -19,16 +19,9 @@ void ThreadFuncV(Promise<void>& pm)
     pm.SetValue();
 }
 
-void ThreadLoop(ananas::EventLoop* loop)
-{
-    loop->Run();
-}
-
-
 int main()
 {
     ananas::EventLoop loop;
-    ananas::EventLoop loop2;
 
     auto& tpool = ananas::ThreadPool::Instance();
 
@@ -44,7 +37,7 @@ int main()
                   << " and return float 1.0f." << std::endl;
         return 1.0f;
     })
-    .Then(&loop2, [](float f) {
+    .Then([](float f) {
         std::cerr << "2.Then got float value " << f
                   << " and return nothing." << std::endl;
     })
@@ -54,15 +47,13 @@ int main()
         tpool.Execute(ThreadFuncV, std::ref(pmv));
         return pmv.GetFuture();
     })
-    .Then(&loop2, []() {
+    .Then([]() {
         std::cerr << "4. Then GOODBYE!\n";
         ananas::EventLoop::ExitApplication();
     });
 
             
     printf("BEGIN LOOP\n");
-
-    tpool.Execute(ThreadLoop, &loop2);
 
     loop.ScheduleAfter<ananas::kForever>(std::chrono::seconds(1), []() {
             printf("every 1 second\n");
