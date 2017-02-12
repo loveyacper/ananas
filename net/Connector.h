@@ -3,6 +3,7 @@
 #define BERT_CONNECTOR_H
 
 #include "Socket.h"
+#include "Timer.h"
 #include "Typedefs.h"
 
 namespace ananas
@@ -49,6 +50,7 @@ private:
 
     ConnectState state_ = ConnectState::none;
 
+    TimerId timeoutId_;
 
     TcpConnFailCallback onConnectFail_;
     NewTcpConnCallback newConnCallback_;

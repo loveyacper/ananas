@@ -19,6 +19,12 @@ Connector::Connector(EventLoop* loop) :
 
 Connector::~Connector()
 {
+    if (timeoutId_)
+    {
+        bool succ = loop_->Cancel(timeoutId_);
+        assert (succ);
+    }
+
     if (localSock_ != kInvalid)
     {
         if (state_ != ConnectState::connected)
@@ -80,10 +86,10 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
 
             if (timeout != DurationMs::max())
             {
-                loop_->ScheduleAfter(timeout, [this]() {
-                        if (this->state_ != ConnectState::connected)
-                            this->_OnFailed();
-                    });
+                timeoutId_ = loop_->ScheduleAfter(timeout, [this]() {
+                    if (this->state_ != ConnectState::connected)
+                        this->_OnFailed();
+                });
             }
 
             return true;
@@ -187,7 +193,7 @@ void Connector::_OnFailed()
     if (onConnectFail_) 
         onConnectFail_(loop_, peer_);
 
-    if (oldState != ConnectState::none)
+    if (oldState == ConnectState::connecting)
         loop_->Unregister(eET_Write, this);
 }
 

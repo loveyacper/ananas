@@ -18,7 +18,7 @@ ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, size_t
 
 void OnWriteComplete(ananas::Connection* conn)
 {
-    INF(logger) << "OnWriteComplete for " << conn->Identifier();
+    //INF(logger) << "OnWriteComplete for " << conn->Identifier();
 }
 
 void OnConnect(ananas::Connection* conn)
@@ -49,18 +49,18 @@ void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 
     // reconnect
     loop->ScheduleAfter(std::chrono::seconds(2), [=]() {
-            loop->Connect(peer, OnNewConnection, OnConnFail);
+            loop->Connect(peer, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
             });
 }
 
 void ThreadFunc()
 {
     const uint16_t port = 6380;
-    const int kConnsPerThread = 10;
+    const int kConnsPerThread = 1;
 
     ananas::EventLoop loop;
     for (int i = 0; i < kConnsPerThread; ++ i)
-        loop.Connect("localhost", port, OnNewConnection, OnConnFail);
+        loop.Connect("localhost", port, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
 
     loop.Run();
 }
