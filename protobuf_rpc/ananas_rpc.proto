@@ -1,0 +1,46 @@
+syntax = "proto2";
+
+import "google/protobuf/descriptor.proto";
+
+package ananas.rpc;
+
+message Request {
+    required int32 id = 1;
+    required string service_name = 2;
+    required string method_name = 3;
+    optional bytes serialized_request = 4; // optional : if no arguments
+}
+
+message Response { 
+    required int32 id = 1;
+    optional bytes serialized_response = 2;
+    optional string error = 3;  
+}  
+
+message RpcMessage {
+    optional Request request = 1;
+    optional Response response = 2;
+}
+
+/*
+extend google.protobuf.ServiceOptions {  
+      required uint32 global_service_id = 1000;   
+}  
+
+extend google.protobuf.MethodOptions { 
+    required uint32 local_method_id = 1000; 
+}  
+
+service TestService { 
+    option (global_service_id) = 17;   
+   
+    rpc Foo(Request) returns(Response) {
+        option (local_method_id) = 5; 
+    }  
+   
+    rpc Bar(Request) returns(Response) {
+        option (local_method_id) = 21; 
+    }  
+}  
+*/
+

@@ -29,10 +29,13 @@ void TimerManager::Update()
         if (it->first > now) 
             return;
                  
-        Timer timer(std::move(it->second)); 
-        it = timers_.erase(it); 
+        // support cancel self
+        it->second.OnTimer();
 
-        timer.OnTimer(); 
+        // steal and erase it
+        Timer timer(std::move(it->second)); 
+        it = timers_.erase(it);
+
         if (timer.count_ != 0) 
         { 
             // need reschedule 
@@ -80,7 +83,7 @@ DurationMs TimerManager::NearestTimer() const
 
 TimerManager::Timer::Timer(const TimePoint& tp) :
     id_(new std::pair<TimePoint, unsigned int>{tp, ++ TimerManager::s_timerIdGen_}),
-    count_(-1)
+    count_(kForever)
 {
 }
 

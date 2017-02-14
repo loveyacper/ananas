@@ -1,0 +1,22 @@
+syntax = "proto2";
+
+package ananas.rpc.test;
+
+option cc_generic_services = true;
+
+// sample
+message EchoRequest {
+    required string text = 1;
+}
+message EchoResponse {
+    required string text = 1;
+}
+
+service UpperService { 
+    rpc ToUpper(EchoRequest) returns(EchoResponse) {
+    }  
+
+    rpc AppendDots(EchoRequest) returns(EchoResponse) {
+    }  
+}
+
