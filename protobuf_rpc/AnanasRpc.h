@@ -43,7 +43,6 @@ public:
     ~RpcService();
 
 
-    // 这里添加的是用户定义生成的service, 但构造参数是这里的channel
     bool AddService(std::unique_ptr<google::protobuf::Service>&& service);
     bool AddService(google::protobuf::Service* service);
 
@@ -53,7 +52,6 @@ public:
     template <typename T, typename = typename T::Stub>
     std::unique_ptr<typename T::Stub> GetServiceStub(const std::string& name) const;
     
-
     void OnNewConnection(ananas::Connection* conn);
 
     void SetOnCreateChannel(std::function<void (RpcChannel* )> );
@@ -61,7 +59,7 @@ public:
 private:
     void _OnDisconnect(ananas::Connection* conn);
 
-    // 一个service类型，对应多个channel: load balance
+    // TODO 一个service类型，对应多个channel: load balance
     RpcChannel* GetChannelByService(const std::string& name) const;
 
     using Table = std::unordered_map<std::string, std::unique_ptr<google::protobuf::Service> >;
@@ -69,7 +67,6 @@ private:
 
     // 实际应该一个service类型，对应多个channel
     std::unordered_map<unsigned int, std::unique_ptr<RpcChannel> > channels_;
-    // on new channel
     std::function<void (RpcChannel* )> onCreateChannel_;
 };
 
@@ -121,7 +118,7 @@ private:
     ananas::PacketLen_t _OnMessage(ananas::Connection* conn, const char* data, size_t len);
 
     // server-side, send response
-    void _OnServDone(int id, google::protobuf::Message* response);
+    void _OnServDone(int id, std::shared_ptr<google::protobuf::Message> response);
     void _OnServError(int id, const std::string& error);
     // server-side, process request
     void _ProcessRequest(const ananas::rpc::Request& req);

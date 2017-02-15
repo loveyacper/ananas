@@ -130,7 +130,7 @@ void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
 
 
 // server call this, send response
-void RpcChannel::_OnServDone(int id, google::protobuf::Message* response)
+void RpcChannel::_OnServDone(int id, std::shared_ptr<google::protobuf::Message> response)
 {
     printf("_OnServDone id %d\n", id);
 
@@ -139,7 +139,6 @@ void RpcChannel::_OnServDone(int id, google::protobuf::Message* response)
 
     rsp.set_id(id);
     response->SerializeToString(rsp.mutable_serialized_response());
-    delete response;
 
     const int bodyLen = rpcMsg.ByteSize();
     const int totalLen = kHeaderLen + bodyLen;
@@ -258,15 +257,16 @@ void RpcChannel::_ProcessRequest(const ananas::rpc::Request& req)
         return;
     }
 
-    //auto request = std::make_shared<google::protobuf::Message>(service->GetRequestPrototype(method).New()); 
-    auto request = service->GetRequestPrototype(method).New(); 
+    // It'll be delete sync, use unique_ptr.
+    std::unique_ptr<google::protobuf::Message> request(service->GetRequestPrototype(method).New()); 
     request->ParseFromString(req.serialized_request());
 
-    auto response = service->GetResponsePrototype(method).New(); 
+    // It may be delete async, use shared_ptr.
+    std::shared_ptr<google::protobuf::Message> response(service->GetResponsePrototype(method).New()); 
 
     const int id = req.id();
     printf("serv for request id %d\n", id);
-    service->CallMethod(method, nullptr, request, response,
+    service->CallMethod(method, nullptr, request.get(), response.get(),
             NewCallback(this, &RpcChannel::_OnServDone, id, response));
 }
 
