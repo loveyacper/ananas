@@ -15,7 +15,9 @@ message EchoResponse {
 service UpperService { 
     rpc ToUpper(EchoRequest) returns(EchoResponse) {
     }  
+}
 
+service AppendDotsService { 
     rpc AppendDots(EchoRequest) returns(EchoResponse) {
     }  
 }

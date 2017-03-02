@@ -29,7 +29,11 @@ public:
 
         done->Run();
     }
+};
 
+class AppendDotsServiceImpl : public ::ananas::rpc::test::AppendDotsService
+{
+public:
     virtual void AppendDots(::google::protobuf::RpcController* ,
                             const ::ananas::rpc::test::EchoRequest* request,
                             ::ananas::rpc::test::EchoResponse* response,
@@ -45,6 +49,7 @@ public:
     }
 };
 
+
 void OnCreateChannel(ananas::rpc::RpcChannel* chan)
 {
     INF(logger) << "OnCreateChannel";
@@ -58,6 +63,7 @@ int main()
     ananas::rpc::RpcService rpcServ;
     rpcServ.SetOnCreateChannel(OnCreateChannel);
     rpcServ.AddService(new UpperServiceImpl);
+    rpcServ.AddService(new AppendDotsServiceImpl);
 
     ananas::EventLoop loop;
     if (loop.Listen("localhost", 8765,

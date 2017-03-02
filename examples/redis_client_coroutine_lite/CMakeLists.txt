@@ -1,0 +1,12 @@
+INCLUDE(${PROJECT_SOURCE_DIR}/CMakeCommon)
+
+INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
+
+ADD_EXECUTABLE(rediscli_crt_test RedisContext.cc;main.cc)
+
+SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin)
+
+TARGET_LINK_LIBRARIES(rediscli_crt_test ananas;coroutine)
+
+ADD_DEPENDENCIES(rediscli_crt_test ananas;coroutine)
+
