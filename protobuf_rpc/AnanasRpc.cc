@@ -81,11 +81,17 @@ RpcChannel::RpcChannel(ananas::Connection* conn, RpcService* services) :
     conn_(conn),
     rpcServices_(services)
 {
+    conn->SetMinPacketSize(kHeaderLen);
 }
 
 RpcChannel::~RpcChannel()
 {
-    // TODO delete pendingCalls
+    // delete pendingCalls
+    for (const auto& kv : pendingCalls_)
+    {
+        delete kv.second.first;
+        delete kv.second.second;
+    }
 }
 
 // The client stub's concrete method will call me
