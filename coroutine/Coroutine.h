@@ -76,7 +76,7 @@ private:
 
     unsigned int id_;  // 1: main
     State state_;
-    AnyPointer yieldValue;
+    AnyPointer yieldValue_;
 
     typedef ucontext HANDLE;
 

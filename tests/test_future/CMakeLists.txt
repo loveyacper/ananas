@@ -15,5 +15,5 @@ TARGET_LINK_LIBRARIES(future_test ananas)
 ADD_DEPENDENCIES(future_timeout ananas)
 ADD_DEPENDENCIES(future_test ananas)
 
-SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin)
+SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin/future_tests)
 

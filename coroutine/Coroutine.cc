@@ -54,7 +54,7 @@ AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
             throw std::runtime_error("Can't send non-void value to a just-created coroutine");
 
         // set old coroutine's yield value
-        this->yieldValue = std::move(param);
+        this->yieldValue_ = std::move(param);
     }
 
     int ret = ::swapcontext(&handle_, &crt->handle_);
@@ -64,7 +64,7 @@ AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
         throw std::runtime_error("FATAL ERROR: swapcontext failed");
     }
 
-    return std::move(crt->yieldValue); // only return once
+    return std::move(crt->yieldValue_); // only return once
 }
 
 AnyPointer Coroutine::_Yield(const AnyPointer& param)

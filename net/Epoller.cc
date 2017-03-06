@@ -24,7 +24,11 @@ namespace Epoll
         epoll_event  ev;
         ev.data.ptr= ptr;
 
-        ev.events  = 0;
+#ifdef USE_EPOLL_EDGE_TRIGGER
+        ev.events = EPOLLET;
+#else
+        ev.events = 0;
+#endif
         if (events & eET_Read)
             ev.events |= EPOLLIN;
         if (events & eET_Write)
@@ -50,7 +54,11 @@ namespace Epoll
         epoll_event  ev;
         ev.data.ptr= ptr;
 
-        ev.events  = 0;
+#ifdef USE_EPOLL_EDGE_TRIGGER
+        ev.events = EPOLLET;
+#else
+        ev.events = 0;
+#endif
         if (events & eET_Read)
             ev.events |= EPOLLIN;
         if (events & eET_Write)

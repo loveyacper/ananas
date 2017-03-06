@@ -1,6 +1,6 @@
 syntax = "proto2";
 
-import "google/protobuf/descriptor.proto";
+//import "google/protobuf/descriptor.proto";
 
 package ananas.rpc;
 

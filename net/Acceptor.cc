@@ -96,7 +96,11 @@ bool Acceptor::HandleReadEvent()
             conn->Init(connfd, peer_);
 
             // if send huge data OnConnect, may call Modify, so Register events first
+#ifdef USE_EPOLL_EDGE_TRIGGER
+            if (loop_->Register(eET_Read | eET_Write, conn.get()))
+#else
             if (loop_->Register(eET_Read, conn.get()))
+#endif
             {
                 auto c = conn.release();
                 newConnCallback_(c);

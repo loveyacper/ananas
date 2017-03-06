@@ -163,7 +163,11 @@ void Connector::_OnSuccess()
     // `this` is invalid now.
 
     // register new conn
+#ifdef USE_EPOLL_EDGE_TRIGGER
+    if (loop->Register(eET_Read | eET_Write, c))
+#else
     if (loop->Register(eET_Read, c))
+#endif
     {
         conn.release();
         c->SetFailCallback(onFail);

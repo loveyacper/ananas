@@ -116,9 +116,12 @@ bool Connection::HandleWriteEvent()
     if (sendBuf_.IsEmpty())
     {
         sendBuf_.Shrink();
+#ifdef USE_EPOLL_EDGE_TRIGGER
+#else
         loop_->Modify(internal::eET_Read, this);
+#endif
 
-        if (onWriteComplete_)
+        if (bytes > 0 && onWriteComplete_)
             onWriteComplete_(this);
     }
 
@@ -167,7 +170,10 @@ bool Connection::SendPacket(const void* data, std::size_t  size)
     {
         WRN(internal::g_debug) << localSock_ << " want send " << size << " bytes, but only send " << bytes;
         sendBuf_.PushData((char*)data + bytes, size - static_cast<std::size_t>(bytes));
+#ifdef USE_EPOLL_EDGE_TRIGGER
+#else
         loop_->Modify(internal::eET_Read | internal::eET_Write, this);
+#endif
     }
     else
     {
@@ -326,7 +332,10 @@ bool Connection::SendPacket(const SliceVector& slice)
     if (alreadySent < expectSend)
     {
         CollectBuffer(buffers.iovecs, static_cast<int>(buffers.iovecs.size()), alreadySent, sendBuf_);
+#ifdef USE_EPOLL_EDGE_TRIGGER
+#else
         loop_->Modify(internal::eET_Read | internal::eET_Write, this);
+#endif
     }
     else
     {
