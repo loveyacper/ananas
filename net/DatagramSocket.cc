@@ -57,7 +57,11 @@ bool DatagramSocket::Bind(const SocketAddr* addr)
         ; // nothing to do: client UDP
     }
             
+#ifdef USE_EPOLL_EDGE_TRIGGER
+    if (!loop_->Register(internal::eET_Read | internal::eET_Write, this))
+#else
     if (!loop_->Register(internal::eET_Read, this))
+#endif
     {
         ERR(internal::g_debug) << "add udp to loop failed, socket = " << localSock_;
         return false;
@@ -148,7 +152,10 @@ bool DatagramSocket::SendPacket(const void* data, size_t size, const SocketAddr*
     if (bytes == 0)
     {
         _PutSendBuf(data, size, dst);
+#ifdef USE_EPOLL_EDGE_TRIGGER
+#else
         loop_->Modify(internal::eET_Read | internal::eET_Write, this);
+#endif
         return true;
     }
     else if (bytes < 0)
@@ -187,7 +194,10 @@ bool DatagramSocket::HandleWriteEvent()
     }
 
     if (sendList_.empty())
+#ifdef USE_EPOLL_EDGE_TRIGGER
+#else
         loop_->Modify(internal::eET_Read, this);
+#endif
         
     return true;
 }

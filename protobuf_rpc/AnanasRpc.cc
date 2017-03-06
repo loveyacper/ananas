@@ -195,9 +195,7 @@ int RpcChannel::_TotalLength(const char* data) const
 size_t RpcChannel::_OnMessage(ananas::Connection* conn, const char* data, size_t len)
 {
     assert (conn == conn_);
-
-    if (len <= kHeaderLen)
-        return 0;
+    assert (len >= kHeaderLen);
 
     int totalLen = _TotalLength(data);
     if (totalLen <= kHeaderLen || totalLen >= 100 * 10 * 1024)
