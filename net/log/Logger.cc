@@ -61,7 +61,8 @@ thread_local int Logger::tidLen_ = 0;
 
 unsigned int Logger::seq_ = 0;
 
-Logger::Logger() : level_(0),
+Logger::Logger() : shutdown_(false),
+                   level_(0),
                    dest_(0)
 {
     _Reset();

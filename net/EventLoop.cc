@@ -68,6 +68,8 @@ void EventLoop::SetMaxOpenFd(rlim_t maxfdPlus1)
 
 EventLoop::EventLoop() : stop_(false)
 {
+    internal::InitDebugLog(logALL);
+
 #if defined(__APPLE__)
     poller_.reset(new internal::Kqueue); 
 #elif defined(__gnu_linux__)
@@ -75,8 +77,6 @@ EventLoop::EventLoop() : stop_(false)
 #else
     #error "Only support mac os and linux"
 #endif
-
-    internal::InitDebugLog(logALL);
 }
 
 EventLoop::~EventLoop()

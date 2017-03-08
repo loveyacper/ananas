@@ -15,7 +15,7 @@ namespace ananas
 Connection::Connection(EventLoop* loop) :
     loop_(loop),
     localSock_(kInvalid),
-    minPacketSize_(0),
+    minPacketSize_(1),
     sendBufHighWater_(10 * 1024 * 1024)
 {
 }
