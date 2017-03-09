@@ -178,15 +178,15 @@ private:
 #undef ERR
 #undef USR
 
-#define LOG_DBG(x) ((x)->IsLevelForbid(logDEBUG) ? (*ananas::LogManager::Instance().NullLog()) : ((ananas::LogHelper(logDEBUG)) = x->SetCurLevel(logDEBUG)))
+#define LOG_DBG(x) (x)->IsLevelForbid(logDEBUG) ? *ananas::LogManager::Instance().NullLog() : (ananas::LogHelper(logDEBUG)) = x->SetCurLevel(logDEBUG)
 
-#define LOG_INF(x) ((x)->IsLevelForbid(logINFO) ? (*ananas::LogManager::Instance().NullLog()) : ((ananas::LogHelper(logINFO)) = x->SetCurLevel(logINFO)))
+#define LOG_INF(x) (x)->IsLevelForbid(logINFO) ? *ananas::LogManager::Instance().NullLog() : (ananas::LogHelper(logINFO)) = x->SetCurLevel(logINFO)
 
-#define LOG_WRN(x) ((x)->IsLevelForbid(logWARN) ? (*ananas::LogManager::Instance().NullLog()) : ((ananas::LogHelper(logWARN)) = x->SetCurLevel(logWARN)))
+#define LOG_WRN(x) (x)->IsLevelForbid(logWARN) ? *ananas::LogManager::Instance().NullLog() : (ananas::LogHelper(logWARN)) = x->SetCurLevel(logWARN)
 
-#define LOG_ERR(x) ((x)->IsLevelForbid(logERROR) ? (*ananas::LogManager::Instance().NullLog()) : ((ananas::LogHelper(logERROR)) = x->SetCurLevel(logERROR)))
+#define LOG_ERR(x) (x)->IsLevelForbid(logERROR) ? *ananas::LogManager::Instance().NullLog() : (ananas::LogHelper(logERROR)) = x->SetCurLevel(logERROR)
 
-#define LOG_USR(x) ((x)->IsLevelForbid(logUSR) ? (*ananas::LogManager::Instance().NullLog()) : ((ananas::LogHelper(logUSR)) = x->SetCurLevel(logUSR)))
+#define LOG_USR(x) (x)->IsLevelForbid(logUSR) ? *ananas::LogManager::Instance().NullLog() : (ananas::LogHelper(logUSR)) = x->SetCurLevel(logUSR)
 
 #define  DBG      LOG_DBG
 #define  INF      LOG_INF

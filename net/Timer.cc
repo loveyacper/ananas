@@ -33,17 +33,17 @@ void TimerManager::Update()
         it->second.OnTimer();
 
         // steal and erase it
-        Timer timer(std::move(it->second)); 
+        Timer timer(std::move(it->second));
         it = timers_.erase(it);
 
-        if (timer.count_ != 0) 
-        { 
+        if (timer.count_ != 0)
+        {
             // need reschedule 
-            const auto tp = timer.id_->first; 
-            auto itNew = timers_.insert(std::make_pair(tp, std::move(timer))); 
-            if (itNew->first < it->first) 
-                it = itNew; 
-        } 
+            const auto tp = timer.id_->first;
+            auto itNew = timers_.insert(std::make_pair(tp, std::move(timer)));
+            if (it == timers_.end() || itNew->first < it->first)
+                it = itNew;
+        }
     } 
 }
 
