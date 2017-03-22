@@ -6,7 +6,7 @@ void GetSomeRedisKey(std::shared_ptr<RedisContext> ctx, const std::string& key)
 {
     std::cout << "Coroutine is primed\n";
 
-    auto rsp = ananas::CoroutineMgr::Yield(ctx->Get(key));
+    auto rsp = ananas::Coroutine::Yield(ctx->Get(key));
 
     std::cout << "Coroutine is resumed\n";
 

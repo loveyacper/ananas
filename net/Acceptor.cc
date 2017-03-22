@@ -95,7 +95,7 @@ bool Acceptor::HandleReadEvent()
             std::unique_ptr<Connection> conn(new Connection(loop_));
             conn->Init(connfd, peer_);
 
-            // if send huge data OnConnect, may call Modify, so Register events first
+            // if send huge data OnConnect, may call Modify for epoll_out, so register events first
 #ifdef USE_EPOLL_EDGE_TRIGGER
             if (loop_->Register(eET_Read | eET_Write, conn.get()))
 #else
@@ -108,36 +108,58 @@ bool Acceptor::HandleReadEvent()
             }
             else
             {
-                ERR(internal::g_debug) << "Accept but failed to register socket " << conn->Identifier();
+                ERR(internal::g_debug) << "Failed to register socket " << conn->Identifier();
             }
         }
         else
         {
-            bool result = false;
-            switch (errno)
+            bool goAhead = false;
+            const int error = errno;
+            switch (error)
             {
-            case EWOULDBLOCK:
-            case ECONNABORTED:
+            //case EWOULDBLOCK:
+            case EAGAIN:
             case EINTR:
-                result = true;
+            case ECONNABORTED:
+            case EPROTO:
+                goAhead = true; // should retry
                 break;
 
             case EMFILE:
             case ENFILE:
-                ERR(internal::g_debug) << "Not enough file descriptor available!!!";
-                result = true;
-                break;
+                ERR(internal::g_debug) << "Not enough file descriptor available, error is " << error;
+#ifdef USE_EPOLL_EDGE_TRIGGER
+                ERR(internal::g_debug) << "Use epoll ET, server may can not response from now!";
+#else
+                ERR(internal::g_debug) << "may be CPU 100%";
+                return true;
+#endif
+                break; // something bad, but can be fixed
 
             case ENOBUFS:
-                ERR(internal::g_debug) << "Not enough memory\n";
-                result = true;
+            case ENOMEM:
+                ERR(internal::g_debug) << "Not enough memory, limited by the socket buffer limits";
+#ifdef USE_EPOLL_EDGE_TRIGGER
+                ERR(internal::g_debug) << "Use epoll ET, server may can not response from now!";
+#else
+                ERR(internal::g_debug) << "may be CPU 100%";
+                return true;
+#endif
+                break; // something bad, but can be fixed
 
+            case ENOTSOCK: 
+            case EOPNOTSUPP:
+            case EINVAL:
+            case EFAULT:
+            case EBADF:
             default:
-                ERR(internal::g_debug) << "When accept, unknown error happened : " << errno;
+                ERR(internal::g_debug) << "BUG: error = " << error;
+                assert (false);
                 break;
             }
 
-            return result;
+            if (!goAhead)
+                return false;
         }
     }
     
@@ -152,6 +174,8 @@ bool Acceptor::HandleWriteEvent()
 
 void Acceptor::HandleErrorEvent()
 {
+    // TODO disable read? NOT Unregister. consider epoll ET
+    ERR(internal::g_debug) << "Acceptor::HandleErrorEvent";
     loop_->Unregister(eET_Read, this);
 }
 

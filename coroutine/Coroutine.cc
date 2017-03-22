@@ -86,24 +86,7 @@ void Coroutine::_Run(Coroutine* crt)
     crt->_Yield(crt->result_);
 }
 
-
-CoroutinePtr  CoroutineMgr::_FindCoroutine(unsigned int id) const
-{
-    CoroutineMap::const_iterator  it(coroutines_.find(id));
-
-    if (it != coroutines_.end())
-        return it->second;
-
-    return CoroutinePtr();
-}
-
-AnyPointer CoroutineMgr::Send(unsigned int id, AnyPointer param)
-{
-    assert (id != Coroutine::main_.id_);
-    return Send(_FindCoroutine(id), param);
-}
-
-AnyPointer CoroutineMgr::Send(const CoroutinePtr& crt, AnyPointer param)
+AnyPointer Coroutine::Send(const CoroutinePtr& crt, AnyPointer param)
 {
     if (crt->state_ == Coroutine::State::Finish)
     {
@@ -119,14 +102,14 @@ AnyPointer CoroutineMgr::Send(const CoroutinePtr& crt, AnyPointer param)
     return Coroutine::current_->_Send(crt.get(), param);
 }
 
-AnyPointer CoroutineMgr::Yield(const AnyPointer& param)
+AnyPointer Coroutine::Yield(const AnyPointer& param)
 {
     return Coroutine::current_->_Yield(param);
 }
 
-
-CoroutineMgr::~CoroutineMgr()
+AnyPointer Coroutine::Next(const CoroutinePtr& crt)
 {
+    return Coroutine::Send(crt);
 }
 
 } // end namespace ananas

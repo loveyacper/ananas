@@ -19,8 +19,6 @@ const char* SearchCRLF(const char* ptr, size_t nBytes)
     return Strstr(ptr, nBytes, CRLF, 2);
 }
 
-ananas::CoroutineMgr RedisContext::s_crtMgr; 
-
 RedisContext::RedisContext(ananas::Connection* conn) : hostConn_(conn)
 {
     _ResetResponse();
@@ -118,7 +116,7 @@ ananas::PacketLen_t RedisContext::OnRecv(ananas::Connection* conn, const char* d
             std::cout << arg << " ";
         std::cout << "]\n--- Response: ";
 
-        s_crtMgr.Send(req.crt, std::make_shared<std::string>(content_));
+        ananas::Coroutine::Send(req.crt, std::make_shared<std::string>(content_));
         pending_.pop();
 
         _ResetResponse();

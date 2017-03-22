@@ -48,11 +48,11 @@ public:
     template <typename F, typename... Args>
     bool StartCoroutine(F&& f, Args&&... args)
     {
-        current_ = s_crtMgr.CreateCoroutine(std::forward<F>(f), std::forward<Args>(args)...);
-        auto result = s_crtMgr.Send(current_); // prime the coroutine
+        current_ = ananas::Coroutine::CreateCoroutine(std::forward<F>(f), std::forward<Args>(args)...);
+        auto result = ananas::Coroutine::Send(current_); // prime the coroutine
         if (!result)
         {
-            s_crtMgr.Send(current_);
+            ananas::Coroutine::Send(current_);
             return false;
         }
 
@@ -105,7 +105,6 @@ private:
     void _ResetResponse();
     
     ananas::CoroutinePtr current_; 
-    static ananas::CoroutineMgr s_crtMgr; 
 };
 
 #endif
