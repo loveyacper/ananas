@@ -119,6 +119,8 @@ bool Acceptor::HandleReadEvent()
             {
             //case EWOULDBLOCK:
             case EAGAIN:
+                return true; // it's fine
+
             case EINTR:
             case ECONNABORTED:
             case EPROTO:
