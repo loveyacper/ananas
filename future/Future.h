@@ -35,11 +35,9 @@ struct State
     {
     }
 
-    // TODO: Using std::future/promise to avoid dirty work, but it's not a good idea.
     std::promise<T> pm_;
     std::future<T> ft_;
 
-    // Protect then_, it's ineffecient, but for now I don't want to write future from scrath
     std::mutex thenLock_;
     std::function<void (Try<T>&& )> then_;
     Progress progress_;
@@ -68,7 +66,7 @@ public:
     // TODO: C++11 lambda doesn't support move capture
     // just for compile, copy Promise is undefined, do NOT do that!
     Promise(const Promise&) = default;
-    Promise& operator = (const Promise&) = default;
+    Promise& operator= (const Promise&) = default;
 
     Promise(Promise&& pm) = default;
     Promise& operator= (Promise&& pm) = default;
@@ -212,7 +210,7 @@ public:
     }
 
     Future(const Future&) = delete;
-    void operator = (const Future&) = delete;
+    void operator= (const Future&) = delete;
 
     Future(Future&& fut) = default;
     Future& operator= (Future&& fut) = default;
@@ -292,8 +290,15 @@ public:
         auto nextFuture = pm.GetFuture();
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (IsReady())
+        if (state_->progress_ == internal::Progress::Timeout)
         {
+            struct FutureWrongState {};
+            throw FutureWrongState();
+        }
+        else if (state_->progress_ == internal::Progress::Done)
+        {
+            guard.unlock();
+
             Try<T> t(GetValue());
 
             auto func = [res = std::move(t), f = std::move((typename std::decay<F>::type)f), prom = std::move(pm)]() mutable {
@@ -361,8 +366,15 @@ public:
         auto nextFuture = pm.GetFuture();
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (IsReady())
+        if (state_->progress_ == internal::Progress::Timeout)
         {
+            struct FutureWrongState {};
+            throw FutureWrongState();
+        }
+        else if (state_->progress_ == internal::Progress::Done)
+        {
+            guard.unlock();
+
             Try<T> t(GetValue());
 
             auto cb = [res = std::move(t), f = std::move((typename std::decay<F>::type)f), prom = std::move(pm)]() mutable {

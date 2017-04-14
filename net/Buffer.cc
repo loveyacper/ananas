@@ -3,7 +3,7 @@
 #include <iostream>
 #include <limits>
 #include <cassert>
-    
+
 namespace ananas
 {
 
@@ -46,7 +46,7 @@ std::size_t Buffer::PushDataAt(const void* data, std::size_t size, std::size_t o
 
     assert (size + offset <= WritableSize());
 
-   	::memcpy(&buffer_[writePos_ + offset], data, size);
+    ::memcpy(&buffer_[writePos_ + offset], data, size);
     return  size;
 }
 
@@ -62,7 +62,7 @@ void Buffer::Consume(std::size_t bytes)
 {
     assert (readPos_ + bytes <= writePos_);
 
-    readPos_  += bytes;
+    readPos_ += bytes;
     if (IsEmpty())
         Clear();
 }
@@ -78,8 +78,7 @@ std::size_t Buffer::PeekDataAt(void* buf, std::size_t size, std::size_t offset)
     if (size + offset > dataSize)
         size = dataSize - offset; // truncate
 
-	::memcpy(buf, &buffer_[readPos_ + offset], size);
-
+    ::memcpy(buf, &buffer_[readPos_ + offset], size);
     return size;
 }
 
@@ -150,7 +149,7 @@ void Buffer::Shrink()
     if (dataSize > oldCap / 2)
         return;
 
-    std::size_t newCap = RoundUp2Power(dataSize); //;std::max(dataSize, oldCap / 2);
+    std::size_t newCap = RoundUp2Power(dataSize);
 
     std::unique_ptr<char []> tmp(new char[newCap]);
     memcpy(&tmp[0], &buffer_[readPos_], dataSize);
