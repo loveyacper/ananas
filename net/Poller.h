@@ -2,6 +2,7 @@
 #define BERT_POLLER_H
 
 #include <vector>
+#include <memory>
 
 namespace ananas
 {
@@ -16,7 +17,7 @@ enum EventType
     eET_Error = 0x1 << 2,
 };
 
-class EventSource
+class EventSource : public std::enable_shared_from_this<EventSource>
 {
 public:
     EventSource() { }

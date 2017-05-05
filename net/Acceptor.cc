@@ -92,7 +92,7 @@ bool Acceptor::HandleReadEvent()
         int connfd = _Accept();
         if (connfd != kInvalid)
         {
-            std::unique_ptr<Connection> conn(new Connection(loop_));
+            auto conn(std::make_shared<Connection>(loop_));
             conn->Init(connfd, peer_);
 
             // if send huge data OnConnect, may call Modify for epoll_out, so register events first
@@ -102,9 +102,8 @@ bool Acceptor::HandleReadEvent()
             if (loop_->Register(eET_Read, conn.get()))
 #endif
             {
-                auto c = conn.release();
-                newConnCallback_(c);
-                c->OnConnect();
+                newConnCallback_(conn.get());
+                conn->OnConnect();
             }
             else
             {

@@ -87,7 +87,7 @@ private:
     bool stop_;
     static bool s_exit;
 
-    std::map<unsigned int, std::unique_ptr<internal::EventSource> > eventSourceSet_;
+    std::map<unsigned int, std::shared_ptr<internal::EventSource> > eventSourceSet_;
     std::unique_ptr<internal::Poller>  poller_;
 
     internal::TimerManager timers_;

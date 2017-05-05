@@ -145,14 +145,38 @@ void Connector::_OnSuccess()
 {
     assert (state_ != ConnectState::connected);
 
+    const auto oldState = state_;
     state_  = ConnectState::connected;
     INF(internal::g_debug) << "Connect success! Socket " << localSock_ << ", connected to port " << peer_.GetPort();
 
     // create new conn
-    Connection* c = new Connection(loop_);
-    std::unique_ptr<Connection> conn(c);
+    auto c = std::make_shared<Connection>(loop_);
+    //Connection* c = new Connection(loop_);
+    //std::unique_ptr<Connection> conn(c);
     c->Init(localSock_, peer_);
+        
+    // unregister connector
+    if (oldState == ConnectState::connecting)
+        this->loop_->Unregister(eET_Write, this);
 
+    // register new conn
+#ifdef USE_EPOLL_EDGE_TRIGGER
+    if (this->loop_->Register(eET_Read | eET_Write, c.get()))
+#else
+    if (this->loop_->Register(eET_Read, c.get()))
+#endif
+    {
+        c->SetFailCallback(this->onConnectFail_);
+        this->newConnCallback_(c.get());
+        c->OnConnect();
+    }
+    else
+    {
+        ERR(internal::g_debug) << "_OnSuccess but register socket " << c->Identifier() << " failed!";
+    }
+    // //fuck
+
+#if 0
     // backup `this`
     const auto loop = this->loop_;
     const auto onFail = std::move(this->onConnectFail_);
@@ -164,20 +188,21 @@ void Connector::_OnSuccess()
 
     // register new conn
 #ifdef USE_EPOLL_EDGE_TRIGGER
-    if (loop->Register(eET_Read | eET_Write, c))
+    if (loop->Register(eET_Read | eET_Write, c.get()))
 #else
-    if (loop->Register(eET_Read, c))
+    if (loop->Register(eET_Read, c.get()))
 #endif
     {
         conn.release();
         c->SetFailCallback(onFail);
-        newCCB(c);
+        newCCB(c.get());
         c->OnConnect();
     }
     else
     {
         ERR(internal::g_debug) << "_OnSuccess but register socket " << c->Identifier() << " failed!";
     }
+#endif
 }
 
 void Connector::_OnFailed()

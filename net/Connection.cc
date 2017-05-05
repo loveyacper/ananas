@@ -49,40 +49,65 @@ int Connection::Identifier() const
 
 bool Connection::HandleReadEvent()
 {
+    bool busy = false;
     while (true)
     {
         recvBuf_.AssureSpace(4 * 1024);
+        char stack[64 * 1024];
 
-        int bytes = ::recv(localSock_, recvBuf_.WriteAddr(), recvBuf_.WritableSize(), 0);
+        struct iovec vecs[2];
+        vecs[0].iov_base = recvBuf_.WriteAddr();
+        vecs[0].iov_len = recvBuf_.WritableSize();
+        vecs[1].iov_base = stack;
+        vecs[1].iov_len = sizeof stack;
+
+        int bytes = ::readv(localSock_, vecs, 2);
         if (kError == bytes)
         {
             if (EAGAIN == errno || EWOULDBLOCK == errno)
                 return true;
 
             if (EINTR == errno)
-                continue; // restart ::recv
+                continue; // restart ::readv
         }
 
         if (0 == bytes)
             return false; // eof
 
-        if (bytes > 0)
-            recvBuf_.Produce(bytes);
-        else
+        if (bytes < 0)
             return false;
+
+        if (static_cast<size_t>(bytes) <= vecs[0].iov_len) 
+        {
+            recvBuf_.Produce(static_cast<size_t>(bytes));
+        }
+        else
+        {
+            recvBuf_.Produce(vecs[0].iov_len);
+
+            auto stackBytes = static_cast<size_t>(bytes) - vecs[0].iov_len;
+            recvBuf_.PushData(stack, stackBytes);
+        }
 
         while (recvBuf_.ReadableSize() >= minPacketSize_)
         {
             auto bytes = onMessage_(this, recvBuf_.ReadAddr(), recvBuf_.ReadableSize());
 
             if (bytes == 0)
+            {
                 break;
+            }
             else
+            {
                 recvBuf_.Consume(bytes);
+                busy = true;
+            }
         }
     }
 
-    recvBuf_.Shrink();
+    if (busy)
+        recvBuf_.Shrink();
+
 	return true;
 }
 
@@ -217,37 +242,48 @@ struct IOVecBuffer
     }
 };
 
-int WriteV(int sock, const std::vector<iovec>& buffers, int cnt)
+int WriteV(int sock, const std::vector<iovec>& buffers)
 {
     const int kIOVecCount = 16; // be care of IOV_MAX
 
-    int sent = 0;
-    while (cnt > 0)
+    size_t sentVecs = 0;
+    size_t sentBytes = 0;
+    while (sentVecs < buffers.size())
     {
-        const int vc = std::min(cnt, kIOVecCount);
-        int bytes = static_cast<int>(::writev(sock, &buffers[0], vc));
-        cnt -= vc;
+        const int vc = std::min<int>(buffers.size() - sentVecs, kIOVecCount);
 
+        size_t expectBytes = 0;
+        for (size_t i = sentVecs; i < sentVecs + vc; ++ i)
+        {
+            expectBytes += buffers[i].iov_len;
+        }
+
+        assert (expectBytes > 0);
+        int bytes = static_cast<int>(::writev(sock, &buffers[sentVecs], vc));
         assert (bytes != 0);
 
         if (kError == bytes)
         {
             if (EAGAIN == errno || EWOULDBLOCK == errno)
-                return sent;
+                return static_cast<int>(sentBytes);
 
             if (EINTR == errno)
-                return sent;
+                continue; // retry
 
             return kError;  // can not send any more
         }
         else
         {
             assert (bytes > 0);
-            sent += bytes;
+            sentBytes += bytes;
+            if (bytes == expectBytes)
+                sentVecs += vc;
+            else
+                return sentBytes;
         }
     }
 
-    return sent;
+    return sentBytes;
 }
 
 void CollectBuffer(const std::vector<iovec>& buffers, int cnt, size_t skipped, Buffer& dst)
@@ -320,7 +356,7 @@ bool Connection::SendPacket(const SliceVector& slice)
         return true;
     }
             
-    int ret = WriteV(localSock_, buffers.iovecs, static_cast<int>(buffers.iovecs.size()));
+    int ret = WriteV(localSock_, buffers.iovecs);
     if (ret == kError)
         return false; // should close
 

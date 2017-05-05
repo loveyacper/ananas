@@ -100,12 +100,11 @@ bool EventLoop::Listen(const SocketAddr& listenAddr,
 {
     using internal::Acceptor;
 
-    std::unique_ptr<Acceptor> s(new Acceptor(this));
+    std::shared_ptr<Acceptor> s(new Acceptor(this));
     s->SetNewConnCallback(std::move(newConnCallback));
     if (!s->Bind(listenAddr))
         return false;
     
-    s.release();
     return true;
 }
 
@@ -113,13 +112,12 @@ bool EventLoop::ListenUDP(const SocketAddr& listenAddr,
         UDPMessageCallback mcb,
         UDPCreateCallback ccb)
 {
-    std::unique_ptr<DatagramSocket> s(new DatagramSocket(this));
+    std::shared_ptr<DatagramSocket> s(new DatagramSocket(this));
     s->SetMessageCallback(mcb);
     s->SetCreateCallback(ccb);
     if (!s->Bind(&listenAddr))
         return false;
     
-    s.release();
     return true;
 }
 
@@ -139,13 +137,12 @@ bool EventLoop::ListenUDP(const char* ip, uint16_t hostPort,
 bool EventLoop::CreateClientUDP(UDPMessageCallback mcb,
                                 UDPCreateCallback ccb)
 {
-    std::unique_ptr<DatagramSocket> s(new DatagramSocket(this));
+    std::shared_ptr<DatagramSocket> s(new DatagramSocket(this));
     s->SetMessageCallback(mcb);
     s->SetCreateCallback(ccb);
     if (!s->Bind(nullptr))
         return false;
     
-    s.release();
     return true;
 }
 
@@ -164,15 +161,12 @@ bool EventLoop::Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnF
 {
     using internal::Connector;
 
-    std::unique_ptr<Connector> cli(new Connector(this));
+    std::shared_ptr<Connector> cli(new Connector(this));
     cli->SetFailCallback(cfcb);
     cli->SetNewConnCallback(nccb);
 
     if (!cli->Connect(dst, timeout))
         return false;
-
-    if (cli->State() == internal::ConnectState::connecting)
-        cli.release();
 
     return true;
 }
@@ -211,7 +205,7 @@ bool EventLoop::Register(int events, internal::EventSource* src)
     src->SetUniqueId(s_id);
 
     if (poller_->Register(src->Identifier(), events, src))
-        return eventSourceSet_.insert(std::make_pair(src->GetUniqueId(), std::unique_ptr<internal::EventSource>(src))).second;
+        return eventSourceSet_.insert(std::make_pair(src->GetUniqueId(), src->shared_from_this())).second;
 
     return false;
 }
@@ -293,18 +287,24 @@ bool EventLoop::Loop(DurationMs timeout)
     }
 
     const int ready = poller_->Poll(static_cast<int>(eventSourceSet_.size()), static_cast<int>(timeout.count()));
+    if (ready < 0)
+        return false;
+
     const auto& fired = poller_->GetFiredEvents();
 
+    // Consider stale event, DO NOT unregister another socket in your event handler!
+
+    std::vector<std::shared_ptr<internal::EventSource>> sources(ready);
     for (int i = 0; i < ready; ++ i)
     {
         auto src = (internal::EventSource* )fired[i].userdata;
+        sources[i] = src->shared_from_this();
 
         if (fired[i].events & internal::eET_Read) 
         {
             if (!src->HandleReadEvent())
             {
                 src->HandleErrorEvent();
-                continue;
             }
         }
 
@@ -313,7 +313,6 @@ bool EventLoop::Loop(DurationMs timeout)
             if (!src->HandleWriteEvent())
             {
                 src->HandleErrorEvent();
-                continue;
             }
         }
         
@@ -321,7 +320,6 @@ bool EventLoop::Loop(DurationMs timeout)
         {
             ERR(internal::g_debug) << "eET_Error for " << src->Identifier();
             src->HandleErrorEvent();
-            continue;
         }
     }
 
