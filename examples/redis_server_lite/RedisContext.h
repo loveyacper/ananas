@@ -19,9 +19,10 @@ public:
     explicit
     RedisContext(ananas::Connection* conn);
 
-    ananas::PacketLen_t OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len);
+    ananas::PacketLen_t OnRecvAll(ananas::Connection* conn, const char* data, ananas::PacketLen_t len);
 
 private:
+    ananas::PacketLen_t _OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len, ananas::Buffer* reply);
     std::string _Get(const std::string& key);
     void _Set(const std::string& key, const std::string& val);
 

@@ -96,11 +96,7 @@ bool Acceptor::HandleReadEvent()
             conn->Init(connfd, peer_);
 
             // if send huge data OnConnect, may call Modify for epoll_out, so register events first
-#ifdef USE_EPOLL_EDGE_TRIGGER
-            if (loop_->Register(eET_Read | eET_Write, conn.get()))
-#else
             if (loop_->Register(eET_Read, conn.get()))
-#endif
             {
                 newConnCallback_(conn.get());
                 conn->OnConnect();
@@ -129,24 +125,14 @@ bool Acceptor::HandleReadEvent()
             case EMFILE:
             case ENFILE:
                 ERR(internal::g_debug) << "Not enough file descriptor available, error is " << error;
-#ifdef USE_EPOLL_EDGE_TRIGGER
-                ERR(internal::g_debug) << "Use epoll ET, server may can not response from now!";
-#else
                 ERR(internal::g_debug) << "may be CPU 100%";
                 return true;
-#endif
-                break; // something bad, but can be fixed
 
             case ENOBUFS:
             case ENOMEM:
                 ERR(internal::g_debug) << "Not enough memory, limited by the socket buffer limits";
-#ifdef USE_EPOLL_EDGE_TRIGGER
-                ERR(internal::g_debug) << "Use epoll ET, server may can not response from now!";
-#else
                 ERR(internal::g_debug) << "may be CPU 100%";
                 return true;
-#endif
-                break; // something bad, but can be fixed
 
             case ENOTSOCK: 
             case EOPNOTSUPP:
@@ -175,7 +161,6 @@ bool Acceptor::HandleWriteEvent()
 
 void Acceptor::HandleErrorEvent()
 {
-    // TODO disable read? NOT Unregister. consider epoll ET
     ERR(internal::g_debug) << "Acceptor::HandleErrorEvent";
     loop_->Unregister(eET_Read, this);
 }

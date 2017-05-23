@@ -16,7 +16,8 @@ Connection::Connection(EventLoop* loop) :
     loop_(loop),
     localSock_(kInvalid),
     minPacketSize_(1),
-    sendBufHighWater_(10 * 1024 * 1024)
+    sendBufHighWater_(10 * 1024 * 1024),
+    valid_(false)
 {
 }
 
@@ -34,6 +35,7 @@ bool Connection::Init(int fd, const SocketAddr& peer)
     SetNonBlock(localSock_);
 
     peer_ = peer;
+    valid_ = true;
     return true;
 }
 
@@ -130,23 +132,43 @@ int Connection::_Send(const void* data, size_t len)
     return bytes;
 }
     
+namespace
+{
+int WriteV(int sock, const std::vector<iovec>& buffers);
+void ConsumeBufferVectors(BufferVector& buffers, size_t toSkippedBytes);
+void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVector& dst);
+}
+
 bool Connection::HandleWriteEvent()
 {
-    auto bytes = _Send(sendBuf_.ReadAddr(), sendBuf_.ReadableSize());
-    if (bytes == kError)
-        return false;
-
-    sendBuf_.Consume(bytes);
-
-    if (sendBuf_.IsEmpty())
+    size_t expectSend = 0;
+    std::vector<iovec> iovecs;
+    for (auto& e : sendBuf_)
     {
-        sendBuf_.Shrink();
-#ifdef USE_EPOLL_EDGE_TRIGGER
-#else
-        loop_->Modify(internal::eET_Read, this);
-#endif
+        assert (!e.IsEmpty());
 
-        if (bytes > 0 && onWriteComplete_)
+        iovec ivc; 
+        ivc.iov_base = (void*)(e.ReadAddr());
+        ivc.iov_len = e.ReadableSize();
+
+        iovecs.push_back(ivc);
+        expectSend += e.ReadableSize();
+    }
+
+    int ret = WriteV(localSock_, iovecs);
+    if (ret == kError)
+        return false; // should close
+
+    assert (ret >= 0);
+
+    size_t alreadySent = static_cast<size_t>(ret);
+    ConsumeBufferVectors(sendBuf_, alreadySent);
+
+    if (alreadySent == expectSend)
+    {
+        loop_->Modify(internal::eET_Read, this);
+
+        if (onWriteComplete_)
             onWriteComplete_(this);
     }
 
@@ -155,6 +177,11 @@ bool Connection::HandleWriteEvent()
 
 void  Connection::HandleErrorEvent()
 {
+    if (!valid_)
+        return;
+
+    valid_ = false;
+
     if (onDisconnect_) 
         onDisconnect_(this);
 
@@ -164,15 +191,15 @@ void  Connection::HandleErrorEvent()
     loop_->Unregister(internal::eET_Read | internal::eET_Write, this);
 }
 
-bool Connection::SendPacket(const void* data, std::size_t  size)
+bool Connection::SendPacket(const void* data, std::size_t size)
 {
     if (size == 0)
         return true;
 
-    const size_t oldSendBytes = sendBuf_.ReadableSize();
+    const size_t oldSendBytes = sendBuf_.TotalBytes();
     ANANAS_DEFER
     {
-        size_t nowSendBytes = sendBuf_.ReadableSize();
+        size_t nowSendBytes = sendBuf_.TotalBytes();
         if (oldSendBytes < sendBufHighWater_ &&
             nowSendBytes >= sendBufHighWater_)
         {
@@ -181,9 +208,9 @@ bool Connection::SendPacket(const void* data, std::size_t  size)
         }
     };
 
-    if (!sendBuf_.IsEmpty())
+    if (oldSendBytes > 0)
     {
-        sendBuf_.PushData(data, size);
+        sendBuf_.PushBack(Buffer(data, size));
         return true;
     }
         
@@ -194,11 +221,8 @@ bool Connection::SendPacket(const void* data, std::size_t  size)
     if (bytes < static_cast<int>(size))
     {
         WRN(internal::g_debug) << localSock_ << " want send " << size << " bytes, but only send " << bytes;
-        sendBuf_.PushData((char*)data + bytes, size - static_cast<std::size_t>(bytes));
-#ifdef USE_EPOLL_EDGE_TRIGGER
-#else
+        sendBuf_.PushBack(Buffer((char*)data + bytes, size - static_cast<std::size_t>(bytes)));
         loop_->Modify(internal::eET_Read | internal::eET_Write, this);
-#endif
     }
     else
     {
@@ -213,38 +237,9 @@ bool Connection::SendPacket(const void* data, std::size_t  size)
 namespace
 {
 
-struct IOVecBuffer
-{
-    std::vector<iovec> iovecs;
-
-    IOVecBuffer()
-    {
-        Reset();
-    }
-
-    void Reset()
-    {
-        iovecs.clear();
-    }
-
-    void PushBuffer(iovec v)
-    {
-        iovecs.push_back(v);
-    }
-
-    size_t TotalBytes() const
-    {
-        size_t total = 0;
-        for (const auto& e : iovecs)
-            total += e.iov_len;
-
-        return total;
-    }
-};
-
 int WriteV(int sock, const std::vector<iovec>& buffers)
 {
-    const int kIOVecCount = 16; // be care of IOV_MAX
+    const int kIOVecCount = 64; // be care of IOV_MAX
 
     size_t sentVecs = 0;
     size_t sentBytes = 0;
@@ -264,6 +259,8 @@ int WriteV(int sock, const std::vector<iovec>& buffers)
 
         if (kError == bytes)
         {
+            assert (errno != EINVAL);
+
             if (EAGAIN == errno || EWOULDBLOCK == errno)
                 return static_cast<int>(sentBytes);
 
@@ -286,20 +283,45 @@ int WriteV(int sock, const std::vector<iovec>& buffers)
     return sentBytes;
 }
 
-void CollectBuffer(const std::vector<iovec>& buffers, int cnt, size_t skipped, Buffer& dst)
+void ConsumeBufferVectors(BufferVector& buffers, size_t toSkippedBytes)
 {
-    for (int i = 0; i < cnt; ++ i)
+    size_t skippedVecs = 0;
+    for (auto& e : buffers)
     {
-        if (skipped >= buffers[i].iov_len)
+        assert (e.ReadableSize() > 0);
+
+        if (toSkippedBytes >= e.ReadableSize())
         {
-            skipped -= buffers[i].iov_len;
+            toSkippedBytes -= e.ReadableSize();
+            ++ skippedVecs;
         }
         else
         {
-            const char* data = (const char*)buffers[i].iov_base;
-            size_t len = buffers[i].iov_len;
+            if (toSkippedBytes > 0)
+            {
+                e.Consume(toSkippedBytes);
+            }
 
-            dst.PushData(data + skipped, len - skipped); 
+            break;
+        }
+    }
+
+    while (skippedVecs-- > 0)
+        buffers.PopFront();
+}
+
+void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVector& dst)
+{
+    for (auto e : buffers)
+    {
+        if (skipped >= e.iov_len)
+        {
+            skipped -= e.iov_len;
+        }
+        else
+        {
+            dst.PushBack(Buffer((char*)e.iov_base + skipped, e.iov_len - skipped));
+                
             if (skipped != 0)
                 skipped = 0;
         }
@@ -307,7 +329,6 @@ void CollectBuffer(const std::vector<iovec>& buffers, int cnt, size_t skipped, B
 }
 
 } // end namespace
-
 
 bool Connection::SendPacket(const BufferVector& data)
 {
@@ -320,15 +341,15 @@ bool Connection::SendPacket(const BufferVector& data)
     return SendPacket(s);
 }
 
-bool Connection::SendPacket(const SliceVector& slice)
+bool Connection::SendPacket(const SliceVector& slices)
 {
-    if (slice.Empty())
+    if (slices.Empty())
         return true;
 
-    const size_t oldSendBytes = sendBuf_.ReadableSize();
+    const size_t oldSendBytes = sendBuf_.TotalBytes();
     ANANAS_DEFER
     {
-        size_t nowSendBytes = sendBuf_.ReadableSize();
+        size_t nowSendBytes = sendBuf_.TotalBytes();
         if (oldSendBytes < sendBufHighWater_ &&
             nowSendBytes >= sendBufHighWater_)
         {
@@ -337,8 +358,19 @@ bool Connection::SendPacket(const SliceVector& slice)
         }
     };
 
-    IOVecBuffer buffers;
-    for (const auto& e : slice)
+    if (oldSendBytes > 0)
+    {
+        for (const auto& e : slices)
+        {
+            sendBuf_.PushBack(Buffer(e.data, e.len));
+        }
+
+        return true;
+    }
+
+    size_t expectSend = 0;
+    std::vector<iovec> iovecs;
+    for (const auto& e : slices)
     {
         if (e.len == 0)
             continue;
@@ -347,31 +379,21 @@ bool Connection::SendPacket(const SliceVector& slice)
         ivc.iov_base = const_cast<void*>(e.data);
         ivc.iov_len = e.len;
 
-        buffers.PushBuffer(ivc);
+        iovecs.push_back(ivc);
+        expectSend += e.len;
     }
 
-    if (!sendBuf_.IsEmpty())
-    {
-        CollectBuffer(buffers.iovecs, static_cast<int>(buffers.iovecs.size()), 0, sendBuf_);
-        return true;
-    }
-            
-    int ret = WriteV(localSock_, buffers.iovecs);
+    int ret = WriteV(localSock_, iovecs);
     if (ret == kError)
         return false; // should close
 
     assert (ret >= 0);
 
     size_t alreadySent = static_cast<size_t>(ret);
-    size_t expectSend = buffers.TotalBytes();
-
     if (alreadySent < expectSend)
     {
-        CollectBuffer(buffers.iovecs, static_cast<int>(buffers.iovecs.size()), alreadySent, sendBuf_);
-#ifdef USE_EPOLL_EDGE_TRIGGER
-#else
+        CollectBuffer(iovecs, alreadySent, sendBuf_);
         loop_->Modify(internal::eET_Read | internal::eET_Write, this);
-#endif
     }
     else
     {
@@ -381,8 +403,12 @@ bool Connection::SendPacket(const SliceVector& slice)
 
     return true;
 }
-    
-    
+
+bool Connection::WriteWouldblock() const
+{
+    return !sendBuf_.Empty();
+}
+
 void Connection::SetOnConnect(std::function<void (Connection* )> cb)
 {
     onConnect_ = std::move(cb);

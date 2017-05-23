@@ -19,6 +19,14 @@ public:
     {
     }
 
+    Buffer(const void* data, size_t size) :
+        readPos_(0),
+        writePos_(0),
+        capacity_(0)
+    {
+        PushData(data, size);
+    }
+
     Buffer(const Buffer& ) = delete;
     void operator = (const Buffer& ) = delete;
 

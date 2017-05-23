@@ -11,6 +11,12 @@
 namespace ananas
 {
 
+namespace internal
+{
+class Acceptor;
+class Connector;
+}
+
 class Connection : public internal::EventSource
 {
 public:
@@ -36,10 +42,11 @@ public:
     bool SendPacket(const BufferVector& datum);
     bool SendPacket(const SliceVector& slice);
 
+    bool WriteWouldblock() const;
+
     void SetOnConnect(std::function<void (Connection* )> cb);
     void SetOnDisconnect(std::function<void (Connection* )> cb);
     void SetOnMessage(TcpMessageCallback cb);
-    void OnConnect();
     void SetFailCallback(TcpConnFailCallback cb);
     void SetOnWriteComplete(TcpWriteCompleteCallback wccb);
     void SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb);
@@ -48,15 +55,19 @@ public:
     void SetWriteHighWater(size_t s);
 
 private:
+    friend class internal::Acceptor;
+    friend class internal::Connector;
+    void OnConnect();
     int _Send(const void* data, size_t len);
 
     EventLoop* const loop_;
     int localSock_;
     size_t minPacketSize_;
     size_t sendBufHighWater_;
+    bool valid_;
 
     Buffer recvBuf_;
-    Buffer sendBuf_;
+    BufferVector sendBuf_;
 
     SocketAddr peer_;
 
