@@ -99,6 +99,11 @@ struct BufferVector
         return s;
     }
 
+    void Clear()
+    {
+        buffers.clear();
+    }
+
     void PushBack(Buffer&& buf)
     {
         buffers.push_back(std::move(buf));
@@ -108,6 +113,7 @@ struct BufferVector
     {
         buffers.push_front(std::move(buf));
     }
+
     void PopBack()
     {
         buffers.pop_back();

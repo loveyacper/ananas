@@ -16,8 +16,7 @@ Connection::Connection(EventLoop* loop) :
     loop_(loop),
     localSock_(kInvalid),
     minPacketSize_(1),
-    sendBufHighWater_(10 * 1024 * 1024),
-    valid_(false)
+    sendBufHighWater_(10 * 1024 * 1024)
 {
 }
 
@@ -35,13 +34,50 @@ bool Connection::Init(int fd, const SocketAddr& peer)
     SetNonBlock(localSock_);
 
     peer_ = peer;
-    valid_ = true;
+
+    assert (state_ == State::eS_None);
+    state_ = State::eS_Connected;
     return true;
 }
 
 void Connection::Close()
 {
     CloseSocket(localSock_);
+}
+
+void Connection::Shutdown(ShutdownMode mode)
+{
+    switch (mode)
+    {
+    case ShutdownMode::eSM_Read:
+        ::shutdown(localSock_, SHUT_RD);
+        break;
+
+    case ShutdownMode::eSM_Write:
+        if (!sendBuf_.Empty())
+        {
+            WRN(internal::g_debug) << localSock_ << " shutdown write, but still has data to send";
+            sendBuf_.Clear();
+        }
+
+        ::shutdown(localSock_, SHUT_WR);
+        break;
+
+    case ShutdownMode::eSM_Both:
+        if (!sendBuf_.Empty())
+        {
+            WRN(internal::g_debug) << localSock_ << " shutdown both, but still has data to send";
+            sendBuf_.Clear();
+        }
+
+        ::shutdown(localSock_, SHUT_RDWR);
+        break;
+    }
+}
+
+void Connection::SetNodelay(bool enable)
+{
+    ananas::SetNodelay(localSock_, enable);
 }
 
 int Connection::Identifier() const
@@ -51,11 +87,17 @@ int Connection::Identifier() const
 
 bool Connection::HandleReadEvent()
 {
+    if (state_ != State::eS_Connected)
+    {
+        ERR(internal::g_debug) << localSock_ << " HandleReadEvent error " << state_;
+        return false;
+    }
+
     bool busy = false;
     while (true)
     {
         recvBuf_.AssureSpace(4 * 1024);
-        char stack[64 * 1024];
+        char stack[128 * 1024];
 
         struct iovec vecs[2];
         vecs[0].iov_base = recvBuf_.WriteAddr();
@@ -74,10 +116,27 @@ bool Connection::HandleReadEvent()
         }
 
         if (0 == bytes)
-            return false; // eof
+        {
+            WRN(internal::g_debug) << localSock_ << " HandleReadEvent EOF ";
+            if (sendBuf_.Empty())
+            {
+                state_ = State::eS_PeerClosed;
+            }
+            else
+            {
+                state_ = State::eS_CloseWaitWrite;
+                loop_->Modify(internal::eET_Write, this); // disable ReadEvent
+            }
+
+            return false;
+        }
 
         if (bytes < 0)
+        {
+            ERR(internal::g_debug) << localSock_ << " HandleReadEvent Error";
+            state_ = State::eS_Error;
             return false;
+        }
 
         if (static_cast<size_t>(bytes) <= vecs[0].iov_len) 
         {
@@ -119,6 +178,9 @@ int Connection::_Send(const void* data, size_t len)
     if (len == 0)
         return 0;
 
+    if (state_ != State::eS_Connected)
+        ERR(internal::g_debug) << localSock_ << " _Send " << state_;
+
 	int  bytes = ::send(localSock_, data, len, 0);
     if (kError == bytes)
     {
@@ -127,6 +189,12 @@ int Connection::_Send(const void* data, size_t len)
 
         if (EINTR == errno)
             bytes = 0; // later try ::send
+    }
+
+    if (kError == bytes)
+    {
+        ERR(internal::g_debug) << localSock_ << " _Send Error";
+        state_ = State::eS_Error;
     }
 
     return bytes;
@@ -141,6 +209,15 @@ void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVect
 
 bool Connection::HandleWriteEvent()
 {
+    if (state_ != State::eS_Connected &&
+        state_ != State::eS_CloseWaitWrite)
+    {
+        ERR(internal::g_debug) << localSock_ << " HandleWriteEvent wrong state " << state_;
+        return false;
+    }
+
+    // it's connected or half-close, whatever, we can send.
+
     size_t expectSend = 0;
     std::vector<iovec> iovecs;
     for (auto& e : sendBuf_)
@@ -157,7 +234,11 @@ bool Connection::HandleWriteEvent()
 
     int ret = WriteV(localSock_, iovecs);
     if (ret == kError)
-        return false; // should close
+    {
+        ERR(internal::g_debug) << localSock_ << " HandleWriteEvent ERROR ";
+        state_ = State::eS_Error;
+        return false;
+    }
 
     assert (ret >= 0);
 
@@ -166,10 +247,17 @@ bool Connection::HandleWriteEvent()
 
     if (alreadySent == expectSend)
     {
+        DBG(internal::g_debug) << localSock_ << " HandleWriteEvent complete";
         loop_->Modify(internal::eET_Read, this);
 
         if (onWriteComplete_)
             onWriteComplete_(this);
+
+        if (state_ == State::eS_CloseWaitWrite)
+        {
+            state_ = State::eS_PeerClosed;
+            return false;
+        }
     }
 
     return true;
@@ -177,10 +265,25 @@ bool Connection::HandleWriteEvent()
 
 void  Connection::HandleErrorEvent()
 {
-    if (!valid_)
+    ERR(internal::g_debug) << localSock_ << " HandleErrorEvent " << state_;
+
+    switch (state_)
+    {
+    case State::eS_None:
+    case State::eS_Connected:
+    case State::eS_CloseWaitWrite:
         return;
 
-    valid_ = false;
+    case State::eS_PeerClosed:
+    case State::eS_Error:
+        break;
+
+    case State::eS_Disconnected:
+    default:
+        return;
+    }
+
+    state_ = State::eS_Disconnected;
 
     if (onDisconnect_) 
         onDisconnect_(this);
@@ -195,6 +298,10 @@ bool Connection::SendPacket(const void* data, std::size_t size)
 {
     if (size == 0)
         return true;
+
+    if (state_ != State::eS_Connected &&
+        state_ != State::eS_CloseWaitWrite)
+        return false;
 
     const size_t oldSendBytes = sendBuf_.TotalBytes();
     ANANAS_DEFER
@@ -216,7 +323,10 @@ bool Connection::SendPacket(const void* data, std::size_t size)
         
     auto bytes = _Send(data, size);
     if (bytes == kError)
+    {
+        //HandleErrorEvent();
         return false;
+    }
 
     if (bytes < static_cast<int>(size))
     {
@@ -247,10 +357,10 @@ int WriteV(int sock, const std::vector<iovec>& buffers)
     {
         const int vc = std::min<int>(buffers.size() - sentVecs, kIOVecCount);
 
-        size_t expectBytes = 0;
+        int expectBytes = 0;
         for (size_t i = sentVecs; i < sentVecs + vc; ++ i)
         {
-            expectBytes += buffers[i].iov_len;
+            expectBytes += static_cast<int>(buffers[i].iov_len);
         }
 
         assert (expectBytes > 0);
@@ -332,6 +442,10 @@ void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVect
 
 bool Connection::SendPacket(const BufferVector& data)
 {
+    if (state_ != State::eS_Connected &&
+        state_ != State::eS_CloseWaitWrite)
+        return false;
+
     SliceVector s;
     for (const auto& d : data)
     {
@@ -385,7 +499,11 @@ bool Connection::SendPacket(const SliceVector& slices)
 
     int ret = WriteV(localSock_, iovecs);
     if (ret == kError)
-        return false; // should close
+    {
+        state_ = State::eS_Error;
+        //HandleErrorEvent();
+        return false;
+    }
 
     assert (ret >= 0);
 
@@ -424,7 +542,7 @@ void Connection::SetOnMessage(TcpMessageCallback cb)
     onMessage_ = std::move(cb);
 }
 
-void Connection::OnConnect()
+void Connection::_OnConnect()
 {
     if (onConnect_)
         onConnect_(this);

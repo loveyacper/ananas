@@ -99,7 +99,7 @@ bool Acceptor::HandleReadEvent()
             if (loop_->Register(eET_Read, conn.get()))
             {
                 newConnCallback_(conn.get());
-                conn->OnConnect();
+                conn->_OnConnect();
             }
             else
             {

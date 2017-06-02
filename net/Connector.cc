@@ -86,9 +86,11 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
 
             if (timeout != DurationMs::max())
             {
-                timeoutId_ = loop_->ScheduleAfter(timeout, [this]() {
-                    if (this->state_ != ConnectState::connected)
+                timeoutId_ = loop_->ScheduleAfter<1>(timeout, [this]() {
+                    if (this->state_ != ConnectState::connected) {
+                        this->timeoutId_.reset();
                         this->_OnFailed();
+                    }
                 });
             }
 
@@ -162,7 +164,7 @@ void Connector::_OnSuccess()
     {
         c->SetFailCallback(this->onConnectFail_);
         this->newConnCallback_(c.get());
-        c->OnConnect();
+        c->_OnConnect();
     }
     else
     {

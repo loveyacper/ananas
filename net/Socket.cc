@@ -61,9 +61,9 @@ void SetNonBlock(int sock, bool nonblock)
         flag = ::fcntl(sock, F_SETFL, flag & ~O_NONBLOCK);
 }
 
-void SetNodelay(int sock)
+void SetNodelay(int sock, bool enable)
 {
-    int nodelay = 1;
+    int nodelay = enable ? 1 : 0;
     ::setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(int));
 }
 

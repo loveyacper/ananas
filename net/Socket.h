@@ -89,7 +89,7 @@ int CreateUDPSocket();
 bool CreateSocketPair(int& readSock, int& writeSock);
 void CloseSocket(int &sock);
 void SetNonBlock(int sock, bool nonBlock = true);
-void SetNodelay(int sock);
+void SetNodelay(int sock, bool enable = true);
 void SetSndBuf(int sock, socklen_t size = 64 * 1024);
 void SetRcvBuf(int sock, socklen_t size = 64 * 1024);
 void SetReuseAddr(int sock);

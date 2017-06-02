@@ -17,6 +17,13 @@ class Acceptor;
 class Connector;
 }
 
+enum class ShutdownMode
+{
+    eSM_Both,
+    eSM_Read,
+    eSM_Write,
+};
+
 class Connection : public internal::EventSource
 {
 public:
@@ -32,6 +39,9 @@ public:
     const SocketAddr& Peer() const { return peer_; }
     void Close();
     EventLoop* GetLoop() const { return loop_; }
+
+    void Shutdown(ShutdownMode mode);
+    void SetNodelay(bool enable);
 
     int Identifier() const override;
     bool HandleReadEvent() override;
@@ -55,16 +65,26 @@ public:
     void SetWriteHighWater(size_t s);
 
 private:
+    enum State
+    {
+        eS_None,
+        eS_Connected,
+        eS_CloseWaitWrite, // peer close or shutdown write, but I have data to send
+        eS_PeerClosed, // should close
+        eS_Error,
+        eS_Disconnected,
+    };
+
     friend class internal::Acceptor;
     friend class internal::Connector;
-    void OnConnect();
+    void _OnConnect();
     int _Send(const void* data, size_t len);
 
     EventLoop* const loop_;
+    State state_ = State::eS_None;
     int localSock_;
     size_t minPacketSize_;
     size_t sendBufHighWater_;
-    bool valid_;
 
     Buffer recvBuf_;
     BufferVector sendBuf_;
