@@ -22,7 +22,7 @@ int Double(int input)
          << endl;
 
     cerr << "Coroutine Double: Return to Main." << endl;
-    auto rsp = CoroutineMgr::Yield(std::make_shared<std::string>("I am calculating, please wait...")); 
+    auto rsp = Coroutine::Yield(std::make_shared<std::string>("I am calculating, please wait...")); 
 
     cerr << "Coroutine Double is resumed from Main\n"; 
 
@@ -39,13 +39,10 @@ int Double(int input)
 
 int main()
 {
-    //0. define CoroutineMgr object for each thread.  
-    CoroutineMgr mgr; 
-
     const int input = 42;
 
     //1. create coroutine
-    CoroutinePtr crt(mgr.CreateCoroutine(Double, input));
+    CoroutinePtr crt(Coroutine::CreateCoroutine(Double, input));
         
     //2. start crt, get result from crt
     auto ret = mgr.Send(crt);

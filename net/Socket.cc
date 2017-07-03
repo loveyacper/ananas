@@ -44,7 +44,6 @@ void CloseSocket(int& sock)
 {
     if (sock != kInvalid)
     {
-        ::shutdown(sock, SHUT_RDWR);
         ::close(sock);
         sock = kInvalid;
     }

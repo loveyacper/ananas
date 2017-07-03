@@ -42,7 +42,7 @@ ananas::PacketLen_t RedisContext::_OnRecv(ananas::Connection* conn, const char* 
     {   
         ERR(logger) << "ParseError for " << data;
         // error protocol
-        hostConn_->Close();
+        hostConn_->ActiveClose();
         return 0;
     } 
     else if (parseRet != ParseResult::ok) 

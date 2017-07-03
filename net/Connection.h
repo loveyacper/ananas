@@ -37,7 +37,7 @@ public:
     bool Init(int sock, const SocketAddr& peer);
     void SetMaxPacketSize(std::size_t s);
     const SocketAddr& Peer() const { return peer_; }
-    void Close();
+    void ActiveClose();
     EventLoop* GetLoop() const { return loop_; }
 
     void Shutdown(ShutdownMode mode);
@@ -51,8 +51,6 @@ public:
     bool SendPacket(const void* data, std::size_t len);
     bool SendPacket(const BufferVector& datum);
     bool SendPacket(const SliceVector& slice);
-
-    bool WriteWouldblock() const;
 
     void SetOnConnect(std::function<void (Connection* )> cb);
     void SetOnDisconnect(std::function<void (Connection* )> cb);
@@ -70,9 +68,10 @@ private:
         eS_None,
         eS_Connected,
         eS_CloseWaitWrite, // peer close or shutdown write, but I have data to send
-        eS_PeerClosed, // should close
+        eS_PassiveClose, // should close
+        eS_ActiveClose, // should close
         eS_Error,
-        eS_Disconnected,
+        eS_Closed,
     };
 
     friend class internal::Acceptor;

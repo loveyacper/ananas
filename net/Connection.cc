@@ -22,7 +22,11 @@ Connection::Connection(EventLoop* loop) :
 
 Connection::~Connection()
 {
-    Close();
+    if (localSock_ != kInvalid)
+    {
+        Shutdown(ShutdownMode::eSM_Both); // Force send FIN
+        CloseSocket(localSock_);
+    }
 }
 
 bool Connection::Init(int fd, const SocketAddr& peer)
@@ -40,9 +44,13 @@ bool Connection::Init(int fd, const SocketAddr& peer)
     return true;
 }
 
-void Connection::Close()
+void Connection::ActiveClose()
 {
-    CloseSocket(localSock_);
+    if (localSock_ == kInvalid)
+        return;
+
+    state_ = State::eS_ActiveClose;
+    loop_->Modify(internal::eET_Write, this);
 }
 
 void Connection::Shutdown(ShutdownMode mode)
@@ -120,7 +128,7 @@ bool Connection::HandleReadEvent()
             WRN(internal::g_debug) << localSock_ << " HandleReadEvent EOF ";
             if (sendBuf_.Empty())
             {
-                state_ = State::eS_PeerClosed;
+                state_ = State::eS_PassiveClose;
             }
             else
             {
@@ -169,7 +177,7 @@ bool Connection::HandleReadEvent()
     if (busy)
         recvBuf_.Shrink();
 
-	return true;
+    return true;
 }
 
 
@@ -178,10 +186,7 @@ int Connection::_Send(const void* data, size_t len)
     if (len == 0)
         return 0;
 
-    if (state_ != State::eS_Connected)
-        ERR(internal::g_debug) << localSock_ << " _Send " << state_;
-
-	int  bytes = ::send(localSock_, data, len, 0);
+    int  bytes = ::send(localSock_, data, len, 0);
     if (kError == bytes)
     {
         if (EAGAIN == errno || EWOULDBLOCK == errno)
@@ -255,7 +260,7 @@ bool Connection::HandleWriteEvent()
 
         if (state_ == State::eS_CloseWaitWrite)
         {
-            state_ = State::eS_PeerClosed;
+            state_ = State::eS_PassiveClose;
             return false;
         }
     }
@@ -269,21 +274,20 @@ void  Connection::HandleErrorEvent()
 
     switch (state_)
     {
-    case State::eS_None:
-    case State::eS_Connected:
-    case State::eS_CloseWaitWrite:
-        return;
-
-    case State::eS_PeerClosed:
+    case State::eS_PassiveClose:
+    case State::eS_ActiveClose:
     case State::eS_Error:
         break;
 
-    case State::eS_Disconnected:
+    case State::eS_None:
+    case State::eS_Connected: // should not happen
+    case State::eS_CloseWaitWrite:
+    case State::eS_Closed: // should not happen
     default:
         return;
     }
 
-    state_ = State::eS_Disconnected;
+    state_ = State::eS_Closed;
 
     if (onDisconnect_) 
         onDisconnect_(this);
@@ -324,7 +328,8 @@ bool Connection::SendPacket(const void* data, std::size_t size)
     auto bytes = _Send(data, size);
     if (bytes == kError)
     {
-        //HandleErrorEvent();
+        state_ = State::eS_Error;
+        loop_->Modify(internal::eET_Write, this);
         return false;
     }
 
@@ -340,7 +345,7 @@ bool Connection::SendPacket(const void* data, std::size_t size)
             onWriteComplete_(this);
     }
 
-	return true;
+    return true;
 }
 
 // iovec for writev
@@ -501,7 +506,7 @@ bool Connection::SendPacket(const SliceVector& slices)
     if (ret == kError)
     {
         state_ = State::eS_Error;
-        //HandleErrorEvent();
+        loop_->Modify(internal::eET_Write, this);
         return false;
     }
 
@@ -522,11 +527,6 @@ bool Connection::SendPacket(const SliceVector& slices)
     return true;
 }
 
-bool Connection::WriteWouldblock() const
-{
-    return !sendBuf_.Empty();
-}
-
 void Connection::SetOnConnect(std::function<void (Connection* )> cb)
 {
     onConnect_ = std::move(cb);
@@ -544,6 +544,9 @@ void Connection::SetOnMessage(TcpMessageCallback cb)
 
 void Connection::_OnConnect()
 {
+    if (state_ != State::eS_Connected)
+        return;
+
     if (onConnect_)
         onConnect_(this);
 }

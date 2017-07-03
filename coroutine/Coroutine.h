@@ -20,8 +20,6 @@ using CoroutinePtr = std::shared_ptr<Coroutine>;
 
 class Coroutine
 {
-    friend class CoroutineMgr;
-
     enum class State
     {
         Init,
@@ -38,7 +36,7 @@ public:
         return std::make_shared<Coroutine>(std::forward<F>(f), std::forward<Args>(args)...); 
     }
 
-    // Below two static functions for schedule coroutine
+    // Below three static functions for schedule coroutine
 
     // like python generator's send method
     static AnyPointer Send(const CoroutinePtr& crt, AnyPointer = AnyPointer(nullptr));
@@ -47,7 +45,7 @@ public:
 
 public:
     // !!!
-    // NEVER define coroutine object, please use CoroutineMgr::CreateCoroutine.
+    // NEVER define coroutine object, please use CreateCoroutine.
     // Coroutine constructor should be private, 
     // BUT compilers demand template constructor must be public...
     explicit

@@ -201,7 +201,7 @@ size_t RpcChannel::_OnMessage(ananas::Connection* conn, const char* data, size_t
     if (totalLen <= kHeaderLen || totalLen >= 100 * 10 * 1024)
     {
         // evil client
-        conn->Close();
+        conn->ActiveClose();
         return 0;
     }
 
@@ -219,7 +219,7 @@ size_t RpcChannel::_OnMessage(ananas::Connection* conn, const char* data, size_t
         _ProcessResponse(msg.response());
     else
         // evil client
-        conn->Close();
+        conn->ActiveClose();
 
     return totalLen;
 }
