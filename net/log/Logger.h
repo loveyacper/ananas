@@ -193,7 +193,8 @@ private:
 #define  WRN      LOG_WRN
 #define  ERR      LOG_ERR
 #define  USR      LOG_USR
-#endif
 
 } // end namespace ananas
+
+#endif
 

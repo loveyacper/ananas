@@ -204,7 +204,7 @@ int Connection::_Send(const void* data, size_t len)
 
     return bytes;
 }
-    
+
 namespace
 {
 int WriteV(int sock, const std::vector<iovec>& buffers);

@@ -1,7 +1,7 @@
 # ananas
 =========
 
-A C++11 toolbox for server-side development.
+C++11 toolbox for server-side development.
 
 ## Requirements
 * C++11
@@ -10,7 +10,7 @@ A C++11 toolbox for server-side development.
 ## Features
 * Pythonic generator style coroutine, see [Intro](coroutine/README.md).
 * `Future` & `Promise`, see [test](tests/test_future/).
-* Network(`udp`&`tcp`,`kqueue`&`epoll`), support epoll edge-triggered.
+* Network(`udp`&`tcp`,`kqueue`&`epoll`), support ssl.
 * Protobuf-based rpc.
 * Easy used and powerful timer, see [test](tests/test_timer/).
 * Extremely high performance multi-thread logger, see [Intro](net/log/README.md).

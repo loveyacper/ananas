@@ -7,3 +7,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     SUBDIRS(redis_client_coroutine_lite/)
 ENDIF()
 
+IF(USE_SSL)
+SUBDIRS(ssl_test/)
+
+ENDIF()
