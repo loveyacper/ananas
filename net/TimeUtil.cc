@@ -11,12 +11,17 @@ Time::Time() : valid_(false)
 
 int64_t Time::MilliSeconds() const
 {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(ms_.time_since_epoch()).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(now_.time_since_epoch()).count();
+}
+
+int64_t Time::MicroSeconds() const
+{
+    return std::chrono::duration_cast<std::chrono::microseconds>(now_.time_since_epoch()).count();
 }
 
 void Time::Now()
 {
-    ms_ = std::chrono::system_clock::now();
+    now_ = std::chrono::system_clock::now();
     valid_ = false;
 }
 
@@ -69,10 +74,10 @@ std::size_t Time::FormatTime(char* buf) const
     buf[16] = ':';
     memcpy(buf + 17, NUMBER[tm_.tm_sec], 2);
     buf[19] = '.';
-    auto msec = MilliSeconds();
-    snprintf(buf + 20, 5, "%03d]", static_cast<int>(msec % 1000));
+    auto msec = MicroSeconds();
+    snprintf(buf + 20, 8, "%06d]", static_cast<int>(msec % 1000));
     
-    return 24;
+    return 27;
 }
 
 } // end namespace ananas

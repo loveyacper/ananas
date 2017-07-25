@@ -19,6 +19,7 @@ public:
 
     void Now();
     int64_t MilliSeconds() const;
+    int64_t MicroSeconds() const;
     std::size_t FormatTime(char* buf) const;
 
     int GetYear()   const { _UpdateTm(); return tm_.tm_year + 1900;  } 
@@ -31,7 +32,7 @@ public:
     operator int64_t() const { return MilliSeconds(); }
 
 private:
-    std::chrono::system_clock::time_point ms_;
+    std::chrono::system_clock::time_point now_;
     mutable tm tm_;
     mutable bool valid_;
 

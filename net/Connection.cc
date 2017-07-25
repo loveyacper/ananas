@@ -576,5 +576,10 @@ void Connection::SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb)
     onWriteHighWater = std::move(whwcb);
 }
 
+void Connection::SetUserData(std::shared_ptr<void> user)
+{
+    userData_ = std::move(user);
+}
+
 } // end namespace ananas
 

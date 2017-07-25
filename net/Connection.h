@@ -62,6 +62,11 @@ public:
     void SetMinPacketSize(size_t s);
     void SetWriteHighWater(size_t s);
 
+    void SetUserData(std::shared_ptr<void> user);
+
+    template <typename T>
+    std::shared_ptr<T> GetUserData() const;
+
 private:
     enum State
     {
@@ -97,7 +102,16 @@ private:
     TcpConnFailCallback onConnFail_;
     TcpWriteCompleteCallback onWriteComplete_;
     TcpWriteHighWaterCallback onWriteHighWater;
+
+    std::shared_ptr<void> userData_;
 };
+
+    
+template <typename T>
+inline std::shared_ptr<T> Connection::GetUserData() const
+{
+    return std::static_pointer_cast<T>(userData_);
+}
 
 } // end namespace ananas
 

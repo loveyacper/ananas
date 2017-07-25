@@ -4,7 +4,20 @@
 #include "ssl/SSLContext.h"
 #include "ssl/SSLManager.h"
 #include "net/EventLoop.h"
+#include "net/Connection.h"
 #include "net/log/Logger.h"
+
+void NewSSLConnection(const std::string& ctxName, int verifyMode, bool incoming, ananas::Connection* c)
+{
+    ananas::ssl::OnNewSSLConnection(ctxName, verifyMode, incoming, c);
+
+    auto open = c->GetUserData<ananas::ssl::OpenSSLContext>();
+    open->SetLogicProcess([](ananas::Connection* c, const char* data, size_t len) {
+            std::cout << "Process len " << len << std::endl;
+            std::cout << "Process data " << data << std::endl;
+            return len;
+    });
+}
 
 int main()
 {
@@ -22,7 +35,7 @@ int main()
 
     ananas::EventLoop loop;
 
-    if (!loop.Listen("loopback", 443,  std::bind(&ananas::ssl::OnNewSSLConnection,
+    if (!loop.Listen("loopback", 8443,  std::bind(NewSSLConnection,
                                                  ctx,
                                                  SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                                                  true,

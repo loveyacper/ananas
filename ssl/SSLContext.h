@@ -31,14 +31,17 @@ public:
     bool SendData(const char* data, size_t len);
     void SetLogicProcess(std::function<size_t (Connection* , const char*, size_t )>);
 
+    bool DoHandleShake();
+    void Shutdown();
+
 private:
-    static Buffer getMemData(BIO* bio);
-    static size_t processHandshake(std::shared_ptr<OpenSSLContext> open, Connection* c, const char* data, size_t len);
-    static size_t processData(std::shared_ptr<OpenSSLContext> open, Connection* c, const char* data, size_t len);
+    static Buffer GetMemData(BIO* bio);
+    static size_t ProcessHandshake(std::shared_ptr<OpenSSLContext> open, Connection* c, const char* data, size_t len);
+    static size_t ProcessData(std::shared_ptr<OpenSSLContext> open, Connection* c, const char* data, size_t len);
 
     std::function<size_t (Connection* c, const char* data, size_t len)> logicProcess_;
 
-    SSL* const ssl_;
+    SSL* ssl_;
     const bool incoming_;
 
     Buffer recvPlainBuf_;
@@ -56,7 +59,6 @@ private:
     // SSL_shutdown encounter SSL_ERROR_WANT_READ!
     bool shutdownWaitReadable_ {false};
 };
-
 
 
 } // end namespace ssl

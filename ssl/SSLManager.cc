@@ -56,6 +56,9 @@ bool SSLManager::AddCtx(const std::string& name,
         return false;\
     }
 
+    SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+
+    RETURN_IF_FAIL (SSL_CTX_set_session_id_context(ctx, (const unsigned char*)ctx, sizeof ctx));
     RETURN_IF_FAIL (SSL_CTX_load_verify_locations(ctx, cafile.data(), nullptr));
     RETURN_IF_FAIL (SSL_CTX_use_certificate_file(ctx, certfile.data(), SSL_FILETYPE_PEM));
     RETURN_IF_FAIL (SSL_CTX_use_PrivateKey_file(ctx, keyfile.data(), SSL_FILETYPE_PEM));

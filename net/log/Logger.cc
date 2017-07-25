@@ -35,7 +35,7 @@ enum LogColor
 static const size_t kDefaultLogSize = 32 * 1024 * 1024;
 
 static const size_t kPrefixLevelLen = 6;
-static const size_t kPrefixTimeLen = 24;
+static const size_t kPrefixTimeLen = 27;
 
 static bool MakeDir(const char* dir)
 {
@@ -166,11 +166,11 @@ void Logger::Flush(enum LogLevel level)
     }
     else
     {
-        auto msec = now.MilliSeconds() % 1000;
+        auto msec = now.MicroSeconds() % 1000000;
         if (msec != lastLogMSecond_)
         {
-            snprintf(tmpBuffer_ + 20, 4, "%03d", static_cast<int>(msec));
-            tmpBuffer_[23] = ']';
+            snprintf(tmpBuffer_ + 20, 7, "%06d", static_cast<int>(msec));
+            tmpBuffer_[26] = ']';
             lastLogMSecond_ = msec;
         }
     }
@@ -477,7 +477,7 @@ bool Logger::Update()
 {
     std::vector<std::unique_ptr<BufferInfo> > tmpBufs;
 
-    bool sth_todo = false;
+    bool todo = false;
     {
         std::unique_lock<std::mutex> guard(mutex_);
 
@@ -488,7 +488,7 @@ bool Logger::Update()
             if (it->second->inuse_)
             {
                 // if logs is still in producing, there will be some work to do.
-                sth_todo = true;
+                todo = true;
                 ++ it;
             }
             else
@@ -507,7 +507,7 @@ bool Logger::Update()
 
     file_.Sync();
 
-    return sth_todo;
+    return todo;
 }
 
 void   Logger::_Reset()
@@ -653,7 +653,6 @@ std::shared_ptr<Logger> LogManager::CreateLog(unsigned int level,
         if (shutdown_)
         {
             std::cerr << "Warning: Please call LogManager::Start() first\n";
-            //return &nullLog_;
             std::shared_ptr<Logger> nulllog(&nullLog_, [](Logger* ) {});
             return nulllog;
         }

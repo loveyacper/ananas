@@ -4,7 +4,21 @@
 #include "ssl/SSLContext.h"
 #include "ssl/SSLManager.h"
 #include "net/EventLoop.h"
+#include "net/Connection.h"
 #include "net/log/Logger.h"
+
+
+void NewSSLConnection(const std::string& ctxName, int verifyMode, bool incoming, ananas::Connection* c)
+{
+    ananas::ssl::OnNewSSLConnection(ctxName, verifyMode, incoming, c);
+
+    auto open = c->GetUserData<ananas::ssl::OpenSSLContext>();
+    open->SetLogicProcess([](ananas::Connection* c, const char* data, size_t len) {
+            std::cout << "Process len " << len << std::endl;
+            std::cout << "Process data " << data << std::endl;
+            return len;
+    });
+}
 
 
 void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAddr& peer)
@@ -17,7 +31,7 @@ void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAd
 
     // reconnect
     loop->ScheduleAfter(std::chrono::seconds(2), [=]() {
-        loop->Connect("loopback", 443, std::bind(&ananas::ssl::OnNewSSLConnection,
+        loop->Connect("loopback", 8443, std::bind(&ananas::ssl::OnNewSSLConnection,
                                                   "clientctx",
                                                   SSL_VERIFY_PEER,
                                                   false,
@@ -45,8 +59,8 @@ int main()
 
     ananas::EventLoop loop;
 
-    int maxTryCount = 3;
-    loop.Connect("loopback", 443,  std::bind(&ananas::ssl::OnNewSSLConnection,
+    int maxTryCount = 0;
+    loop.Connect("loopback", 8443,  std::bind(NewSSLConnection,
                                               ctx,
                                               SSL_VERIFY_PEER,
                                               false,
