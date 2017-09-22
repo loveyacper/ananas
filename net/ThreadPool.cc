@@ -8,7 +8,7 @@ std::thread::id ThreadPool::s_mainThread;
 
 ThreadPool::ThreadPool() : waiters_(0), shutdown_(false)
 {
-    monitor_ = std::thread([this]() { this->_MonitorRoutine(); } );
+    monitor_ = std::thread([this]() { _MonitorRoutine(); } );
     maxIdleThread_ = std::max(1U, std::thread::hardware_concurrency());
     pendingStopSignal_ = 0;
 
@@ -27,13 +27,13 @@ ThreadPool& ThreadPool::Instance()
     return pool;
 }
 
-void    ThreadPool::SetMaxIdleThread(unsigned int m)
+void ThreadPool::SetMaxIdleThread(unsigned int m)
 {
     if (0 < m && m <= kMaxThreads)
         maxIdleThread_ = m;
 }
 
-void    ThreadPool::JoinAll()
+void ThreadPool::JoinAll()
 {
     if (s_mainThread != std::this_thread::get_id())
         return;
@@ -63,13 +63,13 @@ void    ThreadPool::JoinAll()
     }
 }
 
-void   ThreadPool::_CreateWorker()
+void ThreadPool::_CreateWorker()
 {
     std::thread t([this]() { this->_WorkerRoutine(); } );
     workers_.push_back(std::move(t));
 }
 
-void   ThreadPool::_WorkerRoutine()
+void ThreadPool::_WorkerRoutine()
 {
     working_ = true;
     
@@ -81,10 +81,10 @@ void   ThreadPool::_WorkerRoutine()
             std::unique_lock<std::mutex>    guard(mutex_);
             
             ++ waiters_;
-            cond_.wait(guard, [this]()->bool { return this->shutdown_ || !tasks_.empty(); } );
+            cond_.wait(guard, [this]() { return shutdown_ || !tasks_.empty(); } );
             -- waiters_;
             
-            if (this->shutdown_ && tasks_.empty())
+            if (shutdown_ && tasks_.empty())
                 return;
             
             task = std::move(tasks_.front());
@@ -98,13 +98,13 @@ void   ThreadPool::_WorkerRoutine()
     -- pendingStopSignal_;
 }
 
-void   ThreadPool::_MonitorRoutine()
+void ThreadPool::_MonitorRoutine()
 {
     while (!shutdown_)
     {
         std::this_thread::sleep_for(std::chrono::seconds(1));
         
-        std::unique_lock<std::mutex>   guard(mutex_);
+        std::unique_lock<std::mutex> guard(mutex_);
         if (shutdown_)
             return;
 

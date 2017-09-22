@@ -25,8 +25,10 @@ using TimeoutCallback = std::function<void ()>;
 template <typename T>
 struct State
 {
-    static_assert(std::is_same<T, void>::value || std::is_copy_constructible<T>(), "must be copyable or void");
-    static_assert(std::is_same<T, void>::value || std::is_move_constructible<T>(), "must be movable or void");
+    static_assert(std::is_same<T, void>::value || std::is_copy_constructible<T>(),
+                  "must be copyable or void");
+    static_assert(std::is_same<T, void>::value || std::is_move_constructible<T>(),
+                  "must be movable or void");
 
     State() :
         ft_(pm_.get_future()),
@@ -285,23 +287,26 @@ public:
                       "Then callback must take 0/1 argument");
 
         using FReturnType = typename R::IsReturnsFuture::Inner;
+        using namespace internal;
 
         Promise<FReturnType> pm;
         auto nextFuture = pm.GetFuture();
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ == internal::Progress::Timeout)
+        if (state_->progress_ == Progress::Timeout)
         {
             struct FutureWrongState {};
             throw FutureWrongState();
         }
-        else if (state_->progress_ == internal::Progress::Done)
+        else if (state_->progress_ == Progress::Done)
         {
             guard.unlock();
 
             Try<T> t(GetValue());
 
-            auto func = [res = std::move(t), f = std::move((typename std::decay<F>::type)f), prom = std::move(pm)]() mutable {
+            auto func = [res = std::move(t),
+                         f = std::move((typename std::decay<F>::type)f),
+                         prom = std::move(pm)]() mutable {
                 auto result = WrapWithTry(f, res.template Get<Args>()...);
                 prom.SetValue(std::move(result));
             };
@@ -314,17 +319,17 @@ public:
         else
         {
             // 1. set pm's timeout callback
-            nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<internal::State<T>>(this->state_)](internal::TimeoutCallback&& cb) {
+            nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
                     auto parent = weak_parent.lock();
                     if (!parent)
                         return;
 
                     {
                         std::unique_lock<std::mutex> guard(parent->thenLock_);
-                        if (parent->progress_ != internal::Progress::None)
+                        if (parent->progress_ != Progress::None)
                             return;
                     
-                        parent->progress_ = internal::Progress::Timeout;
+                        parent->progress_ = Progress::Timeout;
                     }
 
                     if (!parent->IsRoot())
@@ -334,7 +339,9 @@ public:
                 });
 
             // 2. set this future's then callback
-            SetCallback([sched, func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
+            SetCallback([sched,
+                         func = std::move((typename std::decay<F>::type)f),
+                         prom = std::move(pm)](Try<T>&& t) mutable {
 
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // run callback, T can be void, thanks to folly Try<>
@@ -361,23 +368,26 @@ public:
         static_assert(sizeof...(Args) <= 1, "Then must take zero/one argument");
 
         using FReturnType = typename R::IsReturnsFuture::Inner;
+        using namespace internal;
 
         Promise<FReturnType> pm;
         auto nextFuture = pm.GetFuture();
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ == internal::Progress::Timeout)
+        if (state_->progress_ == Progress::Timeout)
         {
             struct FutureWrongState {};
             throw FutureWrongState();
         }
-        else if (state_->progress_ == internal::Progress::Done)
+        else if (state_->progress_ == Progress::Done)
         {
             guard.unlock();
 
             Try<T> t(GetValue());
 
-            auto cb = [res = std::move(t), f = std::move((typename std::decay<F>::type)f), prom = std::move(pm)]() mutable {
+            auto cb = [res = std::move(t),
+                       f = std::move((typename std::decay<F>::type)f),
+                       prom = std::move(pm)]() mutable {
                 auto f2 = f(res.template Get<Args>()...);
                 f2.SetCallback([p2 = std::move(prom)](Try<FReturnType>&& b) mutable {
                     p2.SetValue(std::move(b));
@@ -392,17 +402,17 @@ public:
         else
         {
             // 1. set pm's timeout callback
-            nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<internal::State<T>>(this->state_)](internal::TimeoutCallback&& cb) {
+            nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
                     auto parent = weak_parent.lock();
                     if (!parent)
                         return;
 
                     {
                         std::unique_lock<std::mutex> guard(parent->thenLock_);
-                        if (parent->progress_ != internal::Progress::None)
+                        if (parent->progress_ != Progress::None)
                             return;
                     
-                        parent->progress_ = internal::Progress::Timeout;
+                        parent->progress_ = Progress::Timeout;
                     }
 
                     if (!parent->IsRoot())
@@ -413,7 +423,9 @@ public:
                 });
 
             // 2. set this future's then callback
-            SetCallback([sched = sched, func = std::move((typename std::decay<F>::type)f), prom = std::move(pm)](Try<T>&& t) mutable {
+            SetCallback([sched = sched,
+                         func = std::move((typename std::decay<F>::type)f),
+                         prom = std::move(pm)](Try<T>&& t) mutable {
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // because func return another future:f2, when f2 is done, nextFuture can be done
                     auto f2 = func(t.template Get<Args>()...);
@@ -434,12 +446,12 @@ public:
 
     void SetCallback(std::function<void (Try<T>&& )>&& func)
     {
-        this->state_->then_ = std::move(func);
+        state_->then_ = std::move(func);
     }
 
     void SetOnTimeout(std::function<void (internal::TimeoutCallback&& )>&& func)
     {
-        this->state_->onTimeout_ = std::move(func);
+        state_->onTimeout_ = std::move(func);
     }
 
     /*
@@ -449,7 +461,7 @@ public:
      *      f.Then(xx).Then(yy).OnTimeout(zz);
      *
      * There will be 3 future objects created except f, we call f as root future.
-     * The zz callback is register on the last future, however, timeout and future satisfication
+     * The zz callback is registed on the last future, however, timeout and future satisfication
      * can happened almost in the same time, we should ensure that both xx and yy will be called
      * or zz will be called, but they can't happened both or neither. So we pass the cb
      * to the root future, if we find out that root future is indeed timeout, we call cb there.
@@ -458,7 +470,7 @@ public:
                    internal::TimeoutCallback f,
                    Scheduler* scheduler)
     {
-        scheduler->ScheduleOnceAfter(duration, [state = this->state_, cb = std::move(f)]() mutable {
+        scheduler->ScheduleOnceAfter(duration, [state = state_, cb = std::move(f)]() mutable {
                 {
                     std::unique_lock<std::mutex> guard(state->thenLock_);
 
@@ -528,7 +540,7 @@ Future<
         CollectAllContext(int n) : results(n) {}
         ~CollectAllContext()
         { 
-            // I don't think this line should appear
+            // I think this line is useless.
             // pm.SetValue(std::move(results));
         }
              

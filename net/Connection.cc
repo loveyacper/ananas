@@ -64,7 +64,8 @@ void Connection::Shutdown(ShutdownMode mode)
     case ShutdownMode::eSM_Write:
         if (!sendBuf_.Empty())
         {
-            WRN(internal::g_debug) << localSock_ << " shutdown write, but still has data to send";
+            WRN(internal::g_debug) << localSock_
+                                   << " shutdown write, but still has data to send";
             sendBuf_.Clear();
         }
 
@@ -74,7 +75,8 @@ void Connection::Shutdown(ShutdownMode mode)
     case ShutdownMode::eSM_Both:
         if (!sendBuf_.Empty())
         {
-            WRN(internal::g_debug) << localSock_ << " shutdown both, but still has data to send";
+            WRN(internal::g_debug) << localSock_
+                                   << " shutdown both, but still has data to send";
             sendBuf_.Clear();
         }
 
@@ -97,7 +99,8 @@ bool Connection::HandleReadEvent()
 {
     if (state_ != State::eS_Connected)
     {
-        ERR(internal::g_debug) << localSock_ << " HandleReadEvent error " << state_;
+        ERR(internal::g_debug) << localSock_
+                               << " HandleReadEvent error " << state_;
         return false;
     }
 
@@ -335,7 +338,11 @@ bool Connection::SendPacket(const void* data, std::size_t size)
 
     if (bytes < static_cast<int>(size))
     {
-        WRN(internal::g_debug) << localSock_ << " want send " << size << " bytes, but only send " << bytes;
+        WRN(internal::g_debug) << localSock_
+                               << " want send "
+                               << size
+                               << " bytes, but only send "
+                               << bytes;
         sendBuf_.PushBack(Buffer((char*)data + bytes, size - static_cast<std::size_t>(bytes)));
         loop_->Modify(internal::eET_Read | internal::eET_Write, this);
     }

@@ -89,13 +89,13 @@ TimerManager::Timer::Timer(const TimePoint& tp) :
 
 TimerManager::Timer::Timer(Timer&& timer)
 {
-    this->_Move(std::move(timer));
+    _Move(std::move(timer));
 }
 
 TimerManager::Timer& TimerManager::Timer::operator= (Timer&& timer)
 {
     if (this != &timer)
-        this->_Move(std::move(timer));
+        _Move(std::move(timer));
 
     return *this;
 }

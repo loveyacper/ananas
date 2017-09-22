@@ -37,11 +37,12 @@ public:
     bool Listen(const SocketAddr& listenAddr, NewTcpConnCallback cb);
     bool Listen(const char* ip, uint16_t hostPort, NewTcpConnCallback cb);
     bool ListenUDP(const SocketAddr& listenAddr,
-            UDPMessageCallback mcb,
-            UDPCreateCallback ccb);
-    bool ListenUDP(const char* ip, uint16_t hostPort,
-            UDPMessageCallback mcb,
-            UDPCreateCallback ccb);
+                   UDPMessageCallback mcb,
+                   UDPCreateCallback ccb);
+    bool ListenUDP(const char* ip,
+                   uint16_t hostPort,
+                   UDPMessageCallback mcb,
+                   UDPCreateCallback ccb);
 
     // udp client
     bool CreateClientUDP(UDPMessageCallback mcb,
@@ -49,10 +50,15 @@ public:
 
 
     // connector 
-    bool Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnFailCallback cfcb, DurationMs timeout = DurationMs::max());
-    bool Connect(const char* ip, uint16_t hostPort, NewTcpConnCallback nccb, TcpConnFailCallback cfcb, DurationMs timeout = DurationMs::max());
-
-    // TODO socketpair
+    bool Connect(const SocketAddr& dst,
+                 NewTcpConnCallback nccb,
+                 TcpConnFailCallback cfcb,
+                 DurationMs timeout = DurationMs::max());
+    bool Connect(const char* ip,
+                 uint16_t hostPort,
+                 NewTcpConnCallback nccb,
+                 TcpConnFailCallback cfcb,
+                 DurationMs timeout = DurationMs::max());
 
     // timer
     template <int RepeatCount = 1, typename Duration, typename F, typename... Args>

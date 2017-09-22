@@ -47,7 +47,6 @@ int main()
     loop.Run();
 
     t.join();
-
     return 0;
 }
 

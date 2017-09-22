@@ -30,7 +30,7 @@ Acceptor::~Acceptor()
 
 void Acceptor::SetNewConnCallback(NewTcpConnCallback cb)
 {
-    this->newConnCallback_ = std::move(cb);
+    newConnCallback_ = std::move(cb);
 }
 
 bool Acceptor::Bind(const SocketAddr& addr)
@@ -76,7 +76,8 @@ bool Acceptor::Bind(const SocketAddr& addr)
     if (!loop_->Register(eET_Read, this))
         return false;
 
-    INF(internal::g_debug) << "Create listen socket " << localSock_ << " on port " << localPort_;
+    INF(internal::g_debug) << "Create listen socket " << localSock_
+                           << " on port " << localPort_;
     return  true;
 }
 
@@ -95,7 +96,6 @@ bool Acceptor::HandleReadEvent()
             auto conn(std::make_shared<Connection>(loop_));
             conn->Init(connfd, peer_);
 
-            // if send huge data OnConnect, may call Modify for epoll_out, so register events first
             if (loop_->Register(eET_Read, conn.get()))
             {
                 newConnCallback_(conn.get());
@@ -124,14 +124,15 @@ bool Acceptor::HandleReadEvent()
 
             case EMFILE:
             case ENFILE:
-                ERR(internal::g_debug) << "Not enough file descriptor available, error is " << error;
-                ERR(internal::g_debug) << "may be CPU 100%";
+                ERR(internal::g_debug) << "Not enough file descriptor available, error is "
+                                       << error
+                                       << ", CPU may 100%";
                 return true;
 
             case ENOBUFS:
             case ENOMEM:
-                ERR(internal::g_debug) << "Not enough memory, limited by the socket buffer limits";
-                ERR(internal::g_debug) << "may be CPU 100%";
+                ERR(internal::g_debug) << "Not enough memory, limited by the socket buffer limits"
+                                       << ", CPU may 100%";
                 return true;
 
             case ENOTSOCK: 

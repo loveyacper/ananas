@@ -29,7 +29,6 @@ int main()
     tpool.Execute(ThreadFunc<int>, std::ref(pm));
 
     Future<int> ft(pm.GetFuture());
-             
     Promise<void> pmv;
 
     ft.Then(&loop, [](int v) {
@@ -52,8 +51,7 @@ int main()
         ananas::EventLoop::ExitApplication();
     });
 
-            
-    printf("BEGIN LOOP\n");
+    std::cerr << "BEGIN LOOP" << std::endl;
 
     loop.ScheduleAfter<ananas::kForever>(std::chrono::seconds(1), []() {
             printf("every 1 second\n");

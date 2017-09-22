@@ -37,7 +37,7 @@ Connector::~Connector()
 
 void Connector::SetNewConnCallback(NewTcpConnCallback cb)
 {
-    this->newConnCallback_ = std::move(cb);
+    newConnCallback_ = std::move(cb);
 }
 
 void Connector::SetFailCallback(TcpConnFailCallback cb)
@@ -52,7 +52,8 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
 
     if (state_ != ConnectState::none)
     {
-        INF(internal::g_debug) << "Already connect or connecting " << peer_.GetPort();
+        INF(internal::g_debug) << "Already connect or connecting "
+                               << peer_.GetPort();
         return false;
     }
 
@@ -120,7 +121,8 @@ bool Connector::HandleWriteEvent()
     int error = 0;
     socklen_t len = sizeof(error);
 
-    if (::getsockopt(localSock_, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0)
+    if (::getsockopt(localSock_, SOL_SOCKET, SO_ERROR, &error, &len) < 0 ||
+                     error != 0)
     {
         if (error != 0)
             errno = error;
@@ -149,7 +151,8 @@ void Connector::_OnSuccess()
 
     const auto oldState = state_;
     state_  = ConnectState::connected;
-    INF(internal::g_debug) << "Connect success! Socket " << localSock_ << ", connected to port " << peer_.GetPort();
+    INF(internal::g_debug) << "Connect success! Socket " << localSock_
+                           << ", connected to port " << peer_.GetPort();
 
     // create new conn
     auto c = std::make_shared<Connection>(loop_);
@@ -168,7 +171,9 @@ void Connector::_OnSuccess()
     }
     else
     {
-        ERR(internal::g_debug) << "_OnSuccess but register socket " << c->Identifier() << " failed!";
+        ERR(internal::g_debug) << "_OnSuccess but register socket "
+                               << c->Identifier()
+                               << " failed!";
     }
 }
 

@@ -15,7 +15,7 @@ void ThreadFunc(Promise<int>& pm)
 
 int main()
 {
-    std::vector<std::thread>  threads;
+    std::vector<std::thread> threads;
     std::vector<Promise<int> > pmv(9);
     for (auto& pm : pmv)
     {
@@ -23,14 +23,12 @@ int main()
         threads.emplace_back(std::move(t));
     }
 
-
     std::vector<Future<int> > futures;
     for (auto& pm : pmv)
     {
         futures.emplace_back(pm.GetFuture());
     }
 
-#if 1
     using Type = std::pair<size_t, Try<int>>;
 
     const int N = static_cast<int>(pmv.size() / 2);
@@ -39,8 +37,7 @@ int main()
             std::cerr << "Then collet N! goodbye!\n";
             for (auto& t : results)
                 std::cerr << t.first << " : " << t.second << std::endl;
-         });
-#endif
+        });
 
     for (auto& t : threads)
         t.join();

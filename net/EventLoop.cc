@@ -84,7 +84,8 @@ EventLoop::~EventLoop()
 }
     
     
-bool EventLoop::Listen(const char* ip, uint16_t hostPort,
+bool EventLoop::Listen(const char* ip,
+                       uint16_t hostPort,
                        NewTcpConnCallback newConnCallback)
 {
     std::string realIp = ConvertIp(ip);
@@ -100,7 +101,7 @@ bool EventLoop::Listen(const SocketAddr& listenAddr,
 {
     using internal::Acceptor;
 
-    std::shared_ptr<Acceptor> s(new Acceptor(this));
+    auto s = std::make_shared<Acceptor>(this);
     s->SetNewConnCallback(std::move(newConnCallback));
     if (!s->Bind(listenAddr))
         return false;
@@ -109,10 +110,10 @@ bool EventLoop::Listen(const SocketAddr& listenAddr,
 }
 
 bool EventLoop::ListenUDP(const SocketAddr& listenAddr,
-        UDPMessageCallback mcb,
-        UDPCreateCallback ccb)
+                          UDPMessageCallback mcb,
+                          UDPCreateCallback ccb)
 {
-    std::shared_ptr<DatagramSocket> s(new DatagramSocket(this));
+    auto s = std::make_shared<DatagramSocket>(this);
     s->SetMessageCallback(mcb);
     s->SetCreateCallback(ccb);
     if (!s->Bind(&listenAddr))
@@ -122,8 +123,8 @@ bool EventLoop::ListenUDP(const SocketAddr& listenAddr,
 }
 
 bool EventLoop::ListenUDP(const char* ip, uint16_t hostPort,
-        UDPMessageCallback mcb,
-        UDPCreateCallback ccb)
+                          UDPMessageCallback mcb,
+                          UDPCreateCallback ccb)
 {
     std::string realIp = ConvertIp(ip);
         
@@ -137,7 +138,7 @@ bool EventLoop::ListenUDP(const char* ip, uint16_t hostPort,
 bool EventLoop::CreateClientUDP(UDPMessageCallback mcb,
                                 UDPCreateCallback ccb)
 {
-    std::shared_ptr<DatagramSocket> s(new DatagramSocket(this));
+    auto s = std::make_shared<DatagramSocket>(this);
     s->SetMessageCallback(mcb);
     s->SetCreateCallback(ccb);
     if (!s->Bind(nullptr))
@@ -146,7 +147,11 @@ bool EventLoop::CreateClientUDP(UDPMessageCallback mcb,
     return true;
 }
 
-bool EventLoop::Connect(const char* ip, uint16_t hostPort, NewTcpConnCallback nccb, TcpConnFailCallback cfcb, DurationMs timeout)
+bool EventLoop::Connect(const char* ip,
+                        uint16_t hostPort,
+                        NewTcpConnCallback nccb,
+                        TcpConnFailCallback cfcb,
+                        DurationMs timeout)
 {
     std::string realIp = ConvertIp(ip);
         
@@ -157,11 +162,14 @@ bool EventLoop::Connect(const char* ip, uint16_t hostPort, NewTcpConnCallback nc
 }
 
 
-bool EventLoop::Connect(const SocketAddr& dst, NewTcpConnCallback nccb, TcpConnFailCallback cfcb, DurationMs timeout)
+bool EventLoop::Connect(const SocketAddr& dst,
+                        NewTcpConnCallback nccb,
+                        TcpConnFailCallback cfcb,
+                        DurationMs timeout)
 {
     using internal::Connector;
 
-    std::shared_ptr<Connector> cli(new Connector(this));
+    auto cli = std::make_shared<Connector>(this);
     cli->SetFailCallback(cfcb);
     cli->SetNewConnCallback(nccb);
 
@@ -186,7 +194,8 @@ bool EventLoop::Register(int events, internal::EventSource* src)
 
     /* man getrlimit:
      * RLIMIT_NOFILE
-     * Specifies a value one greater than the maximum file descriptor number that can be opened by this process.
+     * Specifies a value one greater than the maximum file descriptor number
+     * that can be opened by this process.
      * Attempts (open(2), pipe(2), dup(2), etc.)  to exceed this limit yield the error EMFILE.
      */
     if (src->Identifier() + 1 >= static_cast<int>(s_maxOpenFdPlus1))
@@ -205,7 +214,7 @@ bool EventLoop::Register(int events, internal::EventSource* src)
     src->SetUniqueId(s_id);
 
     if (poller_->Register(src->Identifier(), events, src))
-        return eventSourceSet_.insert(std::make_pair(src->GetUniqueId(), src->shared_from_this())).second;
+        return eventSourceSet_.insert({src->GetUniqueId(), src->shared_from_this()}).second;
 
     return false;
 }
@@ -286,7 +295,8 @@ bool EventLoop::Loop(DurationMs timeout)
         return false;
     }
 
-    const int ready = poller_->Poll(static_cast<int>(eventSourceSet_.size()), static_cast<int>(timeout.count()));
+    const int ready = poller_->Poll(static_cast<int>(eventSourceSet_.size()),
+                                    static_cast<int>(timeout.count()));
     if (ready < 0)
         return false;
 
@@ -327,14 +337,15 @@ bool EventLoop::Loop(DurationMs timeout)
 }
 
     
-void EventLoop::ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void()> f)
+void EventLoop::ScheduleOnceAfter(std::chrono::milliseconds duration,
+                                  std::function<void()> f)
 {
-    this->ScheduleAfter<1>(duration, std::move(f));
+    ScheduleAfter<1>(duration, std::move(f));
 }
 
 void EventLoop::ScheduleOnce(std::function<void()> f)
 {
-    this->ScheduleNextTick(std::move(f));
+    ScheduleNextTick(std::move(f));
 }
 
 } // end namespace ananas
