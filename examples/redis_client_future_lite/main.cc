@@ -53,7 +53,7 @@ void OnNewConnection(ananas::Connection* conn)
 {
     std::cout << "OnNewConnection " << conn->Identifier() << std::endl;
 
-    std::shared_ptr<RedisContext> ctx = std::make_shared<RedisContext>(conn);
+    auto ctx = std::make_shared<RedisContext>(conn);
 
     conn->SetOnConnect(std::bind(&OnConnect, ctx, std::placeholders::_1));
     conn->SetOnMessage(std::bind(&RedisContext::OnRecv, ctx, std::placeholders::_1,

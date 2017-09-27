@@ -640,7 +640,8 @@ std::shared_ptr<Logger> LogManager::CreateLog(unsigned int level,
                               unsigned int dest,
                               const char* dir)
 {
-    std::shared_ptr<Logger> log(std::make_shared<Logger>());
+
+    auto log(std::make_shared<Logger>());
             
     if (!log->Init(level, dest, dir))
     {   

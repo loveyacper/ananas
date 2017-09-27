@@ -1,0 +1,16 @@
+sudo: false
+language: cpp
+compiler:
+  - clang
+script: make
+branches:
+  only:
+    - master
+notifications:
+  recipients:
+    - bertyoung666@gmail.com
+  email:
+    on_success: change
+    on_failure: always
+os:
+  - osx

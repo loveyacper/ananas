@@ -1,25 +1,29 @@
-syntax = "proto2";
+syntax = "proto3";
 
 //import "google/protobuf/descriptor.proto";
 
 package ananas.rpc;
 
 message Request {
-    required int32 id = 1;
-    required string service_name = 2;
-    required string method_name = 3;
-    optional bytes serialized_request = 4; // optional : if no arguments
+    int32 id = 1;
+    string service_name = 2;
+    string method_name = 3;
+    bytes serialized_request = 4; // optional : if no arguments
 }
 
 message Response { 
-    required int32 id = 1;
-    optional bytes serialized_response = 2;
-    optional string error = 3;  
+    int32 id = 1;
+    oneof Body {
+        bytes serialized_response = 2;
+        string error = 3;  
+    }
 }  
 
 message RpcMessage {
-    optional Request request = 1;
-    optional Response response = 2;
+    oneof Body {
+        Request request = 1;
+        Response response = 2;
+    }
 }
 
 /*

@@ -45,11 +45,11 @@ int main()
     CoroutinePtr crt(Coroutine::CreateCoroutine(Double, input));
         
     //2. start crt, get result from crt
-    auto ret = mgr.Send(crt);
+    auto ret = Coroutine::Send(crt);
     cerr << "Main func: got reply message \"" << *std::static_pointer_cast<std::string>(ret).get() << "\""<< endl;
 
     //3. got the final result: 84
-    auto finalResult = mgr.Send(crt, std::make_shared<std::string>("Please be quick, I am waiting for your result"));
+    auto finalResult = Coroutine::Send(crt, std::make_shared<std::string>("Please be quick, I am waiting for your result"));
     cerr << "Main func: got the twice of " << input << ", answer is " << *std::static_pointer_cast<int>(finalResult) << endl;
         
     cerr << "BYE BYE\n";

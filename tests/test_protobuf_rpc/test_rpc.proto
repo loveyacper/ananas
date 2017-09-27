@@ -1,4 +1,4 @@
-syntax = "proto2";
+syntax = "proto3";
 
 package ananas.rpc.test;
 
@@ -6,10 +6,10 @@ option cc_generic_services = true;
 
 // sample
 message EchoRequest {
-    required string text = 1;
+    string text = 1;
 }
 message EchoResponse {
-    required string text = 1;
+    string text = 1;
 }
 
 service UpperService { 

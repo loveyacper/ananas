@@ -235,18 +235,6 @@ void RpcChannel::_ProcessRequest(const ananas::rpc::Request& req)
             this->_OnServError(req.id(), error);
     };
 
-    if (!req.has_service_name())
-    {
-        error = "No service name found in request.";
-        return;
-    }
-
-    if (!req.has_method_name())
-    {
-        error = "No method name found in request.";
-        return;
-    }
-
     auto service = rpcServices_->GetGenericService(req.service_name());
     if (!service)
     {
@@ -288,13 +276,13 @@ void RpcChannel::_ProcessResponse(const ananas::rpc::Response& rsp)
     }
 
     // check error
-    if (rsp.has_error())
+    if (!rsp.error().empty())
     {
         printf("%d has error %s\n", id, rsp.error().data());
         return;
     }
 
-    assert (rsp.has_serialized_response());
+    assert (!rsp.serialized_response().empty());
 
     google::protobuf::Message* response = item.first;
     if (response)
