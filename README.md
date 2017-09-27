@@ -1,4 +1,6 @@
 # ananas
+[![Build Status](https://travis-ci.org/loveyacper/ananas.svg?branch=master)](https://travis-ci.org/loveyacper/ananas)
+
 =========
 
 C++11 toolbox for server-side development.
