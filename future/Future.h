@@ -73,6 +73,21 @@ public:
     Promise(Promise&& pm) = default;
     Promise& operator= (Promise&& pm) = default;
 
+    // set exception
+    void SetException(std::exception_ptr exp)
+    {
+        std::unique_lock<std::mutex> guard(state_->thenLock_);
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != internal::Progress::None)
+            return;
+
+        state_->progress_ = internal::Progress::Done;
+
+        state_->pm_.set_exception(exp);
+        if (state_->then_)
+            state_->then_(Try<T>(std::move(exp)));
+    }
+
     template <typename SHIT = T>
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
     SetValue(SHIT&& t)
@@ -302,12 +317,21 @@ public:
         {
             guard.unlock();
 
-            Try<T> t(GetValue());
+            Try<T> t;
+            try {
+                Try<T> tmp(GetValue());
+                t = std::move(tmp);
+            }
+            catch(const std::exception& e) {
+                Try<T> tmp(std::current_exception());
+                t = std::move(tmp);
+            }
 
             auto func = [res = std::move(t),
                          f = std::move((typename std::decay<F>::type)f),
                          prom = std::move(pm)]() mutable {
-                auto result = WrapWithTry(f, res.template Get<Args>()...);
+                auto result = WrapWithTry(f, std::move(res));
+                //auto result = WrapWithTry(f, res.template Get<Args>()...);
                 prom.SetValue(std::move(result));
             };
 
@@ -345,7 +369,8 @@ public:
 
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // run callback, T can be void, thanks to folly Try<>
-                    auto result = WrapWithTry(func, t.template Get<Args>()...);
+                    //auto result = WrapWithTry(func, t.template Get<Args>()...);
+                    auto result = WrapWithTry(func, std::move(t));
                     // set next future's result
                     prom.SetValue(std::move(result));
                 };
@@ -383,7 +408,15 @@ public:
         {
             guard.unlock();
 
-            Try<T> t(GetValue());
+            Try<T> t;
+            try {
+                Try<T> tmp(GetValue());
+                t = std::move(tmp);
+            }
+            catch(const std::exception& e) {
+                Try<T> tmp(std::current_exception());
+                t = std::move(tmp);
+            }
 
             auto cb = [res = std::move(t),
                        f = std::move((typename std::decay<F>::type)f),
@@ -429,9 +462,35 @@ public:
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // because func return another future:f2, when f2 is done, nextFuture can be done
                     auto f2 = func(t.template Get<Args>()...);
-                    f2.SetCallback([p2 = std::move(prom)](Try<FReturnType>&& b) mutable {
-                        p2.SetValue(std::move(b));
-                    });
+                    std::unique_lock<std::mutex> guard(f2.state_->thenLock_);
+                    if (f2.state_->progress_ == Progress::Timeout) {
+                        struct FutureWrongState {};
+                        throw FutureWrongState();
+                    }
+                    else if (f2.state_->progress_ == Progress::Done) {
+                        guard.unlock();
+
+                        Try<FReturnType> t;
+                        try {
+                            Try<FReturnType> tmp(f2.GetValue());
+                            t = std::move(tmp);
+                        }
+                        catch(const std::exception& e) {
+                            Try<FReturnType> tmp(std::current_exception());
+                            t = std::move(tmp);
+                        }
+
+                        // TODO should use sched? I'm not sure for now...
+                        //auto cb = [p2 = std::move(prom), v = std::move(t)]() mutable {
+                        //    p2.SetValue(std::move(v));
+                        //};
+                        prom.SetValue(std::move(t));
+                    }
+                    else {
+                        f2.SetCallback([p2 = std::move(prom)](Try<FReturnType>&& b) mutable {
+                            p2.SetValue(std::move(b));
+                        });
+                    }
                 };
 
                 if (sched)

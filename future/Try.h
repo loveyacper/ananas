@@ -360,6 +360,44 @@ typename std::enable_if <
     }
 }
 
+// f's arg is void, but return Type
+// Wrap return value of function Type f(void) by Try<Type>
+template <typename F>
+typename std::enable_if<
+    !std::is_same<typename std::result_of<F ()>::type, void>::value,
+    Try<typename std::result_of<F ()>::type >> ::type
+    WrapWithTry(F&& f, Try<void>&& arg)
+{
+    using Type = typename std::result_of<F()>::type;
+
+    try
+    {
+        return Try<Type>(std::forward<F>(f)());
+    }
+    catch (std::exception& e) 
+    {
+        return Try<Type>(std::current_exception());
+    }
+}
+
+// Wrap return value of function void f(void) by Try<void>
+template <typename F>
+typename std::enable_if <
+    std::is_same<typename std::result_of<F ()>::type, void>::value,
+    Try<typename std::result_of<F ()>::type >> ::type
+    WrapWithTry(F&& f, Try<void>&& arg)
+{
+    try
+    {
+        std::forward<F>(f)();
+        return Try<void>();
+    }
+    catch (std::exception& e) 
+    {
+        return Try<void>(std::current_exception());
+    }
+}
+
 } // end namespace ananas
 
 #endif

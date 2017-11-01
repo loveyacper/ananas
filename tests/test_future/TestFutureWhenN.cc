@@ -33,7 +33,7 @@ int main()
 
     const int N = static_cast<int>(pmv.size() / 2);
     auto fn = WhenN(N, std::begin(futures), std::end(futures));
-    fn.Then([](std::vector<Type>& results) {
+    fn.Then([](const std::vector<Type>& results) {
             std::cerr << "Then collet N! goodbye!\n";
             for (auto& t : results)
                 std::cerr << t.first << " : " << t.second << std::endl;

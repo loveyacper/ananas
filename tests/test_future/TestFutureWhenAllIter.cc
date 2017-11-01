@@ -29,7 +29,7 @@ int main()
     }
 
     auto fall = WhenAll(std::begin(futures), std::end(futures));
-    fall.Then([](std::vector<Try<int>>& results) {
+    fall.Then([](const std::vector<Try<int>>& results) {
             std::cerr << "Then collet all! goodbye!\n";
             for (auto& t : results)
                 std::cerr << t << std::endl;

@@ -28,7 +28,7 @@ int main()
 
     auto fall = WhenAll(pm1.GetFuture(), pm2.GetFuture());
     //std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    fall.Then([](std::tuple<Try<int>, Try<void>>& results) {
+    fall.Then([](const std::tuple<Try<int>, Try<void>>& results) {
             std::cerr << "Then collet all! goodbye!\n";
             std::cerr << std::get<0>(results) << std::endl;
          });

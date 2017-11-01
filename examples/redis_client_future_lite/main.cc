@@ -22,7 +22,7 @@ void WaitMultiRequests(const std::shared_ptr<RedisContext>& ctx)
     auto fut2 = ctx->Get("city");
 
     ananas::WhenAll(fut1, fut2).Then(
-                    [](std::tuple<ananas::Try<std::pair<ResponseType, std::string> >,
+                    [](const std::tuple<ananas::Try<std::pair<ResponseType, std::string> >,
                                   ananas::Try<std::pair<ResponseType, std::string> > >& results) {
                         std::cout << "All requests returned:\n";
                         RedisContext::PrintResponse(std::get<0>(results));

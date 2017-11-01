@@ -29,7 +29,7 @@ int main()
     }
 
     auto fany = WhenAny(std::begin(futures), std::end(futures));
-    fany.Then([](std::pair<size_t, Try<int>>& result) {
+    fany.Then([](const std::pair<size_t, Try<int>>& result) {
             std::cerr << "Then collet all! goodbye!\n";
             std::cerr << "Result " << result.first << " = " << result.second << std::endl;
          });
