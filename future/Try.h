@@ -126,7 +126,7 @@ public:
     // implicity convertion
     operator const T& () const & { return Value(); }
     operator T& () & { return Value(); }
-    operator T&& () && { return Value(); }
+    operator T&& () && { return std::move(Value()); }
 
     // get value
     const T& Value() const &
@@ -145,6 +145,31 @@ public:
     {
         Check();
         return std::move(value_);
+    }
+
+    // get exception
+    const std::exception_ptr& Exception() const &
+    {
+        if (!HasException())
+            throw std::runtime_error("Not exception state");
+
+        return exception_;
+    }
+
+    std::exception_ptr& Exception() &
+    {
+        if (!HasException())
+            throw std::runtime_error("Not exception state");
+
+        return exception_;
+    }
+
+    std::exception_ptr&& Exception() &&
+    {
+        if (!HasException())
+            throw std::runtime_error("Not exception state");
+
+        return std::move(exception_);
     }
 
     bool HasValue() const { return state_ == State::Value; }
@@ -252,6 +277,31 @@ public:
     {
         if (state_ == State::Exception)
             exception_.~exception_ptr();
+    }
+
+    // get exception
+    const std::exception_ptr& Exception() const &
+    {
+        if (!HasException())
+            throw std::runtime_error("Not exception state");
+
+        return exception_;
+    }
+
+    std::exception_ptr& Exception() &
+    {
+        if (!HasException())
+            throw std::runtime_error("Not exception state");
+
+        return exception_;
+    }
+
+    std::exception_ptr&& Exception() &&
+    {
+        if (!HasException())
+            throw std::runtime_error("Not exception state");
+
+        return std::move(exception_);
     }
    
     bool HasValue() const { return state_ == State::Value; }
