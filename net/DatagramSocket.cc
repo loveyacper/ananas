@@ -154,7 +154,7 @@ bool DatagramSocket::SendPacket(const void* data, size_t size, const SocketAddr*
     else if (bytes < 0)
     {
         ERR(internal::g_debug) << "Fatal error when send udp to "
-                               << dst->GetIP() << " : " << dst->GetPort()
+                               << dst->ToString()
                                << ", must skip it";
         return false;
     }
@@ -180,7 +180,7 @@ bool DatagramSocket::HandleWriteEvent()
         else
         {
             ERR(internal::g_debug) << "Fatal error when send udp to "
-                                   << pkg.dst.GetIP() << " : " << pkg.dst.GetPort()
+                                   << pkg.dst.ToString()
                                    << ", must skip it";
             sendList_.pop_front();
         }

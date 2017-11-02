@@ -72,6 +72,14 @@ struct SocketAddr
         return ntohs(addr_.sin_port);
     }
 
+    std::string ToString() const
+    {
+        char tmp[32];
+        const char* res = inet_ntop(AF_INET, &addr_.sin_addr, tmp, (socklen_t)(sizeof tmp));
+
+        return std::string(res) + ":" + std::to_string(ntohs(addr_.sin_port));
+    }
+
     bool IsValid() const { return addr_.sin_family != 0; }
 
 private:

@@ -73,7 +73,6 @@ public:
     Promise(Promise&& pm) = default;
     Promise& operator= (Promise&& pm) = default;
 
-    // set exception
     void SetException(std::exception_ptr exp)
     {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
@@ -421,10 +420,33 @@ public:
             auto cb = [res = std::move(t),
                        f = std::move((typename std::decay<F>::type)f),
                        prom = std::move(pm)]() mutable {
-                auto f2 = f(res.template Get<Args>()...);
-                f2.SetCallback([p2 = std::move(prom)](Try<FReturnType>&& b) mutable {
-                    p2.SetValue(std::move(b));
-                });  
+                // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
+                auto innerFuture = f(res.template Get<Args>()...);
+                std::unique_lock<std::mutex> guard(innerFuture.state_->thenLock_);
+                if (innerFuture.state_->progress_ == Progress::Timeout) {
+                    struct FutureWrongState {};
+                    throw FutureWrongState();
+                }
+                else if (innerFuture.state_->progress_ == Progress::Done) {
+                    guard.unlock();
+
+                    Try<FReturnType> t;
+                    try {
+                        Try<FReturnType> tmp(innerFuture.GetValue());
+                        t = std::move(tmp);
+                    }
+                    catch(const std::exception& e) {
+                        Try<FReturnType> tmp(std::current_exception());
+                        t = std::move(tmp);
+                    }
+
+                    prom.SetValue(std::move(t));
+                }
+                else {
+                    innerFuture.SetCallback([prom = std::move(prom)](Try<FReturnType>&& t) mutable {
+                        prom.SetValue(std::move(t));
+                    });
+                }
             };
 
             if (sched)
@@ -460,19 +482,20 @@ public:
                          func = std::move((typename std::decay<F>::type)f),
                          prom = std::move(pm)](Try<T>&& t) mutable {
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
-                    // because func return another future:f2, when f2 is done, nextFuture can be done
-                    auto f2 = func(t.template Get<Args>()...);
-                    std::unique_lock<std::mutex> guard(f2.state_->thenLock_);
-                    if (f2.state_->progress_ == Progress::Timeout) {
+                    // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
+                    auto innerFuture = func(t.template Get<Args>()...);
+
+                    std::unique_lock<std::mutex> guard(innerFuture.state_->thenLock_);
+                    if (innerFuture.state_->progress_ == Progress::Timeout) {
                         struct FutureWrongState {};
                         throw FutureWrongState();
                     }
-                    else if (f2.state_->progress_ == Progress::Done) {
+                    else if (innerFuture.state_->progress_ == Progress::Done) {
                         guard.unlock();
 
                         Try<FReturnType> t;
                         try {
-                            Try<FReturnType> tmp(f2.GetValue());
+                            Try<FReturnType> tmp(innerFuture.GetValue());
                             t = std::move(tmp);
                         }
                         catch(const std::exception& e) {
@@ -480,15 +503,11 @@ public:
                             t = std::move(tmp);
                         }
 
-                        // TODO should use sched? I'm not sure for now...
-                        //auto cb = [p2 = std::move(prom), v = std::move(t)]() mutable {
-                        //    p2.SetValue(std::move(v));
-                        //};
                         prom.SetValue(std::move(t));
                     }
                     else {
-                        f2.SetCallback([p2 = std::move(prom)](Try<FReturnType>&& b) mutable {
-                            p2.SetValue(std::move(b));
+                        innerFuture.SetCallback([prom = std::move(prom)](Try<FReturnType>&& t) mutable {
+                            prom.SetValue(std::move(t));
                         });
                     }
                 };

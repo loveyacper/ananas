@@ -53,7 +53,7 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
     if (state_ != ConnectState::none)
     {
         INF(internal::g_debug) << "Already connect or connecting "
-                               << peer_.GetPort();
+                               << peer_.ToString();
         return false;
     }
 
@@ -80,7 +80,7 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
         if (EINPROGRESS == errno)
         {
             INF(internal::g_debug) << "EINPROGRESS : client socket " << localSock_
-                                   << " connected to " << peer_.GetIP() << ":" << peer_.GetPort();
+                                   << " connected to " << peer_.ToString();
 
             state_ = ConnectState::connecting;
             loop_->Register(eET_Write, this);
@@ -128,7 +128,7 @@ bool Connector::HandleWriteEvent()
             errno = error;
 
         ERR(internal::g_debug) << "HandleWriteEvent failed: clientsocket " << localSock_
-                               << " connected to " << peer_.GetPort()
+                               << " connected to " << peer_.ToString()
                                << ", error is " << error;
         return false;
     }
@@ -152,7 +152,7 @@ void Connector::_OnSuccess()
     const auto oldState = state_;
     state_  = ConnectState::connected;
     INF(internal::g_debug) << "Connect success! Socket " << localSock_
-                           << ", connected to port " << peer_.GetPort();
+                           << ", connected to port " << peer_.ToString();
 
     // create new conn
     auto c = std::make_shared<Connection>(loop_);
@@ -189,7 +189,7 @@ void Connector::_OnFailed()
     state_ = ConnectState::failed;
 
     INF(internal::g_debug) << "Failed client socket " << localSock_
-                           << " connected to " << peer_.GetIP();
+                           << " connected to " << peer_.ToString();
 
     if (onConnectFail_) 
         onConnectFail_(loop_, peer_);

@@ -4,7 +4,7 @@ PROJECT(ANANAS)
 
 SUBDIRS(net)
 
-OPTION(USE_SSL "Use ssl or not" ON)
+OPTION(USE_SSL "Use ssl or not" OFF)
 IF(USE_SSL)
     ADD_DEFINITIONS(-DANANAS_DEBUG=1)
     SUBDIRS(ssl)
