@@ -24,6 +24,7 @@ int main()
              
 #if 1
     ft.Then([](int v) {
+            printf("!!!SUCC!\n");
             printf("1.Then got int value: %d\n", v);
             return std::string("dummy string");
       })

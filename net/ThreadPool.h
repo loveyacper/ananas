@@ -85,7 +85,7 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_o
         if (shutdown_)
             return MakeReadyFuture<resultType>(resultType());
         
-        tasks_.emplace_back( [=]() mutable { (task)(); } );
+        tasks_.emplace_back( [task = std::move(task)]() mutable { (task)(); } );
         if (waiters_ == 0)
             _CreateWorker();
         
@@ -121,7 +121,7 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void>
         if (shutdown_)
             return MakeReadyFuture();
         
-        tasks_.emplace_back( [=]() mutable { (task)(); } );
+        tasks_.emplace_back( [task = std::move(task)]() mutable { (task)(); } );
         if (waiters_ == 0)
             _CreateWorker();
         

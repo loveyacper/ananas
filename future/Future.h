@@ -36,6 +36,15 @@ struct State
         retrieved_ {false}
     {
     }
+    // make from std::promise
+    explicit
+    State(std::promise<T>&& prom) :
+        pm_(std::move(prom)),
+        ft_(pm_.get_future()),
+        progress_(Progress::None),
+        retrieved_ {false}
+    {
+    }
 
     std::promise<T> pm_;
     std::future<T> ft_;
@@ -62,6 +71,12 @@ class Promise
 public:
     Promise() :
         state_(std::make_shared<internal::State<T>>())
+    {
+    }
+
+    explicit
+    Promise(std::promise<T>&& prom) :
+        state_(std::make_shared<internal::State<T>>(std::move(prom)))
     {
     }
 
@@ -128,6 +143,8 @@ public:
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != internal::Progress::None)
             return;
+
+        state_->progress_ = internal::Progress::Done;
 
         state_->pm_.set_value(t);
         if (state_->then_)
@@ -213,6 +230,12 @@ public:
 private:
     std::shared_ptr<internal::State<T>> state_;
 };
+
+template <typename T>
+Promise<T> ConverFromSTDPromise(std::promise<T>&& promise)
+{
+    return Promise<T>(std::move(promise));
+}
 
 
 template <typename T>
