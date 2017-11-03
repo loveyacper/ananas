@@ -330,7 +330,6 @@ public:
                          f = std::move((typename std::decay<F>::type)f),
                          prom = std::move(pm)]() mutable {
                 auto result = WrapWithTry(f, std::move(res));
-                //auto result = WrapWithTry(f, res.template Get<Args>()...);
                 prom.SetValue(std::move(result));
             };
 
@@ -368,7 +367,6 @@ public:
 
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // run callback, T can be void, thanks to folly Try<>
-                    //auto result = WrapWithTry(func, t.template Get<Args>()...);
                     auto result = WrapWithTry(func, std::move(t));
                     // set next future's result
                     prom.SetValue(std::move(result));

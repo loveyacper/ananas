@@ -1,40 +1,46 @@
 #include <thread>
 #include <iostream>
+#include "net/EventLoop.h"
+#include "net/ThreadPool.h"
 #include "future/Future.h"
 
 using namespace ananas;
 
 template <typename Type>
-void ThreadFunc(Promise<Type>& pm)
+Type ThreadFunc()
 {
     std::cout << "SetValue 10\n";
-    Type v = 10;
-    pm.SetValue(v);
+    return Type(10);
 }
 
-void ThreadFuncV(Promise<void>& pm)
+void ThreadFuncV()
 {
     std::cout << "SetValue void\n";
-    pm.SetValue();
 }
 
 int main()
 {
-    Promise<int> pm1;
-    std::thread t1(ThreadFunc<int>, std::ref(pm1));
+    ananas::EventLoop loop;
+    auto& tpool = ananas::ThreadPool::Instance();
 
-    Promise<void> pm2;
-    std::thread t2(ThreadFuncV, std::ref(pm2));
+    auto f1 = tpool.Execute(ThreadFunc<int>);
+    auto f2 = tpool.Execute(ThreadFuncV);
 
-    auto fall = WhenAll(pm1.GetFuture(), pm2.GetFuture());
-    //std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    auto fall = WhenAll(f1, f2);
     fall.Then([](const std::tuple<Try<int>, Try<void>>& results) {
-            std::cerr << "Then collet all! goodbye!\n";
+            std::cerr << "Then collet all!\n";
             std::cerr << std::get<0>(results) << std::endl;
-         });
+         })
+         .OnTimeout(std::chrono::milliseconds(500), []() {
+             std::cout << "!!!FAILED: futureall is timeout!\n";
+         }, &loop);
 
-    t1.join();
-    t2.join();
+    loop.ScheduleAfter<1>(std::chrono::seconds(3), []() {
+        std::cerr << "GOODBYE!\n";
+        ananas::EventLoop::ExitApplication();
+    });
+
+    loop.Run();
 
     return 0;
 }

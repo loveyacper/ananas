@@ -10,4 +10,6 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     SUBDIRS(test_coroutine)
 ENDIF()
 
-SUBDIRS(test_protobuf_rpc)
+IF(USE_PROTO)
+    SUBDIRS(test_protobuf_rpc)
+ENDIF()

@@ -14,6 +14,7 @@ ADD_EXECUTABLE(future_timeout TestFutureTimeout.cc)
 TARGET_LINK_LIBRARIES(future_timeout ananas)
 TARGET_LINK_LIBRARIES(future_test ananas)
 TARGET_LINK_LIBRARIES(future_exception ananas)
+TARGET_LINK_LIBRARIES(future_whenall_test ananas)
 ADD_DEPENDENCIES(future_timeout ananas)
 ADD_DEPENDENCIES(future_test ananas)
 

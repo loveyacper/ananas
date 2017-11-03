@@ -6,20 +6,15 @@
 using namespace ananas;
 
 template <typename Type>
-void ThreadException(Promise<Type>& pm)
+Type ThreadException()
 {
-    try {
-        throw std::runtime_error("Future Exception!");
-    } catch (...) {
-        pm.SetException(std::current_exception());
-        return;
-    }
+    throw std::runtime_error("Future Exception!");
+    return Type(); // never here
 }
 
-void ThreadFuncV(Promise<void>& pm)
+void ThreadFuncV()
 {
     std::cout << "SetValue Void\n";
-    pm.SetValue();
 }
 
 int main()
@@ -27,14 +22,10 @@ int main()
     static const auto mainId = std::this_thread::get_id();
 
     ananas::EventLoop loop;
-
     auto& tpool = ananas::ThreadPool::Instance();
 
     Promise<int> pm;
-    tpool.Execute(ThreadException<int>, std::ref(pm));
-
-    Future<int> ft(pm.GetFuture());
-    Promise<void> pmv;
+    Future<int> ft(tpool.Execute(ThreadException<int>));
 
     ft.Then(&loop, [](Try<int>&& v) {
         assert(mainId == std::this_thread::get_id());
@@ -53,12 +44,12 @@ int main()
         std::cout << "2.Then got float value " << f
                   << " and return nothing." << std::endl;
     })
-    .Then([&tpool, &pmv]() {
+    .Then([&tpool]() {
         std::cout << "3.Then got void and return another future\n";
 
-        tpool.Execute(ThreadFuncV, std::ref(pmv));
+        auto future = tpool.Execute(ThreadFuncV);
         //std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        return pmv.GetFuture();
+        return future;
     })
     .Then(&loop, []() {
         assert(mainId == std::this_thread::get_id());
@@ -69,8 +60,9 @@ int main()
     std::cout << "BEGIN LOOP" << std::endl;
 
     loop.ScheduleAfter<ananas::kForever>(std::chrono::seconds(1), []() {
-            printf("every 1 second\n");
-            });
+        std::cout << "every 1 second\n";
+    });
+
     loop.Run();
             
     return 0;
