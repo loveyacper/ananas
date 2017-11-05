@@ -126,7 +126,7 @@ template <typename F, typename... Args>
 void TimerManager::Timer::SetCallback(F&& f, Args&&... args)
 {
     auto temp = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-    func_ = [temp]() { (void)temp(); };
+    func_ = [temp]() mutable { (void)temp(); };
 }
 
 } // end namespace internal

@@ -34,7 +34,8 @@ public:
     auto Execute(F&& f, Args&&... args) -> Future<void>;
     
     void JoinAll();
-    void SetMaxIdleThread(unsigned int m);
+    void SetMaxIdleThreads(unsigned int );
+    void SetMaxThreads(unsigned int );
     
 private:
     ThreadPool();
@@ -44,7 +45,9 @@ private:
     void _MonitorRoutine();
     
     std::thread monitor_;
-    std::atomic<unsigned> maxIdleThread_;
+    std::atomic<unsigned> maxThreads_;
+    std::atomic<unsigned> currentThreads_;
+    std::atomic<unsigned> maxIdleThreads_;
     std::atomic<unsigned> pendingStopSignal_;
     
     static thread_local bool working_;
@@ -56,7 +59,7 @@ private:
     bool shutdown_;
     std::deque<std::function<void ()> > tasks_;
     
-    static const int kMaxThreads = 256;
+    static const int kMaxThreads = 1024;
     static std::thread::id s_mainThread;
 };
 
@@ -122,8 +125,10 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void>
             return MakeReadyFuture();
         
         tasks_.emplace_back( [task = std::move(task)]() mutable { (task)(); } );
-        if (waiters_ == 0)
+        if (waiters_ == 0 && currentThreads_ < maxThreads_)
+        {
             _CreateWorker();
+        }
         
         cond_.notify_one();
     }

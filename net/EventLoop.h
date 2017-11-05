@@ -10,6 +10,7 @@
 #include "Poller.h"
 #include "Typedefs.h"
 #include "util/Scheduler.h"
+#include "future/Future.h"
 
 namespace ananas
 {
@@ -64,6 +65,9 @@ public:
     template <int RepeatCount = 1, typename Duration, typename F, typename... Args>
     TimerId ScheduleAfter(const Duration& duration, F&& f, Args&&... args);
     bool Cancel(TimerId id);
+
+    // sleep
+    Future<void> Sleep(std::chrono::milliseconds dur);
 
     // for future
     void ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void ()> f) override;

@@ -348,5 +348,17 @@ void EventLoop::ScheduleOnce(std::function<void()> f)
     ScheduleNextTick(std::move(f));
 }
 
+Future<void> EventLoop::Sleep(std::chrono::milliseconds dur)
+{
+    Promise<void> promise;
+    auto fut = promise.GetFuture();
+
+    ScheduleAfter(dur, [promise = std::move(promise)]() mutable {
+        promise.SetValue();
+    });
+
+    return fut;
+}
+
 } // end namespace ananas
 
