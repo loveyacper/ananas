@@ -27,7 +27,7 @@ int main()
     SSLManager::Instance().GlobalInit();
 
     const char* ctx = "serverctx";
-    if (!SSLManager::Instance().AddCtx(ctx, SSLv3_method(), "ca.pem", "server-cert.pem", "server-key.pem"))
+    if (!SSLManager::Instance().AddCtx(ctx, "ca.pem", "server-cert.pem", "server-key.pem"))
     {
         std::cerr << "Load certs failed\n";
         return -1;
@@ -41,7 +41,7 @@ int main()
                                                  true,
                                                  std::placeholders::_1)))
     {
-        std::cerr << "Listen 443 failed\n";
+        std::cerr << "Listen 8443 failed\n";
         ananas::EventLoop::ExitApplication();
     }
 

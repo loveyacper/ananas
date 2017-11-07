@@ -77,7 +77,7 @@ C++11 toolbox for server-side development.
   ananas::WhenAny(fut1, fut2)
           .Then([conn1, conn2](const std::pair<size_t/* fut index*/, std::string>& result) {
                   size_t index = result.first;
-                  std::cout << "服务器" << idnex << "返回了结果:"
+                  std::cout << "服务器" << index << "返回了结果:"
                             << result.second << std::endl;;
               });
   ```
@@ -126,9 +126,40 @@ C++11 toolbox for server-side development.
 
 * 关于future更详尽的介绍，可以看[这篇文章](https://loveyacper.github.io/ananas-future.html)
 
+## 2.EventLoop and TCP server&client and timer
+
+## 3.ThreadPool
+* ananas线程池
+
+  采用C++11实现，利用了变长模板参数，对投递的任务函数签名没有任何限制，不像传统的线程实现必须接受
+  void func(void\* ）的签名。同时结合Future，可以方便的注册回调，前面已经叙述过。ananas线程池可以设置最大线程
+  数量和最小线程数量。在任务比较多的时候，线程数会增加，但不会超过你设置的线程池大小；在任务比较少的时候，ananas
+  会自动回收多余的线程
+
+  ```cpp
+  int getMoney(const std::string& name);
+  std::string getInfo(int year, const std::string& city);
+
+  auto& pool = ananas::ThreadPool::Instance();
+
+  pool.Execute(getMoney, "mahuateng")
+      .Then([](int money) {
+          cout << "mahuateng has money " << money << endl;
+      });
+
+  pool.Execute(getInfo, 2017, "shanghai")
+      .Then([](const std::string& info) {
+          cout << info << endl;
+      });
+
+  // 在某个线程内睡眠10秒
+  pool.Execute([] (int n) { sleep(n); },  10);
+  ```
+## 4.Coroutine
+## 5.TLS
+
 ## TODO文档
-* server
-* thread pool
+* eventloop & server
 * coroutine
 * timer & logger
 * tls & protobuf-rpc

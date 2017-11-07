@@ -165,35 +165,13 @@ size_t OpenSSLContext::ProcessHandshake(std::shared_ptr<OpenSSLContext> open, Co
     return len;
 }
 
-static void GetSSLHead(const char* data, int8_t& type, uint16_t& ver, uint16_t& len)
-{
-    type = data[0];
-    ver = *(uint16_t*)(data + 1);
-    len = *(uint16_t*)(data + 3);
-
-    ver = ntohs(ver);
-    len = ntohs(len);
-}
-
-const size_t kSSLHeadSize = 5;
-
 size_t OpenSSLContext::ProcessData(std::shared_ptr<OpenSSLContext> open, Connection* c, const char* data, size_t len)
 {
     DBG(internal::g_debug) << "OpenSSLContext::onMessage len " << len;
 
-    int8_t type;
-    uint16_t ver, pkgLen;
-    GetSSLHead(data, type, ver, pkgLen);
-            
-    DBG(internal::g_debug) << "OpenSSLContext::ProcessData type " << (int)type << ", ver " << ver << ", len " << pkgLen;
-
-    const size_t totalLen = kSSLHeadSize + static_cast<size_t>(pkgLen);
-    if (len < totalLen)
-        return 0;
-
     // write back to ssl read buffer
     SSL* ssl = open->ssl_;
-    BIO_write(SSL_get_rbio(ssl), data, totalLen);
+    BIO_write(SSL_get_rbio(ssl), data, len);
 
     if (open->writeWaitReadable_)
     {
@@ -205,7 +183,7 @@ size_t OpenSSLContext::ProcessData(std::shared_ptr<OpenSSLContext> open, Connect
             c->ActiveClose();
         }
 
-        return totalLen;
+        return len;
     }
     else
     {
@@ -250,7 +228,7 @@ size_t OpenSSLContext::ProcessData(std::shared_ptr<OpenSSLContext> open, Connect
             else
             {
                 c->ActiveClose();
-                return totalLen;
+                return len;
             }
         }
 
@@ -263,7 +241,7 @@ size_t OpenSSLContext::ProcessData(std::shared_ptr<OpenSSLContext> open, Connect
         }
     }
 
-    return totalLen;
+    return len;
 }
 
 bool OpenSSLContext::DoHandleShake()
@@ -365,6 +343,7 @@ void OnNewSSLConnection(const std::string& ctxName, int verifyMode, bool incomin
     });
 #endif
 
+    const int kSSLHeadSize = 5;
     c->SetMinPacketSize(kSSLHeadSize);
     c->SetOnMessage(std::bind(&OpenSSLContext::ProcessHandshake, open,
                                                                  std::placeholders::_1,

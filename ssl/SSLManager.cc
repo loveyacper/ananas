@@ -38,7 +38,6 @@ SSLManager::~SSLManager()
 }
 
 bool SSLManager::AddCtx(const std::string& name,
-                        const SSL_METHOD* method,
                         const std::string& cafile, 
                         const std::string& certfile, 
                         const std::string& keyfile)
@@ -46,9 +45,14 @@ bool SSLManager::AddCtx(const std::string& name,
     if (ctxSet_.count(name))
         return false;
     
-    SSL_CTX* ctx = SSL_CTX_new(method);
+    // init support all ssl/tls methods
+    SSL_CTX* ctx = SSL_CTX_new(SSLv23_method());
     if (!ctx)
         return false;
+
+    // disable the insecure SSLV2 & SSLV3
+    SSL_CTX_clear_options(ctx, SSL_OP_NO_SSLv2);
+    SSL_CTX_clear_options(ctx, SSL_OP_NO_SSLv3);
 
 #define RETURN_IF_FAIL(call) \
     if ((call) <= 0) { \

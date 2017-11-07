@@ -7,6 +7,7 @@
 #include "net/Connection.h"
 #include "net/log/Logger.h"
 
+const uint16_t kPort = 8443;
 
 void NewSSLConnection(const std::string& ctxName, int verifyMode, bool incoming, ananas::Connection* c)
 {
@@ -31,12 +32,12 @@ void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAd
 
     // reconnect
     loop->ScheduleAfter(std::chrono::seconds(2), [=]() {
-        loop->Connect("loopback", 8443, std::bind(&ananas::ssl::OnNewSSLConnection,
+        loop->Connect("loopback", kPort, std::bind(&ananas::ssl::OnNewSSLConnection,
                                                   "clientctx",
                                                   SSL_VERIFY_PEER,
                                                   false,
                                                   std::placeholders::_1),
-                                       std::bind(&OnConnFail,
+                                         std::bind(&OnConnFail,
                                                   maxTryCount,
                                                   std::placeholders::_1,
                                                   std::placeholders::_2));
@@ -51,7 +52,7 @@ int main()
     SSLManager::Instance().GlobalInit();
 
     const char* ctx = "clientctx";
-    if (!SSLManager::Instance().AddCtx(ctx, SSLv3_method(), "ca.pem", "client-cert.pem", "client-key.pem"))
+    if (!SSLManager::Instance().AddCtx(ctx, "ca.pem", "client-cert.pem", "client-key.pem"))
     {
         std::cerr << "Load certs failed\n";
         return -1;
@@ -60,12 +61,12 @@ int main()
     ananas::EventLoop loop;
 
     int maxTryCount = 0;
-    loop.Connect("loopback", 8443,  std::bind(NewSSLConnection,
+    loop.Connect("loopback", kPort, std::bind(NewSSLConnection,
                                               ctx,
                                               SSL_VERIFY_PEER,
                                               false,
                                               std::placeholders::_1),
-                                   std::bind(&OnConnFail,
+                                    std::bind(&OnConnFail,
                                               maxTryCount,
                                               std::placeholders::_1,
                                               std::placeholders::_2));

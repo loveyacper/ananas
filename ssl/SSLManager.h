@@ -25,7 +25,6 @@ public:
     ~SSLManager();
 
     bool AddCtx(const std::string& name,
-                const SSL_METHOD* method,
                 const std::string& cafile, 
                 const std::string& certfile, 
                 const std::string& keyfile);
