@@ -244,6 +244,9 @@ class Future
 public:
     using InnerType = T;
 
+    template <typename U>
+    friend class Future;
+
     Future()
     {
     }

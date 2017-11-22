@@ -41,19 +41,19 @@ C++11 toolbox for server-side development.
             })
             .Then(
                 // 获取影片的异步操作返回了,开始播放数据
-                RedisContext::PlayFilm; // PlayFile函数类型是  void (const std::string& filmContent);
+                PlayFilm // PlayFile函数类型是  void (const std::string& filmContent);
             );
   ```
-  利用future和C++11的lambda模拟closure，可以看到，在这一连串的异步操作中，我们甚至不需要保存什么上下文对象！
+  利用future和C++11的lambda模拟closure，可以看到，在这一连串的异步操作中，我们甚至不需要保存上下文对象！
 
 * **异步场景2:同时对多个服务发起请求，收集完所有响应后，开始处理。**
   
   玩家登陆游戏，后端服务需要向防沉迷系统查询该玩家的实名认证信息，又要向VIP服务器查询该玩家的VIP信息，同时收到响应后再做处理，比如VIP等级过高可能就无视防沉迷，我瞎编的逻辑。。:
   ```cpp
   // 同时发起两个异步请求，一个获取防沉迷信息，一个获取VIP信息
-  auto futAntiAddict = conn1->GetAntiAddictionInfo(player);
-  auto futVIP = conn2->GetVIPInfo(player);
-  ananas::WhenAll(fut1, fut2) // whenAll返回一个总的future，在其注册回调
+  auto fut1 = conn1->GetAntiAddictionInfo(player);
+  auto fut2 = conn2->GetVIPInfo(player);
+  ananas::WhenAll(fut1, fut2) // whenAll返回一个总的future，在其上注册回调
             .Then([clientConn](const std::tuple<AntiAddictInfo, VIPInfo>& results) {
                     // 两个请求都得到了响应
                     const auto& antiAddict = std::get<0>(results);
