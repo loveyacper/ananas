@@ -1,8 +1,11 @@
 #ifndef BERT_FUTURE_H
 #define BERT_FUTURE_H
 
-#include <future>
 #include <atomic>
+#include <mutex>
+#include <functional>
+#include <type_traits>
+
 #include "Helper.h"
 #include "Try.h"
 #include "util/Scheduler.h"
@@ -31,25 +34,14 @@ struct State
                   "must be movable or void");
 
     State() :
-        ft_(pm_.get_future()),
         progress_(Progress::None),
         retrieved_ {false}
     {
     }
-    // make from std::promise
-    explicit
-    State(std::promise<T>&& prom) :
-        pm_(std::move(prom)),
-        ft_(pm_.get_future()),
-        progress_(Progress::None),
-        retrieved_ {false}
-    {
-    }
-
-    std::promise<T> pm_;
-    std::future<T> ft_;
 
     std::mutex thenLock_;
+
+    Try<T> value_;
     std::function<void (Try<T>&& )> then_;
     Progress progress_;
 
@@ -74,12 +66,6 @@ public:
     {
     }
 
-    explicit
-    Promise(std::promise<T>&& prom) :
-        state_(std::make_shared<internal::State<T>>(std::move(prom)))
-    {
-    }
-
     // TODO: C++11 lambda doesn't support move capture
     // just for compile, copy Promise is undefined, do NOT do that!
     Promise(const Promise&) = default;
@@ -97,9 +83,9 @@ public:
 
         state_->progress_ = internal::Progress::Done;
 
-        state_->pm_.set_exception(exp);
+        state_->value_ = Try<T>(std::move(exp));
         if (state_->then_)
-            state_->then_(Try<T>(std::move(exp)));
+            state_->then_(std::move(state_->value_));
     }
 
     template <typename SHIT = T>
@@ -113,9 +99,9 @@ public:
 
         state_->progress_ = internal::Progress::Done;
 
-        state_->pm_.set_value(t);
+        state_->value_ = std::move(t);
         if (state_->then_)
-            state_->then_(std::move(t));
+            state_->then_(std::move(state_->value_));
     }
 
 
@@ -130,9 +116,9 @@ public:
 
         state_->progress_ = internal::Progress::Done;
 
-        state_->pm_.set_value(t);
+        state_->value_ = t;
         if (state_->then_)
-            state_->then_(t);
+            state_->then_(std::move(state_->value_));
     }
 
     template <typename SHIT = T>
@@ -146,9 +132,9 @@ public:
 
         state_->progress_ = internal::Progress::Done;
 
-        state_->pm_.set_value(t);
+        state_->value_ = std::move(t);
         if (state_->then_)
-            state_->then_(std::move(t));
+            state_->then_(std::move(state_->value_));
     }
 
     template <typename SHIT = T>
@@ -162,9 +148,9 @@ public:
 
         state_->progress_ = internal::Progress::Done;
 
-        state_->pm_.set_value(t);
+        state_->value_ = t;
         if (state_->then_)
-            state_->then_(t);
+            state_->then_(std::move(state_->value_));
     }
 
     template <typename SHIT = T>
@@ -178,9 +164,9 @@ public:
 
         state_->progress_ = internal::Progress::Done;
 
-        state_->pm_.set_value();
+        state_->value_ = Try<void>();
         if (state_->then_)
-            state_->then_(Try<void>());
+            state_->then_(std::move(state_->value_));
     }
 
     template <typename SHIT = T>
@@ -194,9 +180,9 @@ public:
 
         state_->progress_ = internal::Progress::Done;
 
-        state_->pm_.set_value();
+        state_->value_ = Try<void>();
         if (state_->then_)
-            state_->then_(Try<void>());
+            state_->then_(std::move(state_->value_));
     }
 
     template <typename SHIT = T>
@@ -210,9 +196,9 @@ public:
 
         state_->progress_ = internal::Progress::Done;
 
-        state_->pm_.set_value();
+        state_->value_ = Try<void>();
         if (state_->then_)
-            state_->then_(Try<void>());
+            state_->then_(std::move(state_->value_));
     }
 
     Future<T> GetFuture()
@@ -231,17 +217,11 @@ private:
     std::shared_ptr<internal::State<T>> state_;
 };
 
-template <typename T>
-Promise<T> ConverFromSTDPromise(std::promise<T>&& promise)
-{
-    return Promise<T>(std::move(promise));
-}
-
 
 template <typename T>
 class Future
 {
-public:
+public: 
     using InnerType = T;
 
     template <typename U>
@@ -263,43 +243,6 @@ public:
     {
     }
 
-    bool IsReady() const
-    {
-        // can be called multi times
-        auto res = this->WaitFor(std::chrono::seconds(0));
-        return res == std::future_status::ready;
-    }
-
-    template <typename SHIT = T>
-    typename std::enable_if<!std::is_void<SHIT>::value, T>::type
-    GetValue()
-    {
-        // only once
-        return state_->ft_.get();
-    }
-
-    template <typename SHIT = T>
-    typename std::enable_if<std::is_void<SHIT>::value, Try<void> >::type
-    GetValue()
-    {
-        state_->ft_.get();
-        return Try<void>();
-    }
-
-    template<typename R, typename P>
-    std::future_status
-    WaitFor(const std::chrono::duration<R, P>& dur) const
-    {
-        return state_->ft_.wait_for(dur);
-    }
-
-    template<typename Clock, typename Duration>
-    std::future_status
-    WaitUntil(const std::chrono::time_point<Clock, Duration>& abs) const
-    {
-        return state_->ft_.wait_until(abs);
-    }
-
     template <typename F,
               typename R = internal::CallableResult<F, T> > 
     auto Then(F&& f) -> typename R::ReturnFutureType 
@@ -317,7 +260,6 @@ public:
         return _ThenImpl<F, R>(sched, std::forward<F>(f), Arguments());  
     }
 
-    // modified from folly
     //1. F does not return future type
     template <typename F, typename R, typename... Args>
     typename std::enable_if<!R::IsReturnsFuture::value, typename R::ReturnFutureType>::type
@@ -340,17 +282,15 @@ public:
         }
         else if (state_->progress_ == Progress::Done)
         {
-            guard.unlock();
-
             Try<T> t;
             try {
-                Try<T> tmp(GetValue());
-                t = std::move(tmp);
+                t = std::move(state_->value_);
             }
             catch(const std::exception& e) {
-                Try<T> tmp(std::current_exception());
-                t = std::move(tmp);
+                t = Try<T>(std::current_exception());
             }
+
+            guard.unlock();
 
             auto func = [res = std::move(t),
                          f = std::move((typename std::decay<F>::type)f),
@@ -429,17 +369,15 @@ public:
         }
         else if (state_->progress_ == Progress::Done)
         {
-            guard.unlock();
-
             Try<T> t;
             try {
-                Try<T> tmp(GetValue());
-                t = std::move(tmp);
+                t = std::move(state_->value_);
             }
             catch(const std::exception& e) {
-                Try<T> tmp(std::current_exception());
-                t = std::move(tmp);
+                t = Try<T>(std::current_exception());
             }
+
+            guard.unlock();
 
             auto cb = [res = std::move(t),
                        f = std::move((typename std::decay<F>::type)f),
@@ -452,18 +390,15 @@ public:
                     throw FutureWrongState();
                 }
                 else if (innerFuture.state_->progress_ == Progress::Done) {
-                    guard.unlock();
-
                     Try<FReturnType> t;
                     try {
-                        Try<FReturnType> tmp(innerFuture.GetValue());
-                        t = std::move(tmp);
+                        t = std::move(innerFuture.state_->value_);
                     }
                     catch(const std::exception& e) {
-                        Try<FReturnType> tmp(std::current_exception());
-                        t = std::move(tmp);
+                        t = Try<FReturnType>(std::current_exception());
                     }
 
+                    guard.unlock();
                     prom.SetValue(std::move(t));
                 }
                 else {
@@ -515,18 +450,15 @@ public:
                         throw FutureWrongState();
                     }
                     else if (innerFuture.state_->progress_ == Progress::Done) {
-                        guard.unlock();
-
                         Try<FReturnType> t;
                         try {
-                            Try<FReturnType> tmp(innerFuture.GetValue());
-                            t = std::move(tmp);
+                            t = std::move(innerFuture.state_->value_);
                         }
                         catch(const std::exception& e) {
-                            Try<FReturnType> tmp(std::current_exception());
-                            t = std::move(tmp);
+                            t = Try<FReturnType>(std::current_exception());
                         }
 
+                        guard.unlock();
                         prom.SetValue(std::move(t));
                     }
                     else {
@@ -604,11 +536,32 @@ inline Future<T2> MakeReadyFuture(T2&& value)
     return f;
 }
 
+template <typename T2>
+inline Future<T2> MakeReadyFuture(const T2& value)
+{
+    Promise<T2> pm;
+    auto f(pm.GetFuture());
+    pm.SetValue(value);
+
+    return f;
+}
+
 inline Future<void> MakeReadyFuture()
 {
     Promise<void> pm;
     auto f(pm.GetFuture());
     pm.SetValue();
+
+    return f;
+}
+
+// Make exception future
+template <typename T2>
+inline Future<T2> MakeExceptionFuture(const std::exception& exp)
+{
+    Promise<T2> pm;
+    auto f(pm.GetFuture());
+    pm.SetException(std::make_exception_ptr(exp));
 
     return f;
 }

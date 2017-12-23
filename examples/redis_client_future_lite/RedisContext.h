@@ -67,18 +67,8 @@ private:
 
         Request() { }
 
-        Request(Request&& r) {
-            request = std::move(r.request);
-            promise = std::move(r.promise);
-        }
-
-        Request& operator= (Request&& r) {
-            if (&r != this) {
-                request = std::move(r.request);
-                promise = std::move(r.promise);
-            }
-            return *this;
-        }
+        Request(Request&& ) = default;
+        Request& operator= (Request&& ) = default;
     };
 
     std::queue<Request> pending_;
