@@ -2,9 +2,11 @@
 #include <iostream>
 #include <assert.h>
 #include <thread>
-#include "net/ThreadPool.h"
+//#include "net/ThreadPool.h"
 #include "net/Connection.h"
 #include "net/EventLoop.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 #include "net/log/Logger.h"
 
 std::shared_ptr<ananas::Logger> logger;
@@ -48,21 +50,14 @@ void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
     INF(logger) << "OnConnFail " << peer.GetPort();
 
     // reconnect
-    loop->ScheduleAfter(std::chrono::seconds(2), [=]() {
-            loop->Connect(peer, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
-            });
-}
-
-void ThreadFunc()
-{
-    const uint16_t port = 6380;
-    const int kConnsPerThread = 1;
-
-    ananas::EventLoop loop;
-    for (int i = 0; i < kConnsPerThread; ++ i)
-        loop.Connect("localhost", port, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
-
-    loop.Run();
+    loop->ScheduleAfter(std::chrono::seconds(2),
+                        [=]()
+                        {
+                            loop->Connect(peer,
+                                          OnNewConnection,
+                                          OnConnFail,
+                                          ananas::DurationMs(3000));
+                        });
 }
 
 void SanityCheck(int& threads)
@@ -85,8 +80,15 @@ int main(int ac, char* av[])
         SanityCheck(threads);
     }
 
-    for (int i = 0; i < threads; ++ i)
-        ananas::ThreadPool::Instance().Execute(ThreadFunc);
+    const uint16_t port = 6380;
+    const int kConns = 10;
+
+    ananas::EventLoopGroup group(threads);
+    for (int i = 0; i < kConns; ++ i)
+        group.Connect("localhost", port, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
+
+    auto& app = ananas::Application::Instance();
+    app.Run();
 
     return 0;
 }

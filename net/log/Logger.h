@@ -158,6 +158,8 @@ private:
 
     // null object
     Logger nullLog_;
+
+    std::thread iothread_;
 };
 
 

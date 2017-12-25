@@ -21,12 +21,6 @@ ThreadPool::~ThreadPool()
     JoinAll();
 }
 
-ThreadPool& ThreadPool::Instance()
-{
-    static ThreadPool pool;
-    return pool;
-}
-
 void ThreadPool::SetMaxIdleThreads(unsigned int m)
 {
     if (0 < m && m <= kMaxThreads)

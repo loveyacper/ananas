@@ -2,6 +2,8 @@
 #include <cstdio>
 #include "future/Future.h"
 #include "net/EventLoop.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 #include "net/ThreadPool.h"
 
 using namespace ananas;
@@ -17,12 +19,13 @@ Type ThreadFunc()
 
 int main()
 {
-    ananas::EventLoop loop;
-    auto& tpool = ananas::ThreadPool::Instance();
+    auto& app = Application::Instance();
+    ananas::EventLoopGroup group(1);
+    auto& loop = *group.SelectLoop();
+    ananas::ThreadPool tpool;
 
     Future<int> ft(tpool.Execute(ThreadFunc<int>));
              
-#if 1
     ft.Then([](int v) {
             printf("!!!SUCC!\n");
             printf("1.Then got int value: %d\n", v);
@@ -36,22 +39,16 @@ int main()
             },
             &loop
       );
-#else
-    ft.OnTimeout(std::chrono::seconds(0), []() {
-        printf("!!!FAILED: future is timeout!\n");
-        },
-        &loop
-     );
-#endif
 
     // exit after 2 seconds
-    loop.ScheduleAfter(std::chrono::seconds(2), []() {
+    loop.ScheduleAfter(std::chrono::seconds(2), [&app]() {
             printf("BYE: now exiting!\n");
-            EventLoop::ExitApplication();
+            app.Exit();
             });
 
-    loop.Run();
+    app.Run();
 
+    tpool.JoinAll();
     return 0;
 }
 

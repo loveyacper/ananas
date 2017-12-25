@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cassert>
 #include "EventLoop.h"
+#include "EventLoopGroup.h"
 #include "Connector.h"
 #include "Connection.h"
 #include "AnanasDebug.h"
@@ -83,7 +84,7 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
                                    << " connected to " << peer_.ToString();
 
             state_ = ConnectState::connecting;
-            loop_->Register(eET_Write, this);
+            loop_->Register(eET_Write, shared_from_this());
 
             if (timeout != DurationMs::max())
             {
@@ -154,27 +155,34 @@ void Connector::_OnSuccess()
     INF(internal::g_debug) << "Connect success! Socket " << localSock_
                            << ", connected to port " << peer_.ToString();
 
-    // create new conn
-    auto c = std::make_shared<Connection>(loop_);
-    c->Init(localSock_, peer_);
-        
+    auto loop = loop_->Parent()->SelectLoop();
+    int connfd = localSock_;
+    auto onFail = std::move(onConnectFail_);
+    auto newCb = std::move(newConnCallback_);
+    auto peer = peer_;
     // unregister connector
     if (oldState == ConnectState::connecting)
-        this->loop_->Unregister(eET_Write, this);
+        this->loop_->Unregister(eET_Write, shared_from_this());
+            
+    auto func = [loop, connfd, peer, newCb, onFail]()
+    {
+        // create new conn
+        auto c = std::make_shared<Connection>(loop);
+        c->Init(connfd, peer);
 
-    // register new conn
-    if (this->loop_->Register(eET_Read, c.get()))
-    {
-        c->SetFailCallback(this->onConnectFail_);
-        this->newConnCallback_(c.get());
-        c->_OnConnect();
-    }
-    else
-    {
-        ERR(internal::g_debug) << "_OnSuccess but register socket "
-                               << c->Identifier()
-                               << " failed!";
-    }
+        // register new conn
+        if (loop->Register(eET_Read, c)) {
+            c->SetFailCallback(std::move(onFail));
+            newCb(c.get());
+            c->_OnConnect();
+        }
+        else {
+            ERR(internal::g_debug) << "_OnSuccess but register socket "
+                                   << c->Identifier()
+                                   << " failed!";
+        }
+    };
+    loop->Execute(std::move(func));
 }
 
 void Connector::_OnFailed()
@@ -195,7 +203,7 @@ void Connector::_OnFailed()
         onConnectFail_(loop_, peer_);
 
     if (oldState == ConnectState::connecting)
-        loop_->Unregister(eET_Write, this);
+        loop_->Unregister(eET_Write, shared_from_this());
 }
 
 } // end namespace internal

@@ -10,7 +10,7 @@ namespace ananas
 namespace internal
 {
 
-class Acceptor : public EventSource
+class Acceptor : public Channel
 {
 public:
     explicit

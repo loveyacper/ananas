@@ -1,6 +1,8 @@
 #include <thread>
 #include <iostream>
 #include "net/EventLoop.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 #include "net/ThreadPool.h"
 #include "future/Future.h"
 
@@ -20,9 +22,11 @@ void ThreadFuncV()
 
 int main()
 {
-    ananas::EventLoop loop;
-    auto& tpool = ananas::ThreadPool::Instance();
+    auto& app = Application::Instance();
+    ananas::EventLoopGroup group(1);
+    auto& loop = *group.SelectLoop();
 
+    ananas::ThreadPool tpool;
     auto f1 = tpool.Execute(ThreadFunc<int>);
     auto f2 = tpool.Execute(ThreadFuncV);
 
@@ -35,13 +39,14 @@ int main()
              std::cout << "!!!FAILED: futureall is timeout!\n";
          }, &loop);
 
-    loop.ScheduleAfter<1>(std::chrono::seconds(3), []() {
+    loop.ScheduleAfter<1>(std::chrono::seconds(3), [&app]() {
         std::cerr << "GOODBYE!\n";
-        ananas::EventLoop::ExitApplication();
+        app.Exit();
     });
 
-    loop.Run();
+    app.Run();
 
+    tpool.JoinAll();
     return 0;
 }
 

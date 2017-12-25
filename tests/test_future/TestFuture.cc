@@ -1,6 +1,8 @@
 #include <iostream>
 #include "net/EventLoop.h"
 #include "net/ThreadPool.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 #include "future/Future.h"
 
 using namespace ananas;
@@ -20,8 +22,10 @@ void ThreadFuncV()
 
 int main()
 {
-    ananas::EventLoop loop;
-    auto& tpool = ananas::ThreadPool::Instance();
+    EventLoopGroup group(1);
+    auto& loop = *group.SelectLoop();
+
+    ananas::ThreadPool tpool;
 
     Future<int> ft(tpool.Execute(ThreadFunc<int>));
 
@@ -41,7 +45,7 @@ int main()
     })
     .Then([]() {
         std::cout << "4. Then GOODBYE!\n";
-        ananas::EventLoop::ExitApplication();
+        Application::Instance().Exit();
     });
 
     std::cout << "BEGIN LOOP" << std::endl;
@@ -50,7 +54,9 @@ int main()
             printf("every 1 second\n");
             });
 
-    loop.Run();
+    auto& app = Application::Instance();
+    app.Run();
+    tpool.JoinAll();
             
     return 0;
 }

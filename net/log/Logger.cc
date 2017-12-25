@@ -7,7 +7,6 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "../ThreadPool.h"
 #include "../TimeUtil.h"
 #include "Logger.h"
 
@@ -501,8 +500,10 @@ bool Logger::Update()
 
     for (auto& pbuf : tmpBufs)
     {
-        auto nWritten = _Log(pbuf->buffer_.ReadAddr(), pbuf->buffer_.ReadableSize());
-        assert (nWritten == pbuf->buffer_.ReadableSize());
+        const char* data = pbuf->buffer_.ReadAddr();
+        const auto size = pbuf->buffer_.ReadableSize();
+        auto nWritten = _Log(data, size);
+        assert (nWritten == size);
     }
 
     file_.Sync();
@@ -617,7 +618,8 @@ void LogManager::Start()
     assert (shutdown_);
     shutdown_ = false;
 
-    ThreadPool::Instance().Execute(std::bind(&LogManager::Run, this));
+    auto io = std::bind(&LogManager::Run, this);
+    iothread_ = std::thread{std::move(io)};
 }
 
 void LogManager::Stop()
@@ -631,14 +633,19 @@ void LogManager::Stop()
         cond_.notify_all();
     }
         
-    std::lock_guard<std::mutex> guard(logsMutex_);
-    for (auto& plog : logs_)
-        plog->Shutdown();
+    {
+        std::lock_guard<std::mutex> guard(logsMutex_);
+        for (auto& plog : logs_)
+            plog->Shutdown();
+    }
+
+    if (iothread_.joinable())
+        iothread_.join();
 }
 
 std::shared_ptr<Logger> LogManager::CreateLog(unsigned int level,
-                              unsigned int dest,
-                              const char* dir)
+                                              unsigned int dest,
+                                              const char* dir)
 {
 
     auto log(std::make_shared<Logger>());

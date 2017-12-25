@@ -1,6 +1,8 @@
 #include <iostream>
 #include "net/EventLoop.h"
 #include "net/ThreadPool.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 #include "future/Future.h"
 
 using namespace ananas;
@@ -19,16 +21,17 @@ void ThreadFuncV()
 
 int main()
 {
-    static const auto mainId = std::this_thread::get_id();
+    EventLoopGroup group(1);
+    auto& app = Application::Instance();
+    auto& loop = *group.SelectLoop();
 
-    ananas::EventLoop loop;
-    auto& tpool = ananas::ThreadPool::Instance();
+    ananas::ThreadPool tpool;
 
     Promise<int> pm;
     Future<int> ft(tpool.Execute(ThreadException<int>));
 
-    ft.Then(&loop, [](Try<int>&& v) {
-        assert(mainId == std::this_thread::get_id());
+    ft.Then(&loop, [&loop](Try<int>&& v) {
+        assert(loop.IsInSameLoop());
         try{
             int value = v;
             std::cout << "1.Then got int value " << value
@@ -51,10 +54,10 @@ int main()
         //std::this_thread::sleep_for(std::chrono::milliseconds(10));
         return future;
     })
-    .Then(&loop, []() {
-        assert(mainId == std::this_thread::get_id());
+    .Then(&loop, [&app, &loop]() {
+        assert(loop.IsInSameLoop());
         std::cout << "4. Then GOODBYE!\n";
-        ananas::EventLoop::ExitApplication();
+        app.Exit();
     });
 
     std::cout << "BEGIN LOOP" << std::endl;
@@ -63,8 +66,9 @@ int main()
         std::cout << "every 1 second\n";
     });
 
-    loop.Run();
+    app.Run();
             
+    tpool.JoinAll();
     return 0;
 }
 

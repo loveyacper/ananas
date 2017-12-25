@@ -1,6 +1,8 @@
 #include <iostream>
 #include "RedisContext.h"
 #include "net/EventLoop.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 
 #include "RedisLog.h"
 
@@ -28,18 +30,20 @@ int main()
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_server_test");
 
-    ananas::EventLoop loop;
-
     const uint16_t port = 6379;
-    if (!loop.Listen("loopback", port, OnNewConnection))
-    {
-        std::cerr << "Server stopped, can not listen on " << port;
-        ananas::EventLoop::ExitApplication();
-    }
+
+    ananas::EventLoopGroup group(4);
+    group.Listen("loopback", port,
+                OnNewConnection,
+                [](bool succ, const ananas::SocketAddr& addr)
+                {
+                    ERR(logger) << (succ ? "Succ" : "Failed") << " listen on " << addr.ToString();
+                    if (!succ)
+                        ananas::Application::Instance().Exit();
+                });
         
-    INF(logger) << "listen on " << port;
-       
-    loop.Run();
+    auto& app = ananas::Application::Instance();
+    app.Run();
     return 0;
 }
 

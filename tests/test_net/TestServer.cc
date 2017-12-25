@@ -2,8 +2,9 @@
 #include <atomic>
 
 #include "net/Connection.h"
-#include "net/EventLoop.h"
 #include "net/log/Logger.h"
+#include "net/Application.h"
+#include "net/EventLoopGroup.h"
             
 std::shared_ptr<ananas::Logger> logger;
 
@@ -19,9 +20,10 @@ void OnNewConnection(ananas::Connection* conn)
     using ananas::Connection;
 
     conn->SetOnMessage(OnMessage);
-    conn->SetOnDisconnect([](Connection* conn) {
-            WRN(logger) << "OnDisConnect " << conn->Identifier();
-            });
+    conn->SetOnDisconnect([](Connection* conn)
+                          {
+                              WRN(logger) << "OnDisConnect " << conn->Identifier();
+                          });
 }
 
 
@@ -30,24 +32,18 @@ int main(int ac, char* av[])
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_server_test");
 
-    ananas::EventLoop loop;
-
-    const uint16_t myport = 6380;
-    if (loop.Listen("localhost", myport, OnNewConnection))
-    {
-        loop.ScheduleNextTick([myport]() {
-                INF(logger) << "Hello, I am listen on " << myport;
+    ananas::EventLoopGroup group(2);
+    group.Listen("localhost", 6380,
+                OnNewConnection,
+                [](bool succ, const ananas::SocketAddr& addr)
+                {
+                    WRN(logger) << (succ ? "Succ" : "Failed") << " listen on " << addr.ToString();
+                    if (!succ)
+                        ananas::Application::Instance().Exit();
                 });
-    }
-    else
-    {
-        loop.ScheduleNextTick([&loop, myport]() {
-                ERR(logger) << "Server stopped, can not listen on " << myport;
-                ananas::EventLoop::ExitApplication();
-                });
-    }
 
-    loop.Run();
+    auto& app = ananas::Application::Instance();
+    app.Run();
 
     return 0;
 }

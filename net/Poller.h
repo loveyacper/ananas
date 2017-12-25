@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <memory>
+#include <stdio.h>
 
 namespace ananas
 {
@@ -17,11 +18,20 @@ enum EventType
     eET_Error = 0x1 << 2,
 };
 
-class EventSource : public std::enable_shared_from_this<EventSource>
+class Channel : public std::enable_shared_from_this<Channel>
 {
 public:
-    EventSource() { }
-    virtual ~EventSource() { }
+    Channel()
+    {
+        printf("New channel %p\n", (void*)this);
+    }
+    virtual ~Channel()
+    {
+        printf("Delete channel %p\n", (void*)this);
+    }
+
+    Channel(const Channel& ) = delete;
+    void operator=(const Channel& ) = delete;
 
     virtual int Identifier() const = 0; // the socket 
 

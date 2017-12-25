@@ -1,8 +1,10 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+
 #include "net/EventLoop.h"
-#include "net/ThreadPool.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 #include "net/log/Logger.h"
 
 using namespace ananas;
@@ -14,16 +16,19 @@ int main()
     LogManager::Instance().Start();
     log = LogManager::Instance().CreateLog(logALL, logConsole);
 
-    ananas::EventLoop loop;
+    auto& app = Application::Instance();
 
-    loop.ScheduleNextTick([]() {
+    EventLoopGroup group(1);
+    auto& loop = *group.SelectLoop();
+
+    loop.Execute([]() {
             INF(log) << "Hello, test timer...";
         });
 
     // shutdown after 7s
-    loop.ScheduleAfter(std::chrono::seconds(7), [&loop]() {
+    loop.ScheduleAfter(std::chrono::seconds(7), [&app]() {
             WRN(log) << "Now stop app.";
-            EventLoop::ExitApplication();
+            app.Exit();
         });
 
     int count = 0;
@@ -47,7 +52,7 @@ int main()
 
     (void)only5;
 
-    loop.Run();
+    app.Run();
 
     return 0;
 }

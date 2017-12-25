@@ -23,18 +23,23 @@ int main(int ac, char* av[])
 
     ananas::LogManager::Instance().Start();
 
+    ananas::ThreadPool pool;
+
     ananas::Time start;
 
     for (int i = 0; i < g_threads; ++ i)
     {
         auto log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "logtestdir");
-        ananas::ThreadPool::Instance().Execute([=]() {
-                for (int n = 0; n < (kLogs/ g_threads); n ++) {
-                    DBG(log) << n << "|abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy|";
-                }
+        pool.Execute(
+                [=]()
+                {
+                    for (int n = 0; n < (kLogs/ g_threads); n ++) {
+                        DBG(log) << n << "|abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy|";
+                    }
 
-                ++ g_complete;
-         });
+                    ++ g_complete;
+                }
+        );
     }
 
     // 等待生产者线程结束
@@ -50,7 +55,7 @@ int main(int ac, char* av[])
     std::cout << int(kLogs * 1000.0 / (end - start) / 10000)
               << "w logs/second\n";
 
-    ananas::ThreadPool::Instance().JoinAll();
+    pool.JoinAll();
 
     return 0;
 }

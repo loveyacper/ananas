@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <cassert>
 #include "EventLoop.h"
+#include "EventLoopGroup.h"
 #include "Connection.h"
 #include "Acceptor.h"
 
@@ -72,7 +73,7 @@ bool Acceptor::Bind(const SocketAddr& addr)
         return false;
     }
 
-    if (!loop_->Register(eET_Read, this))
+    if (!loop_->Register(eET_Read, this->shared_from_this()))
         return false;
 
     INF(internal::g_debug) << "Create listen socket " << localSock_
@@ -92,18 +93,20 @@ bool Acceptor::HandleReadEvent()
         int connfd = _Accept();
         if (connfd != kInvalid)
         {
-            auto conn(std::make_shared<Connection>(loop_));
-            conn->Init(connfd, peer_);
-
-            if (loop_->Register(eET_Read, conn.get()))
+            auto loop = loop_->Parent()->SelectLoop();
+            auto func = [loop, newCb = newConnCallback_, connfd, peer = peer_]()
             {
-                newConnCallback_(conn.get());
-                conn->_OnConnect();
-            }
-            else
-            {
-                ERR(internal::g_debug) << "Failed to register socket " << conn->Identifier();
-            }
+                auto conn(std::make_shared<Connection>(loop));
+                conn->Init(connfd, peer);
+                if (loop->Register(eET_Read, conn)) {
+                    newCb(conn.get());
+                    conn->_OnConnect();
+                }
+                else {
+                    ERR(internal::g_debug) << "Failed to register socket " << conn->Identifier();
+                }
+            };
+            loop->Execute(std::move(func));
         }
         else
         {
@@ -162,7 +165,7 @@ bool Acceptor::HandleWriteEvent()
 void Acceptor::HandleErrorEvent()
 {
     ERR(internal::g_debug) << "Acceptor::HandleErrorEvent";
-    loop_->Unregister(eET_Read, this);
+    loop_->Unregister(eET_Read, shared_from_this());
 }
 
 int Acceptor::_Accept()

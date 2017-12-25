@@ -3,7 +3,9 @@
 #include <assert.h>
 
 #include "net/DatagramSocket.h"
-#include "net/EventLoop.h"
+//#include "net/EventLoop.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 #include "net/log/Logger.h"
 
 std::shared_ptr<ananas::Logger> logger;
@@ -28,22 +30,18 @@ int main(int ac, char* av[])
     const uint16_t port = 7001;
     ananas::SocketAddr serverAddr("127.0.0.1", port);
 
-    ananas::EventLoop loop;
-    if (!loop.ListenUDP(serverAddr, OnMessage, OnCreate))
-    {
-        ERR(logger) << "ListenUDP failed";
-        return -1;
-    }
-    else
-    {
-        DBG(logger) << "ListenUDP succ";
-    }
-
-    loop.ScheduleNextTick([]() {
-            INF(logger) << "Hello, I am listen on " << port;
+    ananas::EventLoopGroup group(2);
+    group.ListenUDP(serverAddr, OnMessage, OnCreate,
+            [](bool succ, const ananas::SocketAddr& addr)
+            {
+                if (succ)
+                    DBG(logger) << "ListenUDP succ " << addr.ToString();
+                else
+                    ERR(logger) << "ListenUDP failed " << addr.ToString();
             });
 
-    loop.Run();
+    auto& app = ananas::Application::Instance();
+    app.Run();
 
     return 0;
 }

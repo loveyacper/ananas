@@ -1,6 +1,8 @@
 #include <iostream>
 #include "RedisContext.h"
 #include "net/EventLoop.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 
 
 void GetAndSetName(const std::shared_ptr<RedisContext>& ctx)
@@ -39,7 +41,7 @@ void OnConnect(std::shared_ptr<RedisContext> ctx, ananas::Connection* conn)
             RedisContext::PrintResponse
             ).OnTimeout(std::chrono::seconds(3), []() {
                 std::cout << "OnTimeout request, now exit test\n";
-                ananas::EventLoop::ExitApplication();
+                ananas::Application::Instance().Exit();
                 },
                 conn->GetLoop());
 
@@ -68,7 +70,7 @@ void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAd
     if (-- maxTryCount <= 0)
     {
         std::cerr << "ReConnect failed, exit app\n";
-        ananas::EventLoop::ExitApplication();
+        ananas::Application::Instance().Exit();
     }
 
     // reconnect
@@ -82,14 +84,15 @@ void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAd
 
 int main()
 {
-    ananas::EventLoop loop;
-
     int maxTryCount = 5;
-    loop.Connect("loopback", 6379, OnNewConnection, std::bind(&OnConnFail,
+
+    ananas::EventLoopGroup group(1);
+    group.Connect("loopback", 6379, OnNewConnection, std::bind(&OnConnFail,
                                                                maxTryCount,
                                                                std::placeholders::_1,
                                                                std::placeholders::_2));
-    loop.Run();
+    auto& app = ananas::Application::Instance();
+    app.Run();
 
     return 0;
 }

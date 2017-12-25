@@ -19,7 +19,7 @@ enum class ConnectState
     failed,
 };
 
-class Connector : public EventSource
+class Connector : public Channel
 {
 public:
     explicit

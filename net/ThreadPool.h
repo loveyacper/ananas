@@ -16,12 +16,11 @@ namespace ananas
 class ThreadPool final
 {
 public:
+    ThreadPool();
     ~ThreadPool();
     
     ThreadPool(const ThreadPool& ) = delete;
     void operator=(const ThreadPool& ) = delete;
-    
-    static ThreadPool& Instance();
     
     // F return non-void
     template <typename F, typename... Args,
@@ -38,8 +37,6 @@ public:
     void SetMaxThreads(unsigned int );
     
 private:
-    ThreadPool();
-    
     void _CreateWorker();
     void _WorkerRoutine();
     void _MonitorRoutine();

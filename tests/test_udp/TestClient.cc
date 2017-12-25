@@ -3,7 +3,8 @@
 #include <assert.h>
 #include <thread>
 #include "net/DatagramSocket.h"
-#include "net/EventLoop.h"
+#include "net/EventLoopGroup.h"
+#include "net/Application.h"
 #include "net/log/Logger.h"
 
 std::shared_ptr<ananas::Logger> logger;
@@ -34,18 +35,11 @@ int main(int ac, char* av[])
 
     g_serverAddr.Init("127.0.0.1", port);
 
-    ananas::EventLoop loop;
-    if (!loop.CreateClientUDP(OnMessage, OnCreate))
-    {
-        ERR(logger) << "CreateClientUDP failed";
-        return -1;
-    }
-    else
-    {
-        DBG(logger) << "CreateClientUDP succ";
-    }
+    ananas::EventLoopGroup group;
+    group.CreateClientUDP(OnMessage, OnCreate);
 
-    loop.Run();
+    auto& app = ananas::Application::Instance();
+    app.Run();
 
     return 0;
 }

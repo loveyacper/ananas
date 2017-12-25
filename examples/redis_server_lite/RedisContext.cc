@@ -6,7 +6,7 @@
 
 #define CRLF "\r\n"
 
-DB g_db;
+static thread_local DB* g_db;
 
 
 RedisContext::RedisContext(ananas::Connection* conn) :
@@ -114,8 +114,11 @@ static size_t FormatBulk(const char* str, size_t len, std::string* reply)
 
 std::string RedisContext::_Get(const std::string& key)
 {
-    auto it = g_db.find(key);
-    if (it == g_db.end())
+    if (!g_db)
+        g_db = new DB();
+
+    auto it = (*g_db).find(key);
+    if (it == (*g_db).end())
         return "$-1" CRLF;
 
     const auto& val = it->second;
@@ -128,6 +131,8 @@ std::string RedisContext::_Get(const std::string& key)
 
 void RedisContext::_Set(const std::string& key, const std::string& val)
 {
-    g_db[key] = val;
+    if (!g_db)
+        g_db = new DB();
+    (*g_db)[key] = val;
 }
 

@@ -57,7 +57,7 @@ bool DatagramSocket::Bind(const SocketAddr* addr)
         ; // nothing to do: client UDP
     }
             
-    if (!loop_->Register(internal::eET_Read, this))
+    if (!loop_->Register(internal::eET_Read, shared_from_this()))
     {
         ERR(internal::g_debug) << "add udp to loop failed, socket = " << localSock_;
         return false;
@@ -148,7 +148,7 @@ bool DatagramSocket::SendPacket(const void* data, size_t size, const SocketAddr*
     if (bytes == 0)
     {
         _PutSendBuf(data, size, dst);
-        loop_->Modify(internal::eET_Read | internal::eET_Write, this);
+        loop_->Modify(internal::eET_Read | internal::eET_Write, shared_from_this());
         return true;
     }
     else if (bytes < 0)
@@ -187,7 +187,7 @@ bool DatagramSocket::HandleWriteEvent()
     }
 
     if (sendList_.empty())
-        loop_->Modify(internal::eET_Read, this);
+        loop_->Modify(internal::eET_Read, shared_from_this());
         
     return true;
 }

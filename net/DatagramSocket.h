@@ -12,7 +12,7 @@ namespace ananas
 
 class EventLoop;
 
-class DatagramSocket : public internal::EventSource
+class DatagramSocket : public internal::Channel
 {
 public:
     explicit

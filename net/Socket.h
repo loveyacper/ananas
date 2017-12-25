@@ -11,6 +11,8 @@
 namespace ananas
 {
 
+std::string ConvertIp(const char* ip);
+
 struct SocketAddr
 {
     static const uint16_t kInvalidPort = -1;
@@ -49,8 +51,9 @@ struct SocketAddr
 
     void Init(const char* ip, uint16_t hostport)
     {
+        std::string sip = ConvertIp(ip);
         addr_.sin_family = AF_INET;
-        addr_.sin_addr.s_addr = ::inet_addr(ip);
+        addr_.sin_addr.s_addr = ::inet_addr(sip.data());
         addr_.sin_port = htons(hostport);
     }
 
@@ -108,8 +111,6 @@ in_addr_t GetLocalAddrInfo();
 
 rlim_t GetMaxOpenFd();
 bool SetMaxOpenFd(rlim_t maxfdPlus1);
-
-std::string ConvertIp(const char* ip);
 
 } // end namespace ananas
 

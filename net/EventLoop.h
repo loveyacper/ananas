@@ -17,6 +17,7 @@ namespace ananas
 
 struct SocketAddr;
 class  Connection;
+class EventLoopGroup;
 
 namespace internal
 {
@@ -26,7 +27,8 @@ class  Connector;
 class EventLoop : public Scheduler
 {
 public:
-    EventLoop();
+    explicit
+    EventLoop(EventLoopGroup* group);
     ~EventLoop();
 
     EventLoop(const EventLoop& ) = delete;
@@ -61,7 +63,7 @@ public:
                  TcpConnFailCallback cfcb,
                  DurationMs timeout = DurationMs::max());
 
-    // timer
+    // timer : NOT thread-safe
     template <int RepeatCount = 1, typename Duration, typename F, typename... Args>
     TimerId ScheduleAfter(const Duration& duration, F&& f, Args&&... args);
     bool Cancel(TimerId id);
@@ -69,39 +71,40 @@ public:
     // sleep
     Future<void> Sleep(std::chrono::milliseconds dur);
 
-    // for future
+    // for future : thread-safe
     void ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void ()> f) override;
     void ScheduleOnce(std::function<void ()> f) override;
 
-    // 
+    // thread-safe
     template <typename F, typename... Args>
-    void ScheduleNextTick(F&& f, Args&&... args);
-
-    bool IsStop() const { return stop_; }
-    void Stop()         { stop_ = true; }
+    void Execute(F&& f, Args&&... args);
 
     void Run();
     bool Loop(DurationMs timeout);
 
-    bool Register(int events, internal::EventSource* src);
-    bool Modify(int events, internal::EventSource* src);
-    void Unregister(int events, internal::EventSource* src);
+    bool Register(int events, std::shared_ptr<internal::Channel> src);
+    bool Modify(int events, std::shared_ptr<internal::Channel> src);
+    void Unregister(int events, std::shared_ptr<internal::Channel> src);
 
-    std::size_t Size() const { return eventSourceSet_.size(); }
+    std::size_t Size() const { return channelSet_.size(); }
+    bool IsInSameLoop() const;
+    EventLoopGroup* Parent() const { return group_; }
 
-    static void ExitApplication();
+    static EventLoop* GetCurrentEventLoop();
 
     static void SetMaxOpenFd(rlim_t maxfdPlus1);
 
 private:
-    bool stop_;
+    EventLoopGroup* group_;
     static bool s_exit;
 
-    std::map<unsigned int, std::shared_ptr<internal::EventSource> > eventSourceSet_;
+    std::map<unsigned int, std::shared_ptr<internal::Channel> > channelSet_;
     std::unique_ptr<internal::Poller>  poller_;
 
+    std::mutex timerMutex_;
     internal::TimerManager timers_;
         
+    std::mutex fctrMutex_;
     std::vector<std::function<void ()> > functors_;
     
     static thread_local unsigned int s_id;
@@ -114,17 +117,29 @@ private:
 template <int RepeatCount, typename Duration, typename F, typename... Args>
 TimerId EventLoop::ScheduleAfter(const Duration& duration, F&& f, Args&&... args)
 {
-    return timers_.ScheduleAfter<RepeatCount>(duration, std::forward<F>(f), std::forward<Args>(args)...);
+    // not thread-safe for now, consider use future.
+    assert (IsInSameLoop());
+    return timers_.ScheduleAfter<RepeatCount>(duration,
+                                              std::forward<F>(f),
+                                              std::forward<Args>(args)...);
 }
 
 template <typename F, typename... Args>
-void EventLoop::ScheduleNextTick(F&& f, Args&&... args)
+void EventLoop::Execute(F&& f, Args&&... args)
 {
-    auto temp = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-    auto func = [temp]() { (void)temp(); };
-    functors_.emplace_back(std::move(func));
-}
+    if (IsInSameLoop())
+    {
+        std::forward<F>(f)(std::forward<Args>(args)...);
+    }
+    else
+    {
+        auto temp = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+        auto func = [temp]() { (void)temp(); };
 
+        std::unique_lock<std::mutex> guard(fctrMutex_);
+        functors_.emplace_back(std::move(func));
+    }
+}
 
 } // end namespace ananas
 

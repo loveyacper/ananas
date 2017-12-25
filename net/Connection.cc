@@ -50,7 +50,7 @@ void Connection::ActiveClose()
         return;
 
     state_ = State::eS_ActiveClose;
-    loop_->Modify(internal::eET_Write, this);
+    loop_->Modify(internal::eET_Write, shared_from_this());
 }
 
 void Connection::Shutdown(ShutdownMode mode)
@@ -136,7 +136,7 @@ bool Connection::HandleReadEvent()
             else
             {
                 state_ = State::eS_CloseWaitWrite;
-                loop_->Modify(internal::eET_Write, this); // disable ReadEvent
+                loop_->Modify(internal::eET_Write, shared_from_this()); // disable ReadEvent
             }
 
             return false;
@@ -256,7 +256,7 @@ bool Connection::HandleWriteEvent()
     if (alreadySent == expectSend)
     {
         DBG(internal::g_debug) << localSock_ << " HandleWriteEvent complete";
-        loop_->Modify(internal::eET_Read, this);
+        loop_->Modify(internal::eET_Read, shared_from_this());
 
         if (onWriteComplete_)
             onWriteComplete_(this);
@@ -298,7 +298,7 @@ void  Connection::HandleErrorEvent()
     if (onConnFail_)
         onConnFail_(loop_, peer_);
 
-    loop_->Unregister(internal::eET_Read | internal::eET_Write, this);
+    loop_->Unregister(internal::eET_Read | internal::eET_Write, shared_from_this());
 }
 
 bool Connection::SendPacket(const void* data, std::size_t size)
@@ -332,7 +332,7 @@ bool Connection::SendPacket(const void* data, std::size_t size)
     if (bytes == kError)
     {
         state_ = State::eS_Error;
-        loop_->Modify(internal::eET_Write, this);
+        loop_->Modify(internal::eET_Write, shared_from_this());
         return false;
     }
 
@@ -344,7 +344,7 @@ bool Connection::SendPacket(const void* data, std::size_t size)
                                << " bytes, but only send "
                                << bytes;
         sendBuf_.PushBack(Buffer((char*)data + bytes, size - static_cast<std::size_t>(bytes)));
-        loop_->Modify(internal::eET_Read | internal::eET_Write, this);
+        loop_->Modify(internal::eET_Read | internal::eET_Write, shared_from_this());
     }
     else
     {
@@ -513,7 +513,7 @@ bool Connection::SendPacket(const SliceVector& slices)
     if (ret == kError)
     {
         state_ = State::eS_Error;
-        loop_->Modify(internal::eET_Write, this);
+        loop_->Modify(internal::eET_Write, shared_from_this());
         return false;
     }
 
@@ -523,7 +523,7 @@ bool Connection::SendPacket(const SliceVector& slices)
     if (alreadySent < expectSend)
     {
         CollectBuffer(iovecs, alreadySent, sendBuf_);
-        loop_->Modify(internal::eET_Read | internal::eET_Write, this);
+        loop_->Modify(internal::eET_Read | internal::eET_Write, shared_from_this());
     }
     else
     {

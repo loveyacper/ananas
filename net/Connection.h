@@ -24,7 +24,7 @@ enum class ShutdownMode
     eSM_Write,
 };
 
-class Connection : public internal::EventSource
+class Connection : public internal::Channel
 {
 public:
     explicit
