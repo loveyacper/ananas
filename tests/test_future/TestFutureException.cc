@@ -1,7 +1,6 @@
 #include <iostream>
 #include "net/EventLoop.h"
 #include "net/ThreadPool.h"
-#include "net/EventLoopGroup.h"
 #include "net/Application.h"
 #include "future/Future.h"
 
@@ -21,9 +20,8 @@ void ThreadFuncV()
 
 int main()
 {
-    EventLoopGroup group(1);
     auto& app = Application::Instance();
-    auto& loop = *group.SelectLoop();
+    auto& loop = *app.BaseLoop();
 
     ananas::ThreadPool tpool;
 

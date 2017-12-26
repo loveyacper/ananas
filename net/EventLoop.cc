@@ -40,6 +40,9 @@ void EventLoop::SetMaxOpenFd(rlim_t maxfdPlus1)
 
 EventLoop::EventLoop(EventLoopGroup* group) : group_(group)
 {
+    assert (!g_thisLoop && "There must be only one EventLoop per thread");
+    g_thisLoop = this;
+
     internal::InitDebugLog(logALL);
 
 #if defined(__APPLE__)
@@ -215,9 +218,6 @@ bool EventLoop::Cancel(TimerId id)
 
 void EventLoop::Run()
 {
-    assert (!g_thisLoop && "There must be only one EventLoop per thread");
-    g_thisLoop = this;
-
     const DurationMs kDefaultPollTime(10);
     const DurationMs kMinPollTime(1);
 

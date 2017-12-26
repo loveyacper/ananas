@@ -3,7 +3,6 @@
 #include <chrono>
 
 #include "net/EventLoop.h"
-#include "net/EventLoopGroup.h"
 #include "net/Application.h"
 #include "net/log/Logger.h"
 
@@ -17,9 +16,7 @@ int main()
     log = LogManager::Instance().CreateLog(logALL, logConsole);
 
     auto& app = Application::Instance();
-
-    EventLoopGroup group(1);
-    auto& loop = *group.SelectLoop();
+    auto& loop = *app.BaseLoop();
 
     loop.Execute([]() {
             INF(log) << "Hello, test timer...";

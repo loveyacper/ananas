@@ -1,7 +1,6 @@
 #include <iostream>
 #include "RedisContext.h"
 #include "net/EventLoop.h"
-#include "net/EventLoopGroup.h"
 #include "net/Application.h"
 
 
@@ -86,12 +85,11 @@ int main()
 {
     int maxTryCount = 5;
 
-    ananas::EventLoopGroup group(1);
-    group.Connect("loopback", 6379, OnNewConnection, std::bind(&OnConnFail,
-                                                               maxTryCount,
-                                                               std::placeholders::_1,
-                                                               std::placeholders::_2));
     auto& app = ananas::Application::Instance();
+    app.Connect("loopback", 6379, OnNewConnection, std::bind(&OnConnFail,
+                                                              maxTryCount,
+                                                              std::placeholders::_1,
+                                                              std::placeholders::_2));
     app.Run();
 
     return 0;

@@ -3,7 +3,7 @@
 #include <cstring>
 #include <cassert>
 #include "EventLoop.h"
-#include "EventLoopGroup.h"
+#include "Application.h"
 #include "Connector.h"
 #include "Connection.h"
 #include "AnanasDebug.h"
@@ -155,7 +155,7 @@ void Connector::_OnSuccess()
     INF(internal::g_debug) << "Connect success! Socket " << localSock_
                            << ", connected to port " << peer_.ToString();
 
-    auto loop = loop_->Parent()->SelectLoop();
+    auto loop = Application::Instance().Next();
     int connfd = localSock_;
     auto onFail = std::move(onConnectFail_);
     auto newCb = std::move(newConnCallback_);

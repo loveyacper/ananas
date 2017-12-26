@@ -1,6 +1,7 @@
 #include <iostream>
 #include "RedisContext.h"
 #include "net/EventLoop.h"
+#include "net/Application.h"
 
 void GetSomeRedisKey(std::shared_ptr<RedisContext> ctx, const std::string& key)
 {
@@ -51,7 +52,7 @@ void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAd
     if (-- maxTryCount <= 0)
     {
         std::cerr << "ReConnect failed, exit app\n";
-        ananas::EventLoop::ExitApplication();
+        ananas::Application::Instance().Exit();
     }
 
     // reconnect
@@ -65,14 +66,15 @@ void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAd
 
 int main()
 {
-    ananas::EventLoop loop;
-
     int maxTryCount = 5;
-    loop.Connect("loopback", 6379, OnNewConnection, std::bind(&OnConnFail,
-                                                               maxTryCount,
-                                                               std::placeholders::_1,
-                                                               std::placeholders::_2));
-    loop.Run();
+
+    auto& app = ananas::Application::Instance();
+    app.Connect("loopback", 6379, OnNewConnection, std::bind(&OnConnFail,
+                                                              maxTryCount,
+                                                              std::placeholders::_1,
+                                                              std::placeholders::_2));
+
+    app.Run();
 
     return 0;
 }

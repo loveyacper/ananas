@@ -1,7 +1,6 @@
 #include <iostream>
 #include "RedisContext.h"
 #include "net/EventLoop.h"
-#include "net/EventLoopGroup.h"
 #include "net/Application.h"
 
 #include "RedisLog.h"
@@ -32,8 +31,8 @@ int main()
 
     const uint16_t port = 6379;
 
-    ananas::EventLoopGroup group(4);
-    group.Listen("loopback", port,
+    auto& app = ananas::Application::Instance();
+    app.Listen("loopback", port,
                 OnNewConnection,
                 [](bool succ, const ananas::SocketAddr& addr)
                 {
@@ -42,7 +41,6 @@ int main()
                         ananas::Application::Instance().Exit();
                 });
         
-    auto& app = ananas::Application::Instance();
     app.Run();
     return 0;
 }

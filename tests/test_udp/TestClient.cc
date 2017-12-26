@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <thread>
 #include "net/DatagramSocket.h"
-#include "net/EventLoopGroup.h"
 #include "net/Application.h"
 #include "net/log/Logger.h"
 
@@ -35,10 +34,9 @@ int main(int ac, char* av[])
 
     g_serverAddr.Init("127.0.0.1", port);
 
-    ananas::EventLoopGroup group;
-    group.CreateClientUDP(OnMessage, OnCreate);
-
     auto& app = ananas::Application::Instance();
+    app.CreateClientUDP(OnMessage, OnCreate);
+
     app.Run();
 
     return 0;

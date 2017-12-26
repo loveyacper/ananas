@@ -2,7 +2,6 @@
 #include <cstdio>
 #include "future/Future.h"
 #include "net/EventLoop.h"
-#include "net/EventLoopGroup.h"
 #include "net/Application.h"
 #include "net/ThreadPool.h"
 
@@ -20,8 +19,8 @@ Type ThreadFunc()
 int main()
 {
     auto& app = Application::Instance();
-    ananas::EventLoopGroup group(1);
-    auto& loop = *group.SelectLoop();
+    auto& loop = *app.BaseLoop();
+
     ananas::ThreadPool tpool;
 
     Future<int> ft(tpool.Execute(ThreadFunc<int>));

@@ -2,7 +2,7 @@
 #include <iostream>
 #include <assert.h>
 #include <thread>
-//#include "net/ThreadPool.h"
+
 #include "net/Connection.h"
 #include "net/EventLoop.h"
 #include "net/EventLoopGroup.h"
@@ -83,11 +83,12 @@ int main(int ac, char* av[])
     const uint16_t port = 6380;
     const int kConns = 10;
 
-    ananas::EventLoopGroup group(threads);
-    for (int i = 0; i < kConns; ++ i)
-        group.Connect("localhost", port, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
-
     auto& app = ananas::Application::Instance();
+    ananas::EventLoopGroup group(threads);
+    app.SetWorkerGroup(&group);
+    for (int i = 0; i < kConns; ++ i)
+        app.Connect("localhost", port, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
+
     app.Run();
 
     return 0;

@@ -1,7 +1,6 @@
 #include <iostream>
 #include "net/EventLoop.h"
 #include "net/ThreadPool.h"
-#include "net/EventLoopGroup.h"
 #include "net/Application.h"
 #include "future/Future.h"
 
@@ -22,8 +21,9 @@ void ThreadFuncV()
 
 int main()
 {
-    EventLoopGroup group(1);
-    auto& loop = *group.SelectLoop();
+    std::cout << "main id " << std::this_thread::get_id() << std::endl;
+    auto& app = Application::Instance();
+    auto& loop = *app.BaseLoop();
 
     ananas::ThreadPool tpool;
 
@@ -54,7 +54,6 @@ int main()
             printf("every 1 second\n");
             });
 
-    auto& app = Application::Instance();
     app.Run();
     tpool.JoinAll();
             

@@ -32,8 +32,11 @@ int main(int ac, char* av[])
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_server_test");
 
+    auto& app = ananas::Application::Instance();
     ananas::EventLoopGroup group(2);
-    group.Listen("localhost", 6380,
+    app.SetWorkerGroup(&group);
+
+    app.Listen("localhost", 6380,
                 OnNewConnection,
                 [](bool succ, const ananas::SocketAddr& addr)
                 {
@@ -42,7 +45,6 @@ int main(int ac, char* av[])
                         ananas::Application::Instance().Exit();
                 });
 
-    auto& app = ananas::Application::Instance();
     app.Run();
 
     return 0;

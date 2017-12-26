@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <cassert>
 #include "EventLoop.h"
-#include "EventLoopGroup.h"
+#include "Application.h"
 #include "Connection.h"
 #include "Acceptor.h"
 
@@ -93,7 +93,7 @@ bool Acceptor::HandleReadEvent()
         int connfd = _Accept();
         if (connfd != kInvalid)
         {
-            auto loop = loop_->Parent()->SelectLoop();
+            auto loop = Application::Instance().Next();
             auto func = [loop, newCb = newConnCallback_, connfd, peer = peer_]()
             {
                 auto conn(std::make_shared<Connection>(loop));

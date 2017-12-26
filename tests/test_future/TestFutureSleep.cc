@@ -1,16 +1,15 @@
 #include <thread>
 #include <cstdio>
+
 #include "net/EventLoop.h"
-#include "net/EventLoopGroup.h"
 #include "net/Application.h"
 
 using namespace ananas;
 
 int main()
 {
-    EventLoopGroup group(1);
     auto& app = Application::Instance();
-    auto& loop = *group.SelectLoop();
+    auto& loop = *app.BaseLoop();
 
     // exit after sleep 5 seconds
     loop.Sleep(std::chrono::seconds(5))
