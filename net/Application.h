@@ -14,11 +14,13 @@
 namespace ananas
 {
     
+namespace internal
+{
 class EventLoopGroup;
+}
 
 class Application
 {
-    friend class EventLoopGroup;
 public:
     static Application& Instance();
     ~Application();
@@ -63,14 +65,14 @@ public:
                  DurationMs timeout = DurationMs::max());
 
     EventLoop* Next();
-    void SetWorkerGroup(EventLoopGroup* group);
+    void SetNumOfWorker(size_t n);
 
 private:
     Application();
 
-    std::unique_ptr<EventLoopGroup> baseGroup_;
+    std::unique_ptr<internal::EventLoopGroup> baseGroup_;
     EventLoop base_;
-    EventLoopGroup* worker_;
+    std::unique_ptr<internal::EventLoopGroup> workerGroup_;
 
     enum class State
     {

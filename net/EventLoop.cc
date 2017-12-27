@@ -38,7 +38,7 @@ void EventLoop::SetMaxOpenFd(rlim_t maxfdPlus1)
         s_maxOpenFdPlus1 = maxfdPlus1;
 }
 
-EventLoop::EventLoop(EventLoopGroup* group) : group_(group)
+EventLoop::EventLoop(internal::EventLoopGroup* group) : group_(group)
 {
     assert (!g_thisLoop && "There must be only one EventLoop per thread");
     g_thisLoop = this;

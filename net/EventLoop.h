@@ -17,18 +17,18 @@ namespace ananas
 
 struct SocketAddr;
 class  Connection;
-class EventLoopGroup;
 
 namespace internal
 {
 class  Connector;
+class EventLoopGroup;
 }
 
 class EventLoop : public Scheduler
 {
 public:
     explicit
-    EventLoop(EventLoopGroup* group);
+    EventLoop(internal::EventLoopGroup* group);
     ~EventLoop();
 
     EventLoop(const EventLoop& ) = delete;
@@ -88,14 +88,14 @@ public:
 
     std::size_t Size() const { return channelSet_.size(); }
     bool IsInSameLoop() const;
-    EventLoopGroup* Parent() const { return group_; }
+    internal::EventLoopGroup* Parent() const { return group_; }
 
     static EventLoop* GetCurrentEventLoop();
 
     static void SetMaxOpenFd(rlim_t maxfdPlus1);
 
 private:
-    EventLoopGroup* group_;
+    internal::EventLoopGroup* group_;
     static bool s_exit;
 
     std::map<unsigned int, std::shared_ptr<internal::Channel> > channelSet_;

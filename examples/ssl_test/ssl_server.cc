@@ -4,6 +4,7 @@
 #include "ssl/SSLContext.h"
 #include "ssl/SSLManager.h"
 #include "net/EventLoop.h"
+#include "net/Application.h"
 #include "net/Connection.h"
 #include "net/log/Logger.h"
 
@@ -33,19 +34,22 @@ int main()
         return -1;
     }
 
-    ananas::EventLoop loop;
+    auto& app = ananas::Application::Instance();
 
-    if (!loop.Listen("loopback", 8443,  std::bind(NewSSLConnection,
-                                                 ctx,
-                                                 SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
-                                                 true,
-                                                 std::placeholders::_1)))
-    {
-        std::cerr << "Listen 8443 failed\n";
-        ananas::EventLoop::ExitApplication();
-    }
+    app.Listen("loopback", 8443,  std::bind(NewSSLConnection,
+                                            ctx,
+                                            SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
+                                            true,
+                                            std::placeholders::_1),
 
-    loop.Run();
+                                  [](bool succ, const ananas::SocketAddr& addr)
+                                  {
+                                    std::cout << (succ ? "Succ" : "Failed") << " listen " << addr.ToString() << std::endl;
+                                    if (!succ)
+                                        ananas::Application::Instance().Exit();
+                                  });
+
+    app.Run();
     return 0;
 }
 

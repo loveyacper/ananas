@@ -4,6 +4,7 @@
 #include "ssl/SSLContext.h"
 #include "ssl/SSLManager.h"
 #include "net/EventLoop.h"
+#include "net/Application.h"
 #include "net/Connection.h"
 #include "net/log/Logger.h"
 
@@ -27,7 +28,7 @@ void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAd
     if (-- maxTryCount <= 0)
     {
         std::cerr << "ReConnect failed, exit app\n";
-        ananas::EventLoop::ExitApplication();
+        ananas::Application::Instance().Exit();
     }
 
     // reconnect
@@ -58,19 +59,18 @@ int main()
         return -1;
     }
 
-    ananas::EventLoop loop;
-
     int maxTryCount = 0;
-    loop.Connect("loopback", kPort, std::bind(NewSSLConnection,
-                                              ctx,
-                                              SSL_VERIFY_PEER,
-                                              false,
-                                              std::placeholders::_1),
-                                    std::bind(&OnConnFail,
-                                              maxTryCount,
-                                              std::placeholders::_1,
-                                              std::placeholders::_2));
-    loop.Run();
+    auto& app = ananas::Application::Instance();
+    app.Connect("loopback", kPort, std::bind(NewSSLConnection,
+                                             ctx,
+                                             SSL_VERIFY_PEER,
+                                             false,
+                                             std::placeholders::_1),
+                                   std::bind(&OnConnFail,
+                                             maxTryCount,
+                                             std::placeholders::_1,
+                                             std::placeholders::_2));
+    app.Run();
 
     return 0;
 }

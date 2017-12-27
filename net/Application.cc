@@ -46,31 +46,27 @@ Application& Application::Instance()
     return app;
 }
 
-void Application::SetWorkerGroup(EventLoopGroup* group)
+void Application::SetNumOfWorker(size_t num)
 {
     assert (state_ == State::eS_None);
-    assert (!worker_ && "why you need more EventLoopGroup");
-    worker_ = group;
+    workerGroup_->SetNumOfEventLoop(num);
 }
 
 void Application::Run()
 {
-    if (state_ == State::eS_Stopped)
+    if (state_ != State::eS_None)
         return;
 
-    if (worker_)
-        worker_->Start();
+    state_ = State::eS_Started;
+    workerGroup_->Start();
 
     BaseLoop()->Run();
 
     baseGroup_->Wait();
     printf("Stopped BaseEventLoopGroup ...\n");
 
-    if (worker_)
-    {
-        worker_->Wait();
-        printf("Stopped WorkerEventLoopGroup...\n");
-    }
+    workerGroup_->Wait();
+    printf("Stopped WorkerEventLoopGroup...\n");
 
     // thread safe exit
     LogManager::Instance().Stop();
@@ -83,8 +79,7 @@ void Application::Exit()
 
     state_ = State::eS_Stopped;
     baseGroup_->Stop();
-    if (worker_)
-        worker_->Stop();
+    workerGroup_->Stop();
 }
 
 bool Application::IsExit() const
@@ -186,7 +181,7 @@ void Application::Connect(const char* ip,
     
 EventLoop* Application::Next()
 {
-    auto loop = worker_ ? worker_->Next() : nullptr;
+    auto loop = workerGroup_->Next();
     if (loop)
         return loop;
 
@@ -194,9 +189,9 @@ EventLoop* Application::Next()
 }
 
 Application::Application() :
-    baseGroup_(new EventLoopGroup),
+    baseGroup_(new internal::EventLoopGroup(0)),
     base_(baseGroup_.get()),
-    worker_(nullptr),
+    workerGroup_(new internal::EventLoopGroup(0)),
     state_ {State::eS_None}
 {
     InitSignal();

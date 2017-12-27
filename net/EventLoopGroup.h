@@ -1,17 +1,18 @@
 #ifndef BERT_EVENTLOOPGROUP_H
 #define BERT_EVENTLOOPGROUP_H
 
-#include <memory>
+#include <atomic>
 #include <vector>
 
 #include "ThreadPool.h"
-//#include "Poller.h"
-//#include "Timer.h"
 
 namespace ananas
 {
 
 class EventLoop;
+
+namespace internal
+{
 
 class EventLoopGroup
 {
@@ -44,6 +45,8 @@ private:
     size_t numLoop_;
     mutable size_t currentLoop_ {0};
 };
+
+} // end namespace internal
 
 } // end namespace ananas
 

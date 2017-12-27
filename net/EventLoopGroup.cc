@@ -4,6 +4,9 @@
 namespace ananas
 {
 
+namespace internal
+{
+
 EventLoopGroup::EventLoopGroup(size_t nLoops)
 {
     numLoop_ = nLoops;
@@ -31,6 +34,7 @@ bool EventLoopGroup::IsStopped() const
 
 void EventLoopGroup::Start()
 {
+    pool_.SetMaxThreads(numLoop_);
     for (size_t i = 0; i < numLoop_; ++ i)
     {
         pool_.Execute([this]()
@@ -57,6 +61,8 @@ EventLoop* EventLoopGroup::Next() const
 
     return loops_[currentLoop_++];
 }
+
+} // end namespace internal
 
 } // end namespace ananas
 

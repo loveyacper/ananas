@@ -4,7 +4,6 @@
 #include "net/Connection.h"
 #include "net/log/Logger.h"
 #include "net/Application.h"
-#include "net/EventLoopGroup.h"
             
 std::shared_ptr<ananas::Logger> logger;
 
@@ -29,12 +28,15 @@ void OnNewConnection(ananas::Connection* conn)
 
 int main(int ac, char* av[])
 {
+    size_t workers = 1;
+    if (ac > 1)
+        workers = (size_t)std::stoi(av[1]);
+
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_server_test");
 
     auto& app = ananas::Application::Instance();
-    ananas::EventLoopGroup group(2);
-    app.SetWorkerGroup(&group);
+    app.SetNumOfWorker(workers);
 
     app.Listen("localhost", 6380,
                 OnNewConnection,

@@ -5,7 +5,6 @@
 
 #include "net/Connection.h"
 #include "net/EventLoop.h"
-#include "net/EventLoopGroup.h"
 #include "net/Application.h"
 #include "net/log/Logger.h"
 
@@ -27,7 +26,8 @@ void OnConnect(ananas::Connection* conn)
 {
     INF(logger) << "OnConnect " << conn->Identifier();
             
-    std::string msg = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+    std::string tmp = "abcdefghijklmnopqrstuvwxyz";
+    std::string msg = tmp + tmp + tmp + tmp;
     conn->SendPacket(msg.data(), msg.size());
 }
 
@@ -41,7 +41,7 @@ void OnNewConnection(ananas::Connection* conn)
     conn->SetOnConnect(OnConnect);
     conn->SetOnMessage(OnMessage);
     conn->SetOnDisconnect(OnDisConnect);
-    conn->SetOnWriteComplete(OnWriteComplete);
+    //conn->SetOnWriteComplete(OnWriteComplete);
 }
 
     
@@ -84,8 +84,7 @@ int main(int ac, char* av[])
     const int kConns = 10;
 
     auto& app = ananas::Application::Instance();
-    ananas::EventLoopGroup group(threads);
-    app.SetWorkerGroup(&group);
+    app.SetNumOfWorker(threads);
     for (int i = 0; i < kConns; ++ i)
         app.Connect("localhost", port, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
 
