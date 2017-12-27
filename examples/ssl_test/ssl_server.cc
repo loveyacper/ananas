@@ -6,7 +6,7 @@
 #include "net/EventLoop.h"
 #include "net/Application.h"
 #include "net/Connection.h"
-#include "net/log/Logger.h"
+#include "util/log/Logger.h"
 
 void NewSSLConnection(const std::string& ctxName, int verifyMode, bool incoming, ananas::Connection* c)
 {

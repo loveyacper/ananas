@@ -9,7 +9,7 @@
 #include "EventLoop.h"
 #include "Typedefs.h"
 #include "Poller.h"
-#include "Timer.h"
+#include "util/Timer.h"
 
 namespace ananas
 {

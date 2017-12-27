@@ -4,7 +4,7 @@
 
 #include "net/DatagramSocket.h"
 #include "net/Application.h"
-#include "net/log/Logger.h"
+#include "util/log/Logger.h"
 
 std::shared_ptr<ananas::Logger> logger;
 

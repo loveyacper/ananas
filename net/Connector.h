@@ -3,8 +3,8 @@
 #define BERT_CONNECTOR_H
 
 #include "Socket.h"
-#include "Timer.h"
 #include "Typedefs.h"
+#include "util/Timer.h"
 
 namespace ananas
 {

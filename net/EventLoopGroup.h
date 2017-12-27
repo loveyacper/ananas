@@ -38,10 +38,20 @@ public:
     EventLoop* Next() const;
 
 private:
-    std::atomic<bool> stop_ {false};
+    enum State
+    {
+        eS_None,
+        eS_Started,
+        eS_Stopped,
+    };
+    std::atomic<State> state_{eS_None};
 
     ThreadPool pool_;
+
+    std::mutex mutex_;
+    std::condition_variable cond_;
     std::vector<EventLoop* > loops_;
+
     size_t numLoop_;
     mutable size_t currentLoop_ {0};
 };

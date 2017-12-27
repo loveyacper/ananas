@@ -2,8 +2,8 @@
 #include <atomic>
 
 #include "net/Connection.h"
-#include "net/log/Logger.h"
 #include "net/Application.h"
+#include "util/log/Logger.h"
             
 std::shared_ptr<ananas::Logger> logger;
 

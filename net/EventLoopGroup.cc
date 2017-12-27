@@ -24,12 +24,12 @@ void EventLoopGroup::SetNumOfEventLoop(size_t n)
     
 void EventLoopGroup::Stop()
 {
-    stop_ = true;
+    state_ = eS_Stopped;
 }
 
 bool EventLoopGroup::IsStopped() const 
 {
-    return stop_;
+    return state_ == eS_Stopped;
 }
 
 void EventLoopGroup::Start()
@@ -40,10 +40,22 @@ void EventLoopGroup::Start()
         pool_.Execute([this]()
                       {
                           EventLoop loop(this);
-                          loops_.push_back(&loop);
+            
+                          {
+                              std::unique_lock<std::mutex> guard(mutex_);
+                              loops_.push_back(&loop);
+                              if (loops_.size() == numLoop_)
+                                  cond_.notify_one();
+                          }
+
                           loop.Run();
                       });
     }
+
+    std::unique_lock<std::mutex> guard(mutex_);
+    cond_.wait(guard, [this] () { return loops_.size() == numLoop_; });
+
+    state_ = eS_Started;
 }
 
 void EventLoopGroup::Wait()
@@ -53,6 +65,9 @@ void EventLoopGroup::Wait()
 
 EventLoop* EventLoopGroup::Next() const
 {
+    if (state_ != eS_Started)
+        return nullptr;
+
     if (loops_.empty())
         return nullptr;
 

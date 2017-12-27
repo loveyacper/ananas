@@ -2,9 +2,9 @@
 #include <iostream>
 #include <string>
 
-#include "net/log/Logger.h"
 #include "net/ThreadPool.h"
-#include "net/TimeUtil.h"
+#include "util/log/Logger.h"
+#include "util/TimeUtil.h"
 
 int g_threads = 2;
 const int kLogs = 100 * 10000;

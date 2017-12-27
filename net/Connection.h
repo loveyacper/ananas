@@ -3,10 +3,11 @@
 #define BERT_CONNECTION_H
 
 #include <sys/types.h>
+
 #include "Socket.h"
 #include "Poller.h"
-#include "Buffer.h"
 #include "Typedefs.h"
+#include "util/Buffer.h"
 
 namespace ananas
 {

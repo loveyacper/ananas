@@ -6,9 +6,9 @@
 #include <memory>
 #include <sys/resource.h>
 
-#include "Timer.h"
 #include "Poller.h"
 #include "Typedefs.h"
+#include "util/Timer.h"
 #include "util/Scheduler.h"
 #include "future/Future.h"
 
