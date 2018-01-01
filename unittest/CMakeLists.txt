@@ -9,5 +9,5 @@ ADD_EXECUTABLE(delegateunittest UnitTest.cc; DelegateTest.cc)
 
 SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin/unittests)
 
-TARGET_LINK_LIBRARIES(bufferunittest ananas)
-ADD_DEPENDENCIES(bufferunittest ananas)
+TARGET_LINK_LIBRARIES(bufferunittest util)
+ADD_DEPENDENCIES(bufferunittest util)
