@@ -29,13 +29,13 @@ int main()
         });
 
     int count = 0;
-    auto forever = loop.ScheduleAfter<kForever>(std::chrono::seconds(1), [&count]() {
+    auto forever = loop.ScheduleAfterWithRepeat<kForever>(std::chrono::seconds(1), [&count]() {
             ++ count;
             DBG(log) << "count = " << count << ", you can not see me more than twice.";
         });
 
     int times = 0;
-    auto only5 = loop.ScheduleAfter<5>(std::chrono::seconds(1), [=, &loop, &times]() {
+    auto only5 = loop.ScheduleAfterWithRepeat<5>(std::chrono::seconds(1), [=, &loop, &times]() {
             ++ times;
             DBG(log) << "Trigger every 1s, the " << times << " time";
             if (times == 2)

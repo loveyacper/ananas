@@ -40,14 +40,7 @@ int main()
                                             ctx,
                                             SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                                             true,
-                                            std::placeholders::_1),
-
-                                  [](bool succ, const ananas::SocketAddr& addr)
-                                  {
-                                    std::cout << (succ ? "Succ" : "Failed") << " listen " << addr.ToString() << std::endl;
-                                    if (!succ)
-                                        ananas::Application::Instance().Exit();
-                                  });
+                                            std::placeholders::_1));
 
     app.Run();
     return 0;

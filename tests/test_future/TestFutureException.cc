@@ -1,7 +1,7 @@
 #include <iostream>
 #include "net/EventLoop.h"
-#include "net/ThreadPool.h"
 #include "net/Application.h"
+#include "util/ThreadPool.h"
 #include "future/Future.h"
 
 using namespace ananas;
@@ -60,7 +60,7 @@ int main()
 
     std::cout << "BEGIN LOOP" << std::endl;
 
-    loop.ScheduleAfter<ananas::kForever>(std::chrono::seconds(1), []() {
+    loop.ScheduleAfterWithRepeat<ananas::kForever>(std::chrono::seconds(1), []() {
         std::cout << "every 1 second\n";
     });
 

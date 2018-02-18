@@ -64,14 +64,14 @@ namespace Epoll
 Epoller::Epoller()
 {
     multiplexer_ = ::epoll_create(512);
-    DBG(internal::g_debug) << "create epoll: " << multiplexer_;
+    ANANAS_DBG << "create epoll: " << multiplexer_;
 }
 
 Epoller::~Epoller()
 {
     if (multiplexer_ != -1)  
     {
-        DBG(internal::g_debug) << "close epoll:  " << multiplexer_;
+        ANANAS_DBG << "close epoll:  " << multiplexer_;
         ::close(multiplexer_);
     }
 }

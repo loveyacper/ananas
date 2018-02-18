@@ -28,8 +28,8 @@ public:
      * },
      * &this_loop);
      */
-    virtual void ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void()> f) = 0;
-    virtual void ScheduleOnce(std::function<void()> f) = 0;
+    virtual void ScheduleAfter(std::chrono::milliseconds duration, std::function<void()> f) = 0;
+    virtual void Schedule(std::function<void()> f) = 0;
 };
 
 } // end namespace ananas

@@ -38,12 +38,20 @@ public:
     // Tick
     void Update();
 
-    // Schedule timer at absolute timepoint
-    template <int RepeatCount = 1/* -1 is forever */, typename F, typename... Args>
-    TimerId ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args); // TODO ScheduleAt
+    // Schedule timer at absolute timepoint then repeat with period
+    template <int RepeatCount, typename Duration, typename F, typename... Args>
+    TimerId ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args);
 
-    // Schedule timer after some time duration
-    template <int RepeatCount = 1, typename Duration, typename F, typename... Args>
+    // Schedule timer with period
+    template <int RepeatCount, typename Duration, typename F, typename... Args>
+    TimerId ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args);
+
+    // Schedule timer at timepoint
+    template <typename F, typename... Args>
+    TimerId ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args);
+
+    // Schedule timer after duration
+    template <typename Duration, typename F, typename... Args>
     TimerId ScheduleAfter(const Duration& duration, F&& f, Args&&... args);
 
     // Cancel timer
@@ -87,16 +95,14 @@ private:
 
     std::multimap<TimePoint, Timer> timers_;
 
-    TimePoint now_;
-
     friend class Timer;
     // not thread-safe, but who cares?
     static unsigned int s_timerIdGen_;
 };
 
 
-template <int RepeatCount, typename F, typename... Args>
-TimerId TimerManager::ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args)
+template <int RepeatCount, typename Duration, typename F, typename... Args>
+TimerId TimerManager::ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args)
 {
     static_assert(RepeatCount != 0, "Why you add a timer with zero count?");
 
@@ -104,7 +110,7 @@ TimerId TimerManager::ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... 
 
     Timer t(triggerTime);
     // precision: milliseconds
-    t.interval_ = std::max(DurationMs(1), duration_cast<DurationMs>(triggerTime - now_));
+    t.interval_ = std::max(DurationMs(1), duration_cast<DurationMs>(period));
     t.count_ = RepeatCount;
     TimerId id = t.Id();
 
@@ -114,12 +120,31 @@ TimerId TimerManager::ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... 
 }
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
-TimerId TimerManager::ScheduleAfter(const Duration& duration, F&& f, Args&&... args)
+TimerId TimerManager::ScheduleAfterWithRepeat(const Duration& duration, F&& f, Args&&... args)
 {
-    this->now_ = std::chrono::steady_clock::now();
-    return ScheduleAt<RepeatCount>(now_ + duration,
+    const auto now = std::chrono::steady_clock::now();
+    return ScheduleAtWithRepeat<RepeatCount>(now + duration,
+                                             duration,
+                                             std::forward<F>(f),
+                                             std::forward<Args>(args)...);
+}
+
+template <typename F, typename... Args>
+TimerId TimerManager::ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args)
+{
+    return ScheduleAtWithRepeat<1>(triggerTime,
+                                   DurationMs(0), // dummy
                                    std::forward<F>(f),
                                    std::forward<Args>(args)...);
+}
+
+template <typename Duration, typename F, typename... Args>
+TimerId TimerManager::ScheduleAfter(const Duration& duration, F&& f, Args&&... args)
+{
+    const auto now = std::chrono::steady_clock::now();
+    return ScheduleAt(now + duration,
+                      std::forward<F>(f),
+                      std::forward<Args>(args)...);
 }
 
 template <typename F, typename... Args>

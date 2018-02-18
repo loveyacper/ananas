@@ -9,7 +9,6 @@
 #include "Connection.h"
 #include "Connector.h"
 #include "DatagramSocket.h"
-#include "ThreadPool.h"
 
 #if defined(__APPLE__)
     #include "Kqueue.h"
@@ -169,7 +168,7 @@ bool EventLoop::Register(int events, std::shared_ptr<internal::Channel> src)
      */
     if (src->Identifier() + 1 >= static_cast<int>(s_maxOpenFdPlus1))
     {
-        ERR(internal::g_debug)
+        ANANAS_ERR
             << "Register failed! Max open fd " << s_maxOpenFdPlus1
             << ", current fd " << src->Identifier();
 
@@ -181,9 +180,7 @@ bool EventLoop::Register(int events, std::shared_ptr<internal::Channel> src)
         s_id = 1;
 
     src->SetUniqueId(s_id);
-        ERR(internal::g_debug)
-            << "Register " << s_id
-            << " to me " << pthread_self();
+    ANANAS_ERR << "Register " << s_id << " to me " << pthread_self();
 
     if (poller_->Register(src->Identifier(), events, src.get()))
         return channelSet_.insert({src->GetUniqueId(), src}).second;
@@ -200,13 +197,13 @@ bool EventLoop::Modify(int events, std::shared_ptr<internal::Channel> src)
 void EventLoop::Unregister(int events, std::shared_ptr<internal::Channel> src)
 {
     const int fd = src->Identifier();
-    INF(internal::g_debug) << "Unregister socket id " << fd;
+    ANANAS_INF << "Unregister socket id " << fd;
     poller_->Unregister(fd, events);
 
     size_t nTask = channelSet_.erase(src->GetUniqueId());
     if (nTask != 1)
     {
-        ERR(internal::g_debug) << "Can not find socket id " << fd;
+        ANANAS_ERR << "Can not find socket id " << fd;
         assert (false);
     }
 }
@@ -298,7 +295,7 @@ bool EventLoop::Loop(DurationMs timeout)
         
         if (fired[i].events & internal::eET_Error)
         {
-            ERR(internal::g_debug) << "eET_Error for " << src->Identifier();
+            ANANAS_ERR << "eET_Error for " << src->Identifier();
             src->HandleErrorEvent();
         }
     }
@@ -311,27 +308,15 @@ bool EventLoop::IsInSameLoop() const
     return this == g_thisLoop;
 }
     
-void EventLoop::ScheduleOnceAfter(std::chrono::milliseconds duration,
+void EventLoop::ScheduleAfter(std::chrono::milliseconds duration,
                                   std::function<void()> f)
 {
-    ScheduleAfter<1>(duration, std::move(f));
+    ScheduleAfterWithRepeat<1>(duration, std::move(f));
 }
 
-void EventLoop::ScheduleOnce(std::function<void()> f)
+void EventLoop::Schedule(std::function<void()> f)
 {
     Execute(std::move(f));
-}
-
-Future<void> EventLoop::Sleep(std::chrono::milliseconds dur)
-{
-    Promise<void> promise;
-    auto fut = promise.GetFuture();
-
-    ScheduleAfter(dur, [promise = std::move(promise)]() mutable {
-        promise.SetValue();
-    });
-
-    return fut;
 }
 
 } // end namespace ananas

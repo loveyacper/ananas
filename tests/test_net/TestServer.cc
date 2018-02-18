@@ -37,15 +37,7 @@ int main(int ac, char* av[])
 
     auto& app = ananas::Application::Instance();
     app.SetNumOfWorker(workers);
-
-    app.Listen("localhost", 6380,
-                OnNewConnection,
-                [](bool succ, const ananas::SocketAddr& addr)
-                {
-                    WRN(logger) << (succ ? "Succ" : "Failed") << " listen on " << addr.ToString();
-                    if (!succ)
-                        ananas::Application::Instance().Exit();
-                });
+    app.Listen("localhost", 6380, OnNewConnection);
 
     app.Run();
 

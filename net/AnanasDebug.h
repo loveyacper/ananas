@@ -18,5 +18,11 @@ void InitDebugLog(unsigned int level);
 
 } // end namespace ananas
 
+#define ANANAS_DBG DBG(ananas::internal::g_debug)
+#define ANANAS_INF INF(ananas::internal::g_debug)
+#define ANANAS_WRN WRN(ananas::internal::g_debug)
+#define ANANAS_ERR ERR(ananas::internal::g_debug)
+#define ANANAS_USR USR(ananas::internal::g_debug)
+
 #endif
 

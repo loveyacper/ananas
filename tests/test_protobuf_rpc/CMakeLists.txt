@@ -7,10 +7,6 @@ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/test_rpc.pb.h ${CMAKE_CURR
 
 INCLUDE(${PROJECT_SOURCE_DIR}/CMakeCommon) 
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
-INCLUDE_DIRECTORIES(/usr/local/Cellar/protobuf/3.2.0/include/)
-
-# test servie
-LINK_DIRECTORIES(/usr/local/Cellar/protobuf/3.2.0/lib)
 
 ADD_EXECUTABLE(rpcclient test_rpc.pb.cc test_client.cc)
 ADD_EXECUTABLE(rpcserver test_rpc.pb.cc test_server.cc)

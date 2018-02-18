@@ -64,8 +64,7 @@ void Connection::Shutdown(ShutdownMode mode)
     case ShutdownMode::eSM_Write:
         if (!sendBuf_.Empty())
         {
-            WRN(internal::g_debug) << localSock_
-                                   << " shutdown write, but still has data to send";
+            ANANAS_WRN << localSock_ << " shutdown write, but still has data to send";
             sendBuf_.Clear();
         }
 
@@ -75,8 +74,7 @@ void Connection::Shutdown(ShutdownMode mode)
     case ShutdownMode::eSM_Both:
         if (!sendBuf_.Empty())
         {
-            WRN(internal::g_debug) << localSock_
-                                   << " shutdown both, but still has data to send";
+            ANANAS_WRN << localSock_ << " shutdown both, but still has data to send";
             sendBuf_.Clear();
         }
 
@@ -99,8 +97,7 @@ bool Connection::HandleReadEvent()
 {
     if (state_ != State::eS_Connected)
     {
-        ERR(internal::g_debug) << localSock_
-                               << " HandleReadEvent error " << state_;
+        ANANAS_ERR << localSock_ << " HandleReadEvent error " << state_;
         return false;
     }
 
@@ -128,7 +125,7 @@ bool Connection::HandleReadEvent()
 
         if (0 == bytes)
         {
-            WRN(internal::g_debug) << localSock_ << " HandleReadEvent EOF ";
+            ANANAS_WRN << localSock_ << " HandleReadEvent EOF ";
             if (sendBuf_.Empty())
             {
                 state_ = State::eS_PassiveClose;
@@ -144,7 +141,7 @@ bool Connection::HandleReadEvent()
 
         if (bytes < 0)
         {
-            ERR(internal::g_debug) << localSock_ << " HandleReadEvent Error";
+            ANANAS_ERR << localSock_ << " HandleReadEvent Error";
             state_ = State::eS_Error;
             return false;
         }
@@ -201,7 +198,7 @@ int Connection::_Send(const void* data, size_t len)
 
     if (kError == bytes)
     {
-        ERR(internal::g_debug) << localSock_ << " _Send Error";
+        ANANAS_ERR << localSock_ << " _Send Error";
         state_ = State::eS_Error;
     }
 
@@ -220,7 +217,7 @@ bool Connection::HandleWriteEvent()
     if (state_ != State::eS_Connected &&
         state_ != State::eS_CloseWaitWrite)
     {
-        ERR(internal::g_debug) << localSock_ << " HandleWriteEvent wrong state " << state_;
+        ANANAS_ERR << localSock_ << " HandleWriteEvent wrong state " << state_;
         return false;
     }
 
@@ -243,7 +240,7 @@ bool Connection::HandleWriteEvent()
     int ret = WriteV(localSock_, iovecs);
     if (ret == kError)
     {
-        ERR(internal::g_debug) << localSock_ << " HandleWriteEvent ERROR ";
+        ANANAS_ERR << localSock_ << " HandleWriteEvent ERROR ";
         state_ = State::eS_Error;
         return false;
     }
@@ -255,7 +252,7 @@ bool Connection::HandleWriteEvent()
 
     if (alreadySent == expectSend)
     {
-        DBG(internal::g_debug) << localSock_ << " HandleWriteEvent complete";
+        ANANAS_DBG << localSock_ << " HandleWriteEvent complete";
         loop_->Modify(internal::eET_Read, shared_from_this());
 
         if (onWriteComplete_)
@@ -273,7 +270,7 @@ bool Connection::HandleWriteEvent()
 
 void  Connection::HandleErrorEvent()
 {
-    ERR(internal::g_debug) << localSock_ << " HandleErrorEvent " << state_;
+    ANANAS_ERR << localSock_ << " HandleErrorEvent " << state_;
 
     switch (state_)
     {
@@ -338,11 +335,11 @@ bool Connection::SendPacket(const void* data, std::size_t size)
 
     if (bytes < static_cast<int>(size))
     {
-        WRN(internal::g_debug) << localSock_
-                               << " want send "
-                               << size
-                               << " bytes, but only send "
-                               << bytes;
+        ANANAS_WRN << localSock_
+                   << " want send "
+                   << size
+                   << " bytes, but only send "
+                   << bytes;
         sendBuf_.PushBack(Buffer((char*)data + bytes, size - static_cast<std::size_t>(bytes)));
         loop_->Modify(internal::eET_Read | internal::eET_Write, shared_from_this());
     }

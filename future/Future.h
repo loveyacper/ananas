@@ -300,7 +300,7 @@ public:
             };
 
             if (sched)
-                sched->ScheduleOnce(std::move(func));
+                sched->Schedule(std::move(func));
             else
                 func();
         }
@@ -339,7 +339,7 @@ public:
                 };
 
                 if (sched)
-                    sched->ScheduleOnce(std::move(cb));
+                    sched->Schedule(std::move(cb));
                 else
                     cb();
             });
@@ -409,7 +409,7 @@ public:
             };
 
             if (sched)
-                sched->ScheduleOnce(std::move(cb));
+                sched->Schedule(std::move(cb));
             else
                 cb();
         }
@@ -469,7 +469,7 @@ public:
                 };
 
                 if (sched)
-                    sched->ScheduleOnce(std::move(cb));
+                    sched->Schedule(std::move(cb));
                 else
                     cb();
             }); 
@@ -504,7 +504,7 @@ public:
                    internal::TimeoutCallback f,
                    Scheduler* scheduler)
     {
-        scheduler->ScheduleOnceAfter(duration, [state = state_, cb = std::move(f)]() mutable {
+        scheduler->ScheduleAfter(duration, [state = state_, cb = std::move(f)]() mutable {
                 {
                     std::unique_lock<std::mutex> guard(state->thenLock_);
 

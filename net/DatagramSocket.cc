@@ -17,7 +17,7 @@ DatagramSocket::DatagramSocket(EventLoop* loop) :
 
 DatagramSocket::~DatagramSocket()
 {
-    INF(internal::g_debug) << "Close Udp socket " << Identifier();
+    ANANAS_INF << "Close Udp socket " << Identifier();
     CloseSocket(localSock_);
 }
 
@@ -25,14 +25,14 @@ bool DatagramSocket::Bind(const SocketAddr* addr)
 {
     if (localSock_ != kInvalid)
     {
-        ERR(internal::g_debug) << "UDP socket repeat create";
+        ANANAS_ERR << "UDP socket repeat create";
         return false;
     }
 
     localSock_ = CreateUDPSocket();
     if (localSock_ == kInvalid)
     {
-        ERR(internal::g_debug) << "Failed create udp socket! Error = " << errno;
+        ANANAS_ERR << "Failed create udp socket! Error = " << errno;
         return false;
     }
 
@@ -48,7 +48,7 @@ bool DatagramSocket::Bind(const SocketAddr* addr)
         if (kError == ret)
         {
             CloseSocket(localSock_);
-            ERR(internal::g_debug) << "cannot bind udp port " << port;
+            ANANAS_ERR << "cannot bind udp port " << port;
             return false;
         }
     }
@@ -59,14 +59,14 @@ bool DatagramSocket::Bind(const SocketAddr* addr)
             
     if (!loop_->Register(internal::eET_Read, shared_from_this()))
     {
-        ERR(internal::g_debug) << "add udp to loop failed, socket = " << localSock_;
+        ANANAS_ERR << "add udp to loop failed, socket = " << localSock_;
         return false;
     }
 
     if (onCreate_)
         onCreate_(this);
         
-    INF(internal::g_debug) << "Create new udp fd = " << localSock_;
+    ANANAS_INF << "Create new udp fd = " << localSock_;
     return true;
 }
 
@@ -92,9 +92,9 @@ bool DatagramSocket::HandleReadEvent()
 
         if (bytes <= 0)
         {
-            ERR(internal::g_debug) << "UDP fd " << localSock_
-                                   << ", HandleRead error : " << bytes 
-                                   << ", errno = " << errno;
+            ANANAS_ERR << "UDP fd " << localSock_
+                       << ", HandleRead error : " << bytes 
+                       << ", errno = " << errno;
             return true;
         }
 
@@ -123,7 +123,7 @@ int DatagramSocket::_Send(const void* data, size_t size, const SocketAddr& dst)
 
     if (bytes == kError && (EAGAIN == errno || EWOULDBLOCK == errno))
     {
-        WRN(internal::g_debug) << "send wouldblock";
+        ANANAS_WRN << "send wouldblock";
         return 0;
     }
 
@@ -153,9 +153,9 @@ bool DatagramSocket::SendPacket(const void* data, size_t size, const SocketAddr*
     }
     else if (bytes < 0)
     {
-        ERR(internal::g_debug) << "Fatal error when send udp to "
-                               << dst->ToString()
-                               << ", must skip it";
+        ANANAS_ERR << "Fatal error when send udp to "
+                   << dst->ToString()
+                   << ", must skip it";
         return false;
     }
 
@@ -179,9 +179,9 @@ bool DatagramSocket::HandleWriteEvent()
         }
         else
         {
-            ERR(internal::g_debug) << "Fatal error when send udp to "
-                                   << pkg.dst.ToString()
-                                   << ", must skip it";
+            ANANAS_ERR << "Fatal error when send udp to "
+                       << pkg.dst.ToString()
+                       << ", must skip it";
             sendList_.pop_front();
         }
     }
@@ -194,7 +194,7 @@ bool DatagramSocket::HandleWriteEvent()
 
 void DatagramSocket::HandleErrorEvent()
 {
-    ERR(internal::g_debug) << "HandleErrorEvent";
+    ANANAS_ERR << "HandleErrorEvent";
 }
 
 } // end namespace ananas

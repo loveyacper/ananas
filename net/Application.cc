@@ -3,11 +3,12 @@
 #include <cstring>
 #include <cstdio>
 
+#include "util/Util.h"
 #include "Application.h"
 #include "AnanasLogo.h"
 #include "Socket.h"
 #include "EventLoopGroup.h"
-#include "util/log/Logger.h"
+#include "AnanasDebug.h"
 
 static void SignalHandler(int num)
 {
@@ -54,6 +55,12 @@ void Application::SetNumOfWorker(size_t num)
 
 void Application::Run()
 {
+    ANANAS_DEFER
+    {
+        // thread safe exit
+        LogManager::Instance().Stop();
+    };
+
     if (state_ != State::eS_None)
         return;
 
@@ -67,9 +74,6 @@ void Application::Run()
 
     workerGroup_->Wait();
     printf("Stopped WorkerEventLoopGroup...\n");
-
-    // thread safe exit
-    LogManager::Instance().Stop();
 }
 
 void Application::Exit()
@@ -94,7 +98,7 @@ EventLoop* Application::BaseLoop()
 
 void Application::Listen(const SocketAddr& listenAddr,
                          NewTcpConnCallback cb,
-                         BindFailCallback bfcb)
+                         BindCallback bfcb)
 {
     auto loop = BaseLoop();
     assert (loop->IsInSameLoop());
@@ -110,7 +114,7 @@ void Application::Listen(const SocketAddr& listenAddr,
 void Application::Listen(const char* ip,
                          uint16_t hostPort,
                          NewTcpConnCallback cb,
-                         BindFailCallback bfcb)
+                         BindCallback bfcb)
 {
     SocketAddr addr(ip, hostPort);
     Listen(addr, std::move(cb), std::move(bfcb));
@@ -119,7 +123,7 @@ void Application::Listen(const char* ip,
 void Application::ListenUDP(const SocketAddr& addr,
                             UDPMessageCallback mcb,
                             UDPCreateCallback ccb,
-                            BindFailCallback bfcb)
+                            BindCallback bfcb)
 {
     auto loop = BaseLoop();
     assert (loop->IsInSameLoop());
@@ -135,7 +139,7 @@ void Application::ListenUDP(const SocketAddr& addr,
 void Application::ListenUDP(const char* ip, uint16_t hostPort,
                             UDPMessageCallback mcb,
                             UDPCreateCallback ccb,
-                            BindFailCallback bfcb)
+                            BindCallback bfcb)
 {
     SocketAddr addr(ip, hostPort);
     ListenUDP(addr, std::move(mcb), std::move(ccb), std::move(bfcb));
@@ -195,6 +199,19 @@ Application::Application() :
     state_ {State::eS_None}
 {
     InitSignal();
+}
+
+void Application::_DefaultBindCallback(bool succ, const SocketAddr& listenAddr)
+{
+    if (succ)
+    {
+        ANANAS_INF << "Listen succ for " << listenAddr.ToString();
+    }
+    else
+    {
+        ANANAS_ERR << "Listen failed for " << listenAddr.ToString();
+        Application::Instance().Exit();
+    }
 }
 
 } // end namespace ananas

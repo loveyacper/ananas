@@ -6,13 +6,13 @@
 #include "protobuf_rpc/ananas_rpc.pb.h"
 #include "test_rpc.pb.h"
 
-#include "net/log/Logger.h"
-#include "net/EventLoop.h"
+#include "util/log/Logger.h"
+#include "net/Application.h"
 #include "net/Connection.h"
 
 std::shared_ptr<ananas::Logger> logger;
 
-class UpperServiceImpl : public ::ananas::rpc::test::UpperService
+class TestServiceImpl : public ::ananas::rpc::test::TestService
 {
 public:
     virtual void ToUpper(::google::protobuf::RpcController* ,
@@ -29,11 +29,7 @@ public:
 
         done->Run();
     }
-};
 
-class AppendDotsServiceImpl : public ::ananas::rpc::test::AppendDotsService
-{
-public:
     virtual void AppendDots(::google::protobuf::RpcController* ,
                             const ::ananas::rpc::test::EchoRequest* request,
                             ::ananas::rpc::test::EchoResponse* response,
@@ -49,7 +45,6 @@ public:
     }
 };
 
-
 void OnCreateChannel(ananas::rpc::RpcChannel* chan)
 {
     INF(logger) << "OnCreateChannel";
@@ -62,16 +57,13 @@ int main()
 
     ananas::rpc::RpcService rpcServ;
     rpcServ.SetOnCreateChannel(OnCreateChannel);
-    rpcServ.AddService(new UpperServiceImpl);
-    rpcServ.AddService(new AppendDotsServiceImpl);
+    rpcServ.AddService(new TestServiceImpl);
 
-    ananas::EventLoop loop;
-    if (loop.Listen("localhost", 8765,
-                    std::bind(&ananas::rpc::RpcService::OnNewConnection, &rpcServ, std::placeholders::_1)))
-        loop.Run();
-    else
-        ERR(logger) << "listen 8765 failed";
+    auto& app = ananas::Application::Instance();
+    app.Listen("localhost", 8765,
+                std::bind(&ananas::rpc::RpcService::OnNewConnection, &rpcServ, std::placeholders::_1));
 
+    app.Run();
     return 0;
 }
 

@@ -25,7 +25,7 @@ Acceptor::Acceptor(EventLoop* loop) :
 Acceptor::~Acceptor()
 {
     CloseSocket(localSock_);
-    INF(internal::g_debug) << "Close Acceptor " << localPort_ ;
+    ANANAS_INF << "Close Acceptor " << localPort_ ;
 }
 
 
@@ -41,7 +41,7 @@ bool Acceptor::Bind(const SocketAddr& addr)
 
     if (localSock_ != kInvalid)
     {
-        ERR(internal::g_debug) << "Already listen " << localPort_;
+        ANANAS_ERR << "Already listen " << localPort_;
         return false;
     }
 
@@ -62,22 +62,22 @@ bool Acceptor::Bind(const SocketAddr& addr)
     int ret = ::bind(localSock_, (struct sockaddr*)&serv, sizeof serv);
     if (kError == ret)
     {
-        ERR(internal::g_debug) << "Cannot bind to " << addr.ToString();
+        ANANAS_ERR << "Cannot bind to " << addr.ToString();
         return false;
     }
 
     ret = ::listen(localSock_, kListenQueue);
     if (kError == ret)
     {
-        ERR(internal::g_debug) << "Cannot listen on " << addr.ToString();
+        ANANAS_ERR << "Cannot listen on " << addr.ToString();
         return false;
     }
 
     if (!loop_->Register(eET_Read, this->shared_from_this()))
         return false;
 
-    INF(internal::g_debug) << "Create listen socket " << localSock_
-                           << " on port " << localPort_;
+    ANANAS_INF << "Create listen socket " << localSock_
+               << " on port " << localPort_;
     return  true;
 }
 
@@ -103,7 +103,7 @@ bool Acceptor::HandleReadEvent()
                     conn->_OnConnect();
                 }
                 else {
-                    ERR(internal::g_debug) << "Failed to register socket " << conn->Identifier();
+                    ANANAS_ERR << "Failed to register socket " << conn->Identifier();
                 }
             };
             loop->Execute(std::move(func));
@@ -126,15 +126,15 @@ bool Acceptor::HandleReadEvent()
 
             case EMFILE:
             case ENFILE:
-                ERR(internal::g_debug) << "Not enough file descriptor available, error is "
-                                       << error
-                                       << ", CPU may 100%";
+                ANANAS_ERR << "Not enough file descriptor available, error is "
+                           << error
+                           << ", CPU may 100%";
                 return true;
 
             case ENOBUFS:
             case ENOMEM:
-                ERR(internal::g_debug) << "Not enough memory, limited by the socket buffer limits"
-                                       << ", CPU may 100%";
+                ANANAS_ERR << "Not enough memory, limited by the socket buffer limits"
+                           << ", CPU may 100%";
                 return true;
 
             case ENOTSOCK: 
@@ -143,7 +143,7 @@ bool Acceptor::HandleReadEvent()
             case EFAULT:
             case EBADF:
             default:
-                ERR(internal::g_debug) << "BUG: error = " << error;
+                ANANAS_ERR << "BUG: error = " << error;
                 assert (false);
                 break;
             }
@@ -164,7 +164,7 @@ bool Acceptor::HandleWriteEvent()
 
 void Acceptor::HandleErrorEvent()
 {
-    ERR(internal::g_debug) << "Acceptor::HandleErrorEvent";
+    ANANAS_ERR << "Acceptor::HandleErrorEvent";
     loop_->Unregister(eET_Read, shared_from_this());
 }
 

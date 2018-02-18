@@ -6,19 +6,16 @@
 #include "protobuf_rpc/ananas_rpc.pb.h"
 #include "test_rpc.pb.h"
 
-#include "net/log/Logger.h"
+#include "util/log/Logger.h"
 #include "net/EventLoop.h"
+#include "net/Application.h"
 #include "net/Connection.h"
 
 std::shared_ptr<ananas::Logger> logger;
 
 const char* g_text = "hello ananas_rpc";
 
-class UpperServiceImpl : public ananas::rpc::test::UpperService
-{
-};
-
-class AppendDotsServiceImpl : public ananas::rpc::test::AppendDotsService
+class TestServiceImpl : public ananas::rpc::test::TestService
 {
 };
 
@@ -35,10 +32,10 @@ void OnCreateChannel(ananas::rpc::RpcChannel* chan)
 
     auto rpcServ = chan->Service();
 
-    auto stub1 = rpcServ->GetServiceStub<ananas::rpc::test::UpperService>("ananas.rpc.test.UpperService");
-    if (!stub1)
+    auto stub = rpcServ->GetServiceStub<ananas::rpc::test::TestService>("ananas.rpc.test.TestService");
+    if (!stub)
     {
-        ERR(logger) << "GetStub UpperService failed";
+        ERR(logger) << "GetStub TestService failed";
     }
     else
     {
@@ -47,35 +44,27 @@ void OnCreateChannel(ananas::rpc::RpcChannel* chan)
 
         ananas::rpc::test::EchoResponse* rsp = new ananas::rpc::test::EchoResponse();
 
-        stub1->ToUpper(nullptr,
-                       req,
-                       rsp,
-                       ::google::protobuf::NewCallback(OnResponse, rsp));
-    }
+        stub->ToUpper(nullptr,
+                      req,
+                      rsp,
+                      ::google::protobuf::NewCallback(OnResponse, rsp));
 
-    auto stub2 = rpcServ->GetServiceStub<ananas::rpc::test::AppendDotsService>("ananas.rpc.test.AppendDotsService");
-    if (!stub2)
-    {
-        ERR(logger) << "GetStub AppendDotsService failed";
-    }
-    else
-    {
-        ananas::rpc::test::EchoRequest* req = new ananas::rpc::test::EchoRequest();
+        req = new ananas::rpc::test::EchoRequest();
         req->set_text(g_text);
 
-        ananas::rpc::test::EchoResponse* rsp = new ananas::rpc::test::EchoResponse();
+        rsp = new ananas::rpc::test::EchoResponse();
 
-        stub2->AppendDots(nullptr,
-                          req,
-                          rsp,
-                          ::google::protobuf::NewCallback(OnResponse, rsp));
+        stub->AppendDots(nullptr,
+                         req,
+                         rsp,
+                         ::google::protobuf::NewCallback(OnResponse, rsp));
     }
 }
 
 void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 {
     INF(logger) << "OnConnFail to " << peer.GetPort();
-    ananas::EventLoop::ExitApplication();
+    ananas::Application::Instance().Exit();
 }
 
 int main(int ac, char* av[])
@@ -88,15 +77,14 @@ int main(int ac, char* av[])
 
     ananas::rpc::RpcService rpcServ;
     rpcServ.SetOnCreateChannel(OnCreateChannel);
-    rpcServ.AddService(new UpperServiceImpl());
-    rpcServ.AddService(new AppendDotsServiceImpl());
+    rpcServ.AddService(new TestServiceImpl());
 
-    ananas::EventLoop loop;
-    loop.Connect("localhost", 8765,
-            std::bind(&ananas::rpc::RpcService::OnNewConnection, &rpcServ, std::placeholders::_1),
-            OnConnFail);
+    auto& app = ananas::Application::Instance();
+    app.Connect("localhost", 8765,
+                std::bind(&ananas::rpc::RpcService::OnNewConnection, &rpcServ, std::placeholders::_1),
+                OnConnFail);
 
-    loop.Run();
+    app.Run();
 
     return 0;
 }

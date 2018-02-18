@@ -33,20 +33,20 @@ public:
     // listener
     void Listen(const SocketAddr& listenAddr,
                 NewTcpConnCallback cb,
-                BindFailCallback bfcb);
+                BindCallback bfcb = &Application::_DefaultBindCallback);
     void Listen(const char* ip, uint16_t hostPort,
                 NewTcpConnCallback cb,
-                BindFailCallback bfcb);
+                BindCallback bfcb = &Application::_DefaultBindCallback);
 
     void ListenUDP(const SocketAddr& listenAddr,
                    UDPMessageCallback mcb,
                    UDPCreateCallback ccb,
-                   BindFailCallback bfcb);
+                   BindCallback bfcb = &Application::_DefaultBindCallback);
     void ListenUDP(const char* ip,
                    uint16_t hostPort,
                    UDPMessageCallback mcb,
                    UDPCreateCallback ccb,
-                   BindFailCallback bfcb);
+                   BindCallback bfcb = &Application::_DefaultBindCallback);
 
     // udp client
     void CreateClientUDP(UDPMessageCallback mcb,
@@ -81,6 +81,8 @@ private:
         eS_Stopped,
     };
     std::atomic<State> state_;
+
+    static void _DefaultBindCallback(bool succ, const SocketAddr& );
 };
 
 } // end namespace ananas

@@ -12,12 +12,9 @@ message EchoResponse {
     string text = 1;
 }
 
-service UpperService { 
+service TestService { 
     rpc ToUpper(EchoRequest) returns(EchoResponse) {
     }  
-}
-
-service AppendDotsService { 
     rpc AppendDots(EchoRequest) returns(EchoResponse) {
     }  
 }

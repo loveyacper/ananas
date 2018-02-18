@@ -64,16 +64,15 @@ public:
                  DurationMs timeout = DurationMs::max());
 
     // timer : NOT thread-safe
+    template <int RepeatCount, typename Duration, typename F, typename... Args>
+    TimerId ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args);
     template <int RepeatCount = 1, typename Duration, typename F, typename... Args>
-    TimerId ScheduleAfter(const Duration& duration, F&& f, Args&&... args);
+    TimerId ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args);
     bool Cancel(TimerId id);
 
-    // sleep
-    Future<void> Sleep(std::chrono::milliseconds dur);
-
     // for future : thread-safe
-    void ScheduleOnceAfter(std::chrono::milliseconds duration, std::function<void ()> f) override;
-    void ScheduleOnce(std::function<void ()> f) override;
+    void ScheduleAfter(std::chrono::milliseconds duration, std::function<void ()> f) override;
+    void Schedule(std::function<void ()> f) override;
 
     // thread-safe
     template <typename F, typename... Args>
@@ -115,13 +114,24 @@ private:
 
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
-TimerId EventLoop::ScheduleAfter(const Duration& duration, F&& f, Args&&... args)
+TimerId EventLoop::ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args)
 {
     // not thread-safe for now, consider use future.
     assert (IsInSameLoop());
-    return timers_.ScheduleAfter<RepeatCount>(duration,
-                                              std::forward<F>(f),
-                                              std::forward<Args>(args)...);
+    return timers_.ScheduleAtWithRepeat<RepeatCount>(triggerTime,
+                                                     period,
+                                                     std::forward<F>(f),
+                                                     std::forward<Args>(args)...);
+}
+
+template <int RepeatCount, typename Duration, typename F, typename... Args>
+TimerId EventLoop::ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args)
+{
+    // not thread-safe for now, consider use future.
+    assert (IsInSameLoop());
+    return timers_.ScheduleAfterWithRepeat<RepeatCount>(period,
+                                                        std::forward<F>(f),
+                                                        std::forward<Args>(args)...);
 }
 
 template <typename F, typename... Args>

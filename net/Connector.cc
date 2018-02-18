@@ -30,7 +30,7 @@ Connector::~Connector()
     {
         if (state_ != ConnectState::connected)
         {
-            INF(internal::g_debug) << __FUNCTION__ << localSock_ ;
+            ANANAS_INF << __FUNCTION__ << localSock_ ;
             CloseSocket(localSock_);
         }
     }
@@ -53,7 +53,7 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
 
     if (state_ != ConnectState::none)
     {
-        INF(internal::g_debug) << "Already connect or connecting "
+        ANANAS_INF << "Already connect or connecting "
                                << peer_.ToString();
         return false;
     }
@@ -80,15 +80,15 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
     {
         if (EINPROGRESS == errno)
         {
-            INF(internal::g_debug) << "EINPROGRESS : client socket " << localSock_
-                                   << " connected to " << peer_.ToString();
+            ANANAS_INF << "EINPROGRESS : client socket " << localSock_
+                       << " connected to " << peer_.ToString();
 
             state_ = ConnectState::connecting;
             loop_->Register(eET_Write, shared_from_this());
 
             if (timeout != DurationMs::max())
             {
-                timeoutId_ = loop_->ScheduleAfter<1>(timeout, [this]() {
+                timeoutId_ = loop_->ScheduleAfterWithRepeat<1>(timeout, [this]() {
                     if (this->state_ != ConnectState::connected) {
                         this->timeoutId_.reset();
                         this->_OnFailed();
@@ -128,9 +128,9 @@ bool Connector::HandleWriteEvent()
         if (error != 0)
             errno = error;
 
-        ERR(internal::g_debug) << "HandleWriteEvent failed: clientsocket " << localSock_
-                               << " connected to " << peer_.ToString()
-                               << ", error is " << error;
+        ANANAS_ERR << "HandleWriteEvent failed: clientsocket " << localSock_
+                   << " connected to " << peer_.ToString()
+                   << ", error is " << error;
         return false;
     }
         
@@ -152,8 +152,8 @@ void Connector::_OnSuccess()
 
     const auto oldState = state_;
     state_  = ConnectState::connected;
-    INF(internal::g_debug) << "Connect success! Socket " << localSock_
-                           << ", connected to port " << peer_.ToString();
+    ANANAS_INF << "Connect success! Socket " << localSock_
+               << ", connected to port " << peer_.ToString();
 
     auto loop = Application::Instance().Next();
     int connfd = localSock_;
@@ -177,9 +177,9 @@ void Connector::_OnSuccess()
             c->_OnConnect();
         }
         else {
-            ERR(internal::g_debug) << "_OnSuccess but register socket "
-                                   << c->Identifier()
-                                   << " failed!";
+            ANANAS_ERR << "_OnSuccess but register socket "
+                       << c->Identifier()
+                       << " failed!";
         }
     };
     loop->Execute(std::move(func));
@@ -196,8 +196,8 @@ void Connector::_OnFailed()
 
     state_ = ConnectState::failed;
 
-    INF(internal::g_debug) << "Failed client socket " << localSock_
-                           << " connected to " << peer_.ToString();
+    ANANAS_INF << "Failed client socket " << localSock_
+               << " connected to " << peer_.ToString();
 
     if (onConnectFail_) 
         onConnectFail_(loop_, peer_);

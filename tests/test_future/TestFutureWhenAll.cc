@@ -2,7 +2,7 @@
 #include <iostream>
 #include "net/EventLoop.h"
 #include "net/Application.h"
-#include "net/ThreadPool.h"
+#include "util/ThreadPool.h"
 #include "future/Future.h"
 
 using namespace ananas;
@@ -37,7 +37,7 @@ int main()
              std::cout << "!!!FAILED: futureall is timeout!\n";
          }, &loop);
 
-    loop.ScheduleAfter<1>(std::chrono::seconds(3), [&app]() {
+    loop.ScheduleAfter(std::chrono::seconds(3), [&app]() {
         std::cerr << "GOODBYE!\n";
         app.Exit();
     });

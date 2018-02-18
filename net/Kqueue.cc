@@ -14,12 +14,12 @@ namespace internal
 Kqueue::Kqueue()
 {
     multiplexer_ = ::kqueue();
-    INF(internal::g_debug) << "create kqueue:  " << multiplexer_;
+    ANANAS_INF << "create kqueue:  " << multiplexer_;
 }
 
 Kqueue::~Kqueue()
 {
-    INF(internal::g_debug) << "close kqueue: " << multiplexer_;
+    ANANAS_INF << "close kqueue: " << multiplexer_;
     if (multiplexer_ != -1)  
         ::close(multiplexer_);
 }

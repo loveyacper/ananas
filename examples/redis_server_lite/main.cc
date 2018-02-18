@@ -32,15 +32,7 @@ int main()
     const uint16_t port = 6379;
 
     auto& app = ananas::Application::Instance();
-    app.Listen("loopback", port,
-                OnNewConnection,
-                [](bool succ, const ananas::SocketAddr& addr)
-                {
-                    ERR(logger) << (succ ? "Succ" : "Failed") << " listen on " << addr.ToString();
-                    if (!succ)
-                        ananas::Application::Instance().Exit();
-                });
-        
+    app.Listen("loopback", port, OnNewConnection);
     app.Run();
     return 0;
 }
