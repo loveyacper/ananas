@@ -4,6 +4,7 @@ PROJECT(ANANAS)
 
 SUBDIRS(net)
 SUBDIRS(util)
+find_package(Protobuf)
 
 OPTION(USE_SSL "Use ssl or not" OFF)
 IF(USE_SSL)
@@ -12,8 +13,11 @@ IF(USE_SSL)
 ENDIF()
 
 OPTION(USE_PROTO "Use google protobuf or not" OFF)
-IF(USE_PROTO)
-    SUBDIRS(protobuf_rpc)
+
+IF(PROTOBUF_FOUND)
+    MESSAGE(STATUS "found protobuf")
+    SET(USE_PROTO ON)
+    SUBDIRS(protobuf_rpc) 
 ENDIF()
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")

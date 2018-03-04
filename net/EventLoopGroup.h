@@ -28,6 +28,7 @@ public:
     void operator=(EventLoopGroup&& ) = delete;
 
     void SetNumOfEventLoop(size_t n);
+    size_t Size() const;
 
     void Stop();
     bool IsStopped() const;

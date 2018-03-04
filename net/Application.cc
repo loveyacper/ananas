@@ -53,6 +53,12 @@ void Application::SetNumOfWorker(size_t num)
     workerGroup_->SetNumOfEventLoop(num);
 }
 
+size_t Application::NumOfWorker() const
+{
+    // plus one : the baseLoop
+    return 1 + workerGroup_->Size();
+}
+
 void Application::Run()
 {
     ANANAS_DEFER
@@ -101,7 +107,6 @@ void Application::Listen(const SocketAddr& listenAddr,
                          BindCallback bfcb)
 {
     auto loop = BaseLoop();
-    assert (loop->IsInSameLoop());
     loop->Execute([loop, listenAddr, cb, bfcb]()
                   {
                     if (!loop->Listen(listenAddr, std::move(cb)))
@@ -126,7 +131,6 @@ void Application::ListenUDP(const SocketAddr& addr,
                             BindCallback bfcb)
 {
     auto loop = BaseLoop();
-    assert (loop->IsInSameLoop());
     loop->Execute([loop, addr, mcb, ccb, bfcb]()
                   {
                     if (!loop->ListenUDP(addr, std::move(mcb), std::move(ccb)))
@@ -149,7 +153,6 @@ void Application::CreateClientUDP(UDPMessageCallback mcb,
                                   UDPCreateCallback ccb)
 {
     auto loop = BaseLoop();
-    assert (loop->IsInSameLoop());
     loop->Execute([loop, mcb, ccb]()
                   {
                     loop->CreateClientUDP(std::move(mcb), std::move(ccb));
@@ -162,7 +165,6 @@ void Application::Connect(const SocketAddr& dst,
                           DurationMs timeout)
 {
     auto loop = BaseLoop();
-    assert (loop->IsInSameLoop());
     loop->Execute([loop, dst, nccb, cfcb, timeout]()
                   {
                      loop->Connect(dst,

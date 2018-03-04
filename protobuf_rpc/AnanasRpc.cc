@@ -30,6 +30,12 @@ bool RpcService::AddService(google::protobuf::Service* service)
     const auto& name = service->GetDescriptor()->full_name();
     return services_.insert(std::make_pair(name, std::unique_ptr<google::protobuf::Service>(service))).second;
 }
+
+bool RpcService::AddServiceStub(google::protobuf::Service* service)
+{
+    const auto& name = service->GetDescriptor()->full_name();
+    return stubs_.insert(std::make_pair(name, std::unique_ptr<google::protobuf::Service>(service))).second;
+}
     
 google::protobuf::Service* RpcService::GetGenericService(const std::string& name) const
 {
@@ -168,7 +174,7 @@ void RpcChannel::_OnServError(int id, const std::string& error)
     Response& rsp = *rpcMsg.mutable_response();
 
     rsp.set_id(id);
-    rsp.set_error(error);
+    rsp.mutable_error()->set_str(error);
 
     const int bodyLen = rpcMsg.ByteSize();
     const int totalLen = kHeaderLen + bodyLen;
@@ -276,9 +282,9 @@ void RpcChannel::_ProcessResponse(const ananas::rpc::Response& rsp)
     }
 
     // check error
-    if (!rsp.error().empty())
+    if (rsp.has_error())
     {
-        printf("%d has error %s\n", id, rsp.error().data());
+        printf("%d has error %s\n", id, rsp.error().str().data());
         return;
     }
 

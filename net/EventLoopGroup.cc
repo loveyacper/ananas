@@ -21,6 +21,11 @@ void EventLoopGroup::SetNumOfEventLoop(size_t n)
     assert (n <= 1024);
     numLoop_ = n;
 }
+
+size_t EventLoopGroup::Size() const
+{
+    return numLoop_;
+}
     
 void EventLoopGroup::Stop()
 {

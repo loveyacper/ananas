@@ -45,12 +45,13 @@ public:
 
     bool AddService(std::unique_ptr<google::protobuf::Service>&& service);
     bool AddService(google::protobuf::Service* service);
+    bool AddServiceStub(google::protobuf::Service* service);
 
     google::protobuf::Service* GetGenericService(const std::string& name) const;
 
     // 1.client发起:先找到service然后cast成自定义类型，构造stub，传入channel再调用感兴趣方法
-    template <typename T, typename = typename T::Stub>
-    std::unique_ptr<typename T::Stub> GetServiceStub(const std::string& name) const;
+    template <typename T>
+    std::unique_ptr<T> GetServiceStub(const std::string& name) const;
     
     void OnNewConnection(ananas::Connection* conn);
 
@@ -64,6 +65,7 @@ private:
 
     using Table = std::unordered_map<std::string, std::unique_ptr<google::protobuf::Service> >;
     Table services_;
+    Table stubs_;
 
     // 实际应该一个service类型，对应多个channel
     std::unordered_map<unsigned int, std::unique_ptr<RpcChannel> > channels_;
@@ -71,21 +73,20 @@ private:
 };
 
 
-template <typename T, typename >
-inline std::unique_ptr<typename T::Stub> RpcService::GetServiceStub(const std::string& name) const
+template <typename T>
+std::unique_ptr<T> RpcService::GetServiceStub(const std::string& name) const
 {
     static_assert(std::is_base_of<google::protobuf::Service, T>::value,
             "T must be google::protobuf::Service's subclass type");
 
-    using STUB = typename T::Stub;
+    using STUB = T;
 
-    auto serv = GetGenericService(name);
-    if (!serv)
+    auto it = stubs_.find(name);
+    if (it == stubs_.end())
         return std::unique_ptr<STUB>(nullptr);
 
     return std::unique_ptr<STUB>(new STUB(GetChannelByService(name)));
 }
-
 
 // 和connection 1:1对应
 // TODO timeout

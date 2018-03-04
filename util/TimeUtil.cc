@@ -38,10 +38,16 @@ void Time::_UpdateTm()  const
 
 std::once_flag Time::init_;
 
-// from 2015 to 2029
-const char* Time::YEAR[] = { "2015", "2016", "2017", "2018", "2019", "2020",
-    "2021", "2022", "2023", "2024", "2025", "2026", "2027", "2028", "2029",
-     nullptr,
+// from 2015 to 2049 - Blade Runner ^_^
+const char* Time::YEAR[] = {
+    "2015", "2016", "2017", "2018", "2019",
+    "2020", "2021", "2022", "2023", "2024",
+    "2025", "2026", "2027", "2028", "2029",
+    "2030", "2031", "2032", "2033", "2034",
+    "2035", "2036", "2037", "2038", "2039",
+    "2040", "2041", "2042", "2043", "2044",
+    "2045", "2046", "2047", "2048", "2049",
+    nullptr,
 };
 
 char Time::NUMBER[60][2] = {""};
@@ -75,7 +81,7 @@ std::size_t Time::FormatTime(char* buf) const
     memcpy(buf + 17, NUMBER[tm_.tm_sec], 2);
     buf[19] = '.';
     auto msec = MicroSeconds();
-    snprintf(buf + 20, 8, "%06d]", static_cast<int>(msec % 1000));
+    snprintf(buf + 20, 8, "%06d]", static_cast<int>(msec % 1000000));
     
     return 27;
 }

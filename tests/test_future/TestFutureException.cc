@@ -43,10 +43,11 @@ int main()
     })
     .Then([](float f) {
         std::cout << "2.Then got float value " << f
-                  << " and return nothing." << std::endl;
+                  << " and return 2." << std::endl;
+        return 2;
     })
-    .Then([&tpool]() {
-        std::cout << "3.Then got void and return another future\n";
+    .Then([&tpool](int v) {
+        std::cout << "3.Then got " << v << " and return another future\n";
 
         auto future = tpool.Execute(ThreadFuncV);
         //std::this_thread::sleep_for(std::chrono::milliseconds(10));

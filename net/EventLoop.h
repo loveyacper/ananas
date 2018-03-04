@@ -66,7 +66,7 @@ public:
     // timer : NOT thread-safe
     template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args);
-    template <int RepeatCount = 1, typename Duration, typename F, typename... Args>
+    template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args);
     bool Cancel(TimerId id);
 
@@ -89,6 +89,8 @@ public:
     bool IsInSameLoop() const;
     internal::EventLoopGroup* Parent() const { return group_; }
 
+    int Id() const { return id_; }
+
     static EventLoop* GetCurrentEventLoop();
 
     static void SetMaxOpenFd(rlim_t maxfdPlus1);
@@ -105,7 +107,10 @@ private:
         
     std::mutex fctrMutex_;
     std::vector<std::function<void ()> > functors_;
-    
+
+    int id_;
+    static std::atomic<int> s_evId;
+
     static thread_local unsigned int s_id;
 
     // max open fd + 1

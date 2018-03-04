@@ -4,6 +4,8 @@
 // Ananas tool box
 
 #include <functional>
+#include <string>
+#include <vector>
 
 namespace ananas
 {
@@ -48,6 +50,29 @@ private:
 
 #undef ANANAS_DEFER
 #define ANANAS_DEFER _MAKE_DEFER_HELPER_(__LINE__)
+
+
+inline
+std::vector<std::string> SplitString(const std::string& str, char seperator)
+{
+    std::vector<std::string> results;
+    
+    std::string::size_type start = 0;
+    std::string::size_type sep = str.find(seperator);
+    while (sep != std::string::npos)
+    {
+        if (start < sep)
+            results.emplace_back(str.substr(start, sep - start));
+        
+        start = sep + 1;
+        sep = str.find(seperator, start);
+    }
+    
+    if (start != str.size())
+        results.emplace_back(str.substr(start));
+    
+    return results;
+}
 
 } // end namespace ananas
 

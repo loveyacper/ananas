@@ -11,11 +11,16 @@ message Request {
     bytes serialized_request = 4; // optional : if no arguments
 }
 
+message Error { 
+    int32 errnum = 1;
+    string str = 2;
+}
+
 message Response { 
     int32 id = 1;
     oneof Body {
         bytes serialized_response = 2;
-        string error = 3;  
+        Error error = 3;  
     }
 }  
 

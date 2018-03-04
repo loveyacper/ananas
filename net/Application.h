@@ -66,6 +66,7 @@ public:
 
     EventLoop* Next();
     void SetNumOfWorker(size_t n);
+    size_t NumOfWorker() const;
 
 private:
     Application();

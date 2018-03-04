@@ -103,7 +103,7 @@ void Buffer::AssureSpace(std::size_t needsize)
             if (capacity_ < newCapcity)
                 capacity_ = newCapcity;
             else
-                capacity_ = 2 * newCapcity;
+                capacity_ = 3 * newCapcity / 2;
         }
         else 
         {
@@ -126,7 +126,7 @@ void Buffer::AssureSpace(std::size_t needsize)
         assert (readPos_ > 0);
 
         ::memmove(&buffer_[0], &buffer_[readPos_], dataSize);
-        std::cout << " move from " << readPos_ << ", and dataSize " << dataSize << std::endl;
+        //std::cout << " move from " << readPos_ << ", and dataSize " << dataSize << std::endl;
     }
 
     readPos_ = 0;
@@ -196,7 +196,7 @@ Buffer& Buffer::_MoveFrom(Buffer&& other)
         this->buffer_ = std::move(other.buffer_);
 
         other.Clear();
-        other.capacity_ = 0;
+        other.Shrink();
     }
 
     return *this;

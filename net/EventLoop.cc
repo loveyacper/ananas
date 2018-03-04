@@ -51,12 +51,13 @@ EventLoop::EventLoop(internal::EventLoopGroup* group) : group_(group)
 #else
     #error "Only support mac os and linux"
 #endif
+
+    id_ = s_evId ++;
 }
 
 EventLoop::~EventLoop()
 {
 }
-    
     
 bool EventLoop::Listen(const char* ip,
                        uint16_t hostPort,
@@ -149,6 +150,8 @@ bool EventLoop::Connect(const SocketAddr& dst,
 
 
 thread_local unsigned int EventLoop::s_id = 0;
+
+std::atomic<int> EventLoop::s_evId {0};
 
 rlim_t EventLoop::s_maxOpenFdPlus1 = ananas::GetMaxOpenFd();
 

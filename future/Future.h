@@ -293,7 +293,7 @@ public:
             guard.unlock();
 
             auto func = [res = std::move(t),
-                         f = std::move((typename std::decay<F>::type)f),
+                         f = std::forward<F>(f),
                          prom = std::move(pm)]() mutable {
                 auto result = WrapWithTry(f, std::move(res));
                 prom.SetValue(std::move(result));
@@ -328,7 +328,7 @@ public:
 
             // 2. set this future's then callback
             SetCallback([sched,
-                         func = std::move((typename std::decay<F>::type)f),
+                         func = std::forward<F>(f),
                          prom = std::move(pm)](Try<T>&& t) mutable {
 
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
@@ -380,10 +380,18 @@ public:
             guard.unlock();
 
             auto cb = [res = std::move(t),
-                       f = std::move((typename std::decay<F>::type)f),
+                       f = std::forward<F>(f),
                        prom = std::move(pm)]() mutable {
                 // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
-                auto innerFuture = f(res.template Get<Args>()...);
+                decltype(f(res.template Get<Args>()...)) innerFuture;;
+                if (res.HasException()) {
+                    // FIXME if Args... is void
+                    innerFuture = f(Try<typename std::decay<Args...>::type>(res.Exception()));
+                }
+                else {
+                    innerFuture = f(res.template Get<Args>()...);
+                }
+
                 std::unique_lock<std::mutex> guard(innerFuture.state_->thenLock_);
                 if (innerFuture.state_->progress_ == Progress::Timeout) {
                     struct FutureWrongState {};
@@ -438,11 +446,18 @@ public:
 
             // 2. set this future's then callback
             SetCallback([sched = sched,
-                         func = std::move((typename std::decay<F>::type)f),
+                         func = std::forward<F>(f),
                          prom = std::move(pm)](Try<T>&& t) mutable {
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
-                    auto innerFuture = func(t.template Get<Args>()...);
+                    decltype(func(t.template Get<Args>()...)) innerFuture;;
+                    if (t.HasException()) {
+                        // FIXME if Args... is void
+                        innerFuture = func(Try<typename std::decay<Args...>::type>(t.Exception()));
+                    }
+                    else {
+                        innerFuture = func(t.template Get<Args>()...);
+                    }
 
                     std::unique_lock<std::mutex> guard(innerFuture.state_->thenLock_);
                     if (innerFuture.state_->progress_ == Progress::Timeout) {
@@ -527,21 +542,11 @@ private:
 
 // Make ready future
 template <typename T2>
-inline Future<T2> MakeReadyFuture(T2&& value)
+inline Future<typename std::decay<T2>::type> MakeReadyFuture(T2&& value)
 {
-    Promise<T2> pm;
+    Promise<typename std::decay<T2>::type> pm;
     auto f(pm.GetFuture());
     pm.SetValue(std::forward<T2>(value));
-
-    return f;
-}
-
-template <typename T2>
-inline Future<T2> MakeReadyFuture(const T2& value)
-{
-    Promise<T2> pm;
-    auto f(pm.GetFuture());
-    pm.SetValue(value);
 
     return f;
 }
@@ -560,11 +565,20 @@ template <typename T2>
 inline Future<T2> MakeExceptionFuture(const std::exception& exp)
 {
     Promise<T2> pm;
-    auto f(pm.GetFuture());
     pm.SetException(std::make_exception_ptr(exp));
 
-    return f;
+    return pm.GetFuture();
 }
+
+template <typename T2>
+inline Future<T2> MakeExceptionFuture(std::exception_ptr&& eptr)
+{
+    Promise<T2> pm;
+    pm.SetException(std::move(eptr));
+
+    return pm.GetFuture();
+}
+
 
 // When All
 template <typename... FT>
