@@ -17,48 +17,9 @@ std::shared_ptr<ananas::Logger> logger;
 
 const char* g_text = "hello ananas_rpc";
 
-// for google::protobuf::Closure
-void OnResponse(ananas::rpc::test::EchoResponse* response)
-{
-    USR(logger) << "OnResponse " << response->text();
-}
-
 void OnCreateChannel(ananas::rpc::ClientChannel* chan)
 {
-    DBG(logger) << "OnCreateChannel";
-//    Future<RSP> ClientChannel::Invoke(const std::string& method, const ::google::protobuf::Message& request)
-        
-#if 0
-
-    auto rpcServ = chan->Service();
-
-    auto stub = rpcServ->GetServiceStub<ananas::rpc::test::TestService::Stub>("ananas.rpc.test.TestService");
-    if (!stub)
-    {
-        ERR(logger) << "GetStub TestService failed";
-    }
-    else
-    {
-        ananas::rpc::test::EchoRequest* req = new ananas::rpc::test::EchoRequest();
-        req->set_text(g_text);
-
-        ananas::rpc::test::EchoResponse* rsp = new ananas::rpc::test::EchoResponse();
-
-        stub->ToUpper(nullptr,
-                      req,
-                      rsp,
-                      ::google::protobuf::NewCallback(OnResponse, rsp));
-
-        req = new ananas::rpc::test::EchoRequest();
-        req->set_text(g_text);
-
-        rsp = new ananas::rpc::test::EchoResponse();
-        stub->AppendDots(nullptr,
-                         req,
-                         rsp,
-                         ::google::protobuf::NewCallback(OnResponse, rsp));
-    }
-#endif
+    DBG(logger) << "OnCreateRpcChannel " << (void*)chan;
 }
 
 void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
@@ -66,7 +27,8 @@ void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
     INF(logger) << "OnConnFail to " << peer.GetPort();
     ananas::Application::Instance().Exit();
 }
-void OnResponse2(ananas::Try<ananas::rpc::test::EchoResponse>&& response)
+
+void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response)
 {
     try {
         ananas::rpc::test::EchoResponse rsp = std::move(response);
@@ -81,24 +43,29 @@ int main(int ac, char* av[])
     if (ac > 1)
         g_text = av[1];
 
+    using namespace ananas;
+
     // init log
-    ananas::LogManager::Instance().Start();
-    logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_rpcclient_test");
+    LogManager::Instance().Start();
+    logger = LogManager::Instance().CreateLog(logALL, logALL, "logger_rpcclient_test");
 
     // init service
-    auto teststub = new ananas::rpc::ServiceStub(new ananas::rpc::test::TestService_Stub(nullptr));
+    auto teststub = new rpc::ServiceStub(new rpc::test::TestService_Stub(nullptr));
     teststub->SetUrlList("tcp://127.0.0.1:8765");
     teststub->SetOnCreateChannel(OnCreateChannel);
 
     // init server 
-    ananas::rpc::Server server;
+
+    rpc::Server server;
     server.AddServiceStub(teststub);
 
-    // request in future
-    ananas::rpc::test::EchoRequest* req = new ananas::rpc::test::EchoRequest();
-    req->set_text(g_text);
-    auto future = ananas::rpc::Call<ananas::rpc::test::EchoResponse>("ananas.rpc.test.TestService", "ToUpper", *req);
-    future.Then(OnResponse2);
+    // initiate request test
+    rpc::test::EchoRequest req;
+    req.set_text(g_text);
+    rpc::Call<rpc::test::EchoResponse>("ananas.rpc.test.TestService",   // service name
+                                       "ToUpper",                       // method name
+                                       req)                            // request args
+                                       .Then(OnResponse);               // response handler
 
     // event loop
     server.Start();

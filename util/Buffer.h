@@ -92,35 +92,36 @@ struct BufferVector
 
     std::size_t TotalBytes() const
     {
-        size_t s = 0;
-        for (const auto& buf : buffers)
-            s += buf.ReadableSize();
-
-        return s;
+        return totalBytes;
     }
 
     void Clear()
     {
         buffers.clear();
+        totalBytes = 0;
     }
 
     void PushBack(Buffer&& buf)
     {
+        totalBytes += buf.ReadableSize();
         buffers.push_back(std::move(buf));
     }
 
     void PushFront(Buffer&& buf)
     {
+        totalBytes += buf.ReadableSize();
         buffers.push_front(std::move(buf));
     }
 
     void PopBack()
     {
+        totalBytes -= buffers.back().ReadableSize();
         buffers.pop_back();
     }
 
     void PopFront()
     {
+        totalBytes -= buffers.front().ReadableSize();
         buffers.pop_front();
     }
 
@@ -133,8 +134,9 @@ struct BufferVector
     const_iterator cbegin() const { return buffers.cbegin(); }
     const_iterator cend() const { return buffers.cend(); }
 
-private:
+
     BufferContainer buffers;
+    size_t totalBytes {0};
 };
 
 struct Slice

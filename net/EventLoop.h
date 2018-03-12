@@ -99,11 +99,13 @@ private:
     internal::EventLoopGroup* group_;
     static bool s_exit;
 
-    std::map<unsigned int, std::shared_ptr<internal::Channel> > channelSet_;
     std::unique_ptr<internal::Poller>  poller_;
 
     std::mutex timerMutex_;
     internal::TimerManager timers_;
+
+    // channelSet_ must be destructed before timers_
+    std::map<unsigned int, std::shared_ptr<internal::Channel> > channelSet_;
         
     std::mutex fctrMutex_;
     std::vector<std::function<void ()> > functors_;

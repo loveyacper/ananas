@@ -68,22 +68,13 @@ Future<ClientChannel* > ServiceStub::GetChannel()
 
 Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep)
 {
-    // TODO
     auto channels = GetChannelMap();
-    for (auto kv : *channels)
-    {
-        if (kv.second->Connection()->Peer() == ep.addr)
-            return MakeReadyFuture(kv.second);
-    }
-        
-    return this->_Connect(ep);
-#if 0
+
     auto it = channels->find(ep);
     if (it != channels->end())
         return MakeReadyFuture(it->second);
-    else
-        return this->_Connect(ep);
-#endif
+        
+    return this->_Connect(ep);
 }
 
 Future<ClientChannel* > ServiceStub::_Connect(const Endpoint& ep)
@@ -153,7 +144,11 @@ void ServiceStub::OnNewConnection(ananas::Connection* conn)
     auto channel = std::make_shared<ClientChannel>(conn, this);
     conn->SetUserData(channel);
 
-    bool succ = channels_->insert({conn->GetUniqueId(), channel.get()}).second;
+    //bool succ = channels_->insert({conn->GetUniqueId(), channel.get()}).second;
+    Endpoint ep;
+    ep.proto = Endpoint::TCP;
+    ep.addr = conn->Peer();
+    bool succ = channels_->insert({ep, channel.get()}).second;
     assert (succ);
 
     if (onCreateChannel_)
@@ -166,7 +161,7 @@ void ServiceStub::OnNewConnection(ananas::Connection* conn)
                                  std::placeholders::_1,
                                  std::placeholders::_2,
                                  std::placeholders::_3));
-    //conn->SetMinPacketSize(kPbHeaderLen);
+    conn->SetMinPacketSize(kPbHeaderLen); // 
 }
 
 void ServiceStub::OnRegister()
@@ -186,13 +181,17 @@ void ServiceStub::_OnConnect(ananas::Connection* conn)
 
 void ServiceStub::_OnDisconnect(ananas::Connection* conn)
 {
-    channels_->erase(conn->GetUniqueId());
+    Endpoint ep;
+    ep.proto = Endpoint::TCP;
+    ep.addr = conn->Peer();
+    channels_->erase(ep);
 }
 
 const Endpoint& ServiceStub::ChooseOne() const
 {
     assert (!hardCodedUrls_.empty());
 
+    // TODO it is very inefficient on MacOS
     std::random_device rd;
     int lucky = rd() % hardCodedUrls_.size();
 
@@ -286,8 +285,8 @@ ananas::Buffer ClientChannel::PbToBytesEncoder(const std::string& method, const 
 
 DecodeState ClientChannel::BytesToFrame(const char*& data, size_t len, RpcMessage& frame)
 {
-    if (bTofDecoder_)
-        return bTofDecoder_(data, len, frame);
+    if (b2fDecoder_)
+        return b2fDecoder_(data, len, frame);
 
     return BytesToPBFrameDecoder(data, len, frame);
 }

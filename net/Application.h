@@ -71,8 +71,12 @@ public:
 private:
     Application();
 
+    // baseGroup_ is empty, just a placeholder container for base_.
     std::unique_ptr<internal::EventLoopGroup> baseGroup_;
+
+    // The default loop for accept/connect, or as worker if workerGroup_ is empty
     EventLoop base_;
+
     std::unique_ptr<internal::EventLoopGroup> workerGroup_;
 
     enum class State

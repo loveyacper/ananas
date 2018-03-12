@@ -58,6 +58,10 @@ private:
 #define RPCSERVER ::ananas::rpc::Server::Instance()
 
 
+// The entry point for initiate a rpc call.
+// `service` is the full name of a service, eg. "test.videoservice"
+// `method` is one of the `service`'s method's name, eg. "changeVideoQuality"
+// `RSP` is the type of response. why use `Try` type? Because may throw exception value
 
 template <typename RSP>
 Future<RSP> Call(const std::string& service,

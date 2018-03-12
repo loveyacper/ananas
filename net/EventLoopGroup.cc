@@ -39,6 +39,9 @@ bool EventLoopGroup::IsStopped() const
 
 void EventLoopGroup::Start()
 {
+    if (state_ != eS_None)
+        return;
+
     pool_.SetMaxThreads(numLoop_);
     for (size_t i = 0; i < numLoop_; ++ i)
     {

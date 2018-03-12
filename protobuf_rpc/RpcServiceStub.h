@@ -2,6 +2,7 @@
 #define BERT_RPCSERVICESTUB_H
 
 #include <google/protobuf/message.h>
+#include <google/protobuf/service.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -50,8 +51,8 @@ public:
     google::protobuf::Service* GetService() const;
     const std::string& FullName() const;
 
-    // serviceUrl list :  tcp://127.0.0.1:6379;tcp://127.0.0.1:6380
-    // if serviceUrl is empty, Stub will visit name server for FullName()'s addr list
+    // serviceUrl list format : tcp://127.0.0.1:6379;tcp://127.0.0.1:6380
+    // TODO name server
     void SetUrlList(const std::string& serviceUrls);
 
     void SetOnCreateChannel(std::function<void (ClientChannel* )> );
@@ -74,7 +75,7 @@ private:
     const Endpoint& ChooseOne() const;
 
     // channels are in different eventLoops
-    using ChannelMap = std::unordered_map<unsigned int, ClientChannel* >;
+    using ChannelMap = std::unordered_map<Endpoint, ClientChannel* >;
     using ChannelMapPtr = std::shared_ptr<ChannelMap>;
     std::mutex channelMutex_;
     ChannelMapPtr channels_;
@@ -112,7 +113,6 @@ public:
     template <typename RSP>
     Future<RSP> Invoke(const std::string& method, const ::google::protobuf::Message& request);
 
-    // encode
     // method像个tag，决定了request的具体类型
     ananas::Buffer PbToBytesEncoder(const std::string& method, const google::protobuf::Message& request);
     
@@ -120,9 +120,14 @@ public:
     DecodeState BytesToFrame(const char*& data, size_t len, RpcMessage& frame);
     bool OnFrame(RpcMessage& frame);
 
-    BytesToFrameDecoder bTofDecoder_;
+    BytesToFrameDecoder b2fDecoder_;
 
     int minLen_;
+
+    // encoder
+    //MessageToMessageEncoder m2mEncoder_;
+    //MessageToBytesEncoder m2bEncoder_;
+    //BytesToBytesEncoder b2bEncoder_;
 
 private:
     ananas::Connection* const conn_;
@@ -141,11 +146,8 @@ private:
     inline 
     Future<RSP> ClientChannel::Invoke(const std::string& method, const ::google::protobuf::Message& request)
     {
-#if 0
-        const MethodDescriptor* methodDesc = service_->GetService()->GetDescriptor()->FindMethodByName(method); 
-        if (!methodDesc)
+        if (!service_->GetService()->GetDescriptor()->FindMethodByName(method))
             return MakeExceptionFuture<RSP>(std::runtime_error("No such method " + method));
-#endif
 
         Promise<RpcMessage> promise; 
         auto fut = promise.GetFuture();
@@ -164,14 +166,6 @@ private:
             reqContext.promise = std::move(promise);
             reqContext.response.reset(new RSP()); // dragon
 
-
-            /*收报的时候调用自定义的onMessage，onMessage内调用分包函数:
-             * status decode(const char*& data, size_t len, RpcMessage& rsp);
-             * if status == FINE
-             *     find context;
-             *     context.promise.SetValue(rsp);
-             * */
-            
             // convert RpcMessage to RSP 
             auto decodeFut = fut.Then([this, rsp = (RSP*)reqContext.response.get()](const RpcMessage& rpcMessage) {
                     // TODO 自定义解析函数?  RSP ParseFromString(const string& serialized);
@@ -183,7 +177,7 @@ private:
                     // }
                     //this->FrameToMessageDecoder(this, rpcMessage, rsp);
                     PBFrameToMessageDecoder(rpcMessage, rsp);
-                    return *rsp;
+                    return std::move(*rsp);
             });
      
             pendingCalls_.insert(std::make_pair(reqIdGen_ , std::move(reqContext)));

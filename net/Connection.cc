@@ -419,6 +419,7 @@ void ConsumeBufferVectors(BufferVector& buffers, size_t toSkippedBytes)
             if (toSkippedBytes > 0)
             {
                 e.Consume(toSkippedBytes);
+                buffers.totalBytes -= toSkippedBytes;
             }
 
             break;

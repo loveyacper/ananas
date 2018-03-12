@@ -561,11 +561,11 @@ inline Future<void> MakeReadyFuture()
 }
 
 // Make exception future
-template <typename T2>
-inline Future<T2> MakeExceptionFuture(const std::exception& exp)
+template <typename T2, typename E>
+inline Future<T2> MakeExceptionFuture(E exp)
 {
     Promise<T2> pm;
-    pm.SetException(std::make_exception_ptr(exp));
+    pm.SetException(std::make_exception_ptr(std::move(exp)));
 
     return pm.GetFuture();
 }

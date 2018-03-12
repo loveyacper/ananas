@@ -36,6 +36,12 @@ public:
     } proto;
 
     ananas::SocketAddr addr;
+
+    friend 
+    bool operator==(const Endpoint& a, const Endpoint& b)
+    {
+        return a.proto == b.proto && a.addr == b.addr;
+    }
 };
 
 
@@ -84,6 +90,7 @@ std::string Endpoint::ToString() const
     rep += addr.ToString();
     return rep;
 }
+
 
 } // end namespace rpc
 

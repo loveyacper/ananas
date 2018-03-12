@@ -93,14 +93,12 @@ void Service::OnRegister()
 
 size_t Service::OnProtobufMessage(ananas::Connection* conn, const char* data, size_t len)
 {
-    printf("OnProtobufMessage bytes %d\n", len);
     assert (len >= kPbHeaderLen);
 
     const char* const start = data;
 
     RpcMessage msg;
     const auto state = BytesToPBFrameDecoder(data, len, msg);
-    printf("parse state %d\n", (int)state);
     switch (state)
     {
         case DecodeState::eS_Error:
@@ -129,7 +127,6 @@ size_t Service::OnProtobufMessage(ananas::Connection* conn, const char* data, si
 // server-side
 void Service::_ProcessRequest(ananas::Connection* conn, const ananas::rpc::Request& req)
 {
-    printf("_ProcessRequest sname %s\n", req.service_name().data());
     std::string error;
     int errnum = 0; // TODO
 
@@ -169,10 +166,8 @@ void Service::_ProcessRequest(ananas::Connection* conn, const ananas::rpc::Reque
     }
 
     std::shared_ptr<google::protobuf::Message> response(service_->GetResponsePrototype(method).New()); 
-           
+
     const int id = req.id();
-    printf("serv for request id %d\n", id);
-            
     std::weak_ptr<ananas::Connection> wconn(std::static_pointer_cast<ananas::Connection>(conn->shared_from_this()));
     service_->CallMethod(method, nullptr, request.get(), response.get(), 
             new ananas::rpc::Closure(&Service::_OnServDone, this, wconn, id, response));
@@ -187,7 +182,6 @@ void Service::_OnDisconnect(ananas::Connection* conn)
 
 void Service::_OnServDone(std::weak_ptr<ananas::Connection> wconn, int id, std::shared_ptr<google::protobuf::Message> response)
 {
-    printf("_OnServDone id %d\n", id);
     auto conn = wconn.lock();
     if (!conn)
         return;
@@ -216,8 +210,6 @@ void Service::_OnServError(ananas::Connection* conn,
                            int errnum,
                            const std::string& errMsg)
 {
-    printf("_OnServError id %d\n", id);
-
     RpcMessage rpcMsg;
     Response& rsp = *rpcMsg.mutable_response();
 
