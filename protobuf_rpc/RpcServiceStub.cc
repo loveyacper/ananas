@@ -20,8 +20,6 @@ namespace rpc
 {
 
 ServiceStub::ServiceStub(google::protobuf::Service* service) :
-    //decoder_(&PbDecode),
-    //minLen_(0),
     channels_(new ChannelMap())
 {
     service_.reset(service);
@@ -100,15 +98,6 @@ Future<ClientChannel* > ServiceStub::_Connect(const Endpoint& ep)
                                    std::bind(&ServiceStub::OnNewConnection, this, std::placeholders::_1),
                                    std::bind(&ServiceStub::OnConnFail, this, std::placeholders::_1, std::placeholders::_2),
                                    DurationMs(3000));
-                                   
-#if 0
-        if (!succ)
-        {
-            // lock it
-            pendingConns_.erase(ep.addr);
-            return MakeExceptionFuture<ClientChannel* >(std::runtime_error("connect " + ep.ToString() + " failed"));
-        }
-#endif
     }
 
     return fut;
@@ -127,13 +116,6 @@ void ServiceStub::OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& 
 }
 
 
-#if 0
-void ServiceStub::SetDecoder(MessageDecoder decoder)
-{
-    decoder_ = std::move(decoder);
-}
-#endif
-    
 void ServiceStub::SetOnCreateChannel(std::function<void (ClientChannel* )> cb)
 {
     onCreateChannel_ = std::move(cb);
@@ -144,7 +126,6 @@ void ServiceStub::OnNewConnection(ananas::Connection* conn)
     auto channel = std::make_shared<ClientChannel>(conn, this);
     conn->SetUserData(channel);
 
-    //bool succ = channels_->insert({conn->GetUniqueId(), channel.get()}).second;
     Endpoint ep;
     ep.proto = Endpoint::TCP;
     ep.addr = conn->Peer();
@@ -208,26 +189,27 @@ ServiceStub::ChannelMapPtr ServiceStub::GetChannelMap()
 size_t ServiceStub::OnMessage(ananas::Connection* conn, const char* data, size_t len)
 {
     const char* const start = data;
+    size_t offset = 0;
 
     auto channel = conn->GetUserData<ClientChannel>();
-    RpcMessage msg;
-    // 可能多个frame组成一个完整消息，函数内部必须缓存frames
-    auto state = channel->BytesToFrame(data, len, msg);
-    if (state == DecodeState::eS_Error)
+    //while (1)
     {
-        conn->ActiveClose();
-        return 0;
-    }
-    else if (state == DecodeState::eS_Waiting)
-    {
-        return static_cast<size_t>(data - start);
-    }
-    else 
-    {
-        channel->OnFrame(msg);
+        try {
+            auto msg = channel->OnData(data, len - offset);
+            if (msg)
+            {
+                channel->OnMessage(std::move(msg));
+                offset += (data - start);
+            }
+        }
+        catch (const std::exception& e) {
+            printf("Some exception OnData %s\n", e.what());
+            conn->ActiveClose();
+            return 0;
+        }
     }
 
-    return static_cast<size_t>(data - start);
+    return data - start;
 }
 
     
@@ -242,10 +224,6 @@ ClientChannel::~ClientChannel()
 {
 }
 
-ananas::rpc::ServiceStub* ClientChannel::ServiceStub() const
-{
-    return service_;
-}
 
 ananas::Connection* ClientChannel::Connection() const
 {
@@ -260,55 +238,72 @@ int ClientChannel::GenId()
 ananas::Buffer ClientChannel::PbToBytesEncoder(const std::string& method, const google::protobuf::Message& request)
 {
     RpcMessage rpcMsg;
-    Request& req = *rpcMsg.mutable_request();
-    req.set_id(this->GenId());
-    req.set_service_name(service_->FullName());
-    req.set_method_name(method);
+    encoder_.m2fEncoder_(&request, rpcMsg);
 
-    request.SerializeToString(req.mutable_serialized_request());
+    // post process frame
+    Request* req = rpcMsg.mutable_request();
+    if (!HasField(*req, "id")) req->set_id(this->GenId());
+    if (!HasField(*req, "service_name")) req->set_service_name(service_->FullName());
+    if (!HasField(*req, "method_name")) req->set_method_name(method);
 
-    const int bodyLen = rpcMsg.ByteSize();
-    const int totalLen = kPbHeaderLen + bodyLen;
-
-    ananas::Buffer bytes;
-    bytes.PushData(&totalLen, sizeof totalLen);
-    bytes.AssureSpace(bodyLen);
-    // 对于第三方协议，这里可以根据methodName得到request类型，进而进一步操作
-    bool succ = rpcMsg.SerializeToArray(bytes.WriteAddr(), bodyLen);
-    if (!succ)
-        bytes.Clear();
+    if (encoder_.f2bEncoder_)
+        return encoder_.f2bEncoder_(rpcMsg);
     else
-        bytes.Produce(bodyLen);
-
-    return bytes;
+    {
+        ananas::Buffer bytes;
+        auto data = req->serialized_request();
+        bytes.PushData(data.data(), data.size());
+        return bytes;
+    }
 }
 
-DecodeState ClientChannel::BytesToFrame(const char*& data, size_t len, RpcMessage& frame)
+std::shared_ptr<google::protobuf::Message> ClientChannel::OnData(const char*& data, size_t len)
 {
-    if (b2fDecoder_)
-        return b2fDecoder_(data, len, frame);
-
-    return BytesToPBFrameDecoder(data, len, frame);
+    return decoder_.b2mDecoder_(data, len);
 }
 
-bool ClientChannel::OnFrame(RpcMessage& frame)
+bool ClientChannel::OnMessage(std::shared_ptr<google::protobuf::Message> msg)
 {
-    const int id = frame.response().id();
-    auto it = pendingCalls_.find(id);
-    if (it != pendingCalls_.end())
-        it->second.promise.SetValue(std::move(frame));
+    // msg must have id
+    RpcMessage* frame = dynamic_cast<RpcMessage*>(msg.get());
+    if (frame)
+    {
+        const int id = frame->response().id();
+        auto it = pendingCalls_.find(id);
+        if (it != pendingCalls_.end())
+            it->second.promise.SetValue(std::move(msg));
+        else
+            return false;// what fucking happened?
+
+        pendingCalls_.erase(it);
+        return true;
+    }
     else
-        return false;// what fucking happened?
+    {
+        printf("RpcMessage bad_cast!\n");
+        // default: FIFO, pop the first promise, TO use std::map
+        auto it = pendingCalls_.begin();
+        it->second.promise.SetValue(std::move(msg));
+        pendingCalls_.erase(it);
+    }
 
-    pendingCalls_.erase(it);
-    return true;
+    return false;
 }
 
+void ClientChannel::SetEncoder(Encoder enc)
+{
+    encoder_ = std::move(enc);
+}
+
+void ClientChannel::SetDecoder(Decoder dec)
+{
+    decoder_ = std::move(dec);
+}
     
+
 thread_local int ClientChannel::reqIdGen_ {0};
 
 } // end namespace rpc
 
 } // end namespace ananas
-
 

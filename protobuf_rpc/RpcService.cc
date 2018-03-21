@@ -97,29 +97,27 @@ size_t Service::OnProtobufMessage(ananas::Connection* conn, const char* data, si
 
     const char* const start = data;
 
-    RpcMessage msg;
-    const auto state = BytesToPBFrameDecoder(data, len, msg);
-    switch (state)
-    {
-        case DecodeState::eS_Error:
-            // evil client
-            conn->ActiveClose();
-            return 0;
+    // TODO 
+    //const auto state = BytesToPbDecoder(data, len, msg);
+    try {
+        auto msg = BytesToPbDecoder(data, len);
+        if (msg)
+        {
+            RpcMessage* rpcMsg = dynamic_cast<RpcMessage*>(msg.get());
+            if (rpcMsg->has_request())
+                _ProcessRequest(conn, rpcMsg->request());
+            else
+            {
+                conn->ActiveClose(); // evil client
+            }
+        }
 
-        case DecodeState::eS_Waiting:
-            return static_cast<size_t>(data - start);
-
-        case DecodeState::eS_Ok:
-            break;
-
-        default:
-            assert (false);
     }
-
-    if (msg.has_request())
-        _ProcessRequest(conn, msg.request());
-    else
-        conn->ActiveClose(); // evil client
+    catch (...) {
+        // evil client
+        conn->ActiveClose();
+        return 0;
+    }
 
     return static_cast<size_t>(data - start);
 }

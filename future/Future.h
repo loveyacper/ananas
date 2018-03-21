@@ -274,6 +274,9 @@ public:
         Promise<FReturnType> pm;
         auto nextFuture = pm.GetFuture();
 
+        // FIXME
+        using FuncType = typename std::decay<F>::type;
+
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         if (state_->progress_ == Progress::Timeout)
         {
@@ -293,7 +296,7 @@ public:
             guard.unlock();
 
             auto func = [res = std::move(t),
-                         f = std::forward<F>(f),
+                         f = std::forward<FuncType>(f),
                          prom = std::move(pm)]() mutable {
                 auto result = WrapWithTry(f, std::move(res));
                 prom.SetValue(std::move(result));
@@ -328,7 +331,7 @@ public:
 
             // 2. set this future's then callback
             SetCallback([sched,
-                         func = std::forward<F>(f),
+                         func = std::forward<FuncType>(f),
                          prom = std::move(pm)](Try<T>&& t) mutable {
 
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
@@ -361,6 +364,9 @@ public:
         Promise<FReturnType> pm;
         auto nextFuture = pm.GetFuture();
 
+        // FIXME
+        using FuncType = typename std::decay<F>::type;
+
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         if (state_->progress_ == Progress::Timeout)
         {
@@ -380,7 +386,7 @@ public:
             guard.unlock();
 
             auto cb = [res = std::move(t),
-                       f = std::forward<F>(f),
+                       f = std::forward<FuncType>(f),
                        prom = std::move(pm)]() mutable {
                 // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
                 decltype(f(res.template Get<Args>()...)) innerFuture;;
@@ -446,7 +452,7 @@ public:
 
             // 2. set this future's then callback
             SetCallback([sched = sched,
-                         func = std::forward<F>(f),
+                         func = std::forward<FuncType>(f),
                          prom = std::move(pm)](Try<T>&& t) mutable {
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done

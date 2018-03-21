@@ -81,7 +81,7 @@ private:
     ChannelMapPtr channels_;
     ChannelMapPtr GetChannelMap();
 
-    std::unique_ptr<google::protobuf::Service> service_;
+    std::shared_ptr<google::protobuf::Service> service_;
 
     // pending connects
     using ChannelPromise = Promise<ClientChannel* >;
@@ -101,33 +101,38 @@ private:
 
 class ClientChannel
 {
-    static thread_local int reqIdGen_;
     friend class ServiceStub;
 public:
     ClientChannel(ananas::Connection* conn, ananas::rpc::ServiceStub* service);
     ~ClientChannel();
 
-    ananas::rpc::ServiceStub* ServiceStub() const;
     ananas::Connection* Connection() const;
+
+    std::shared_ptr<void> ctx_;
+    void SetContext(std::shared_ptr<void> ctx)
+    {
+        ctx_ = std::move(ctx);
+    }
+
+    template <typename T>
+    std::shared_ptr<T> GetContext() const
+    {
+        return std::static_pointer_cast<T>(ctx_);
+    }
 
     template <typename RSP>
     Future<RSP> Invoke(const std::string& method, const ::google::protobuf::Message& request);
 
-    // method像个tag，决定了request的具体类型
+    // encode
     ananas::Buffer PbToBytesEncoder(const std::string& method, const google::protobuf::Message& request);
+    void SetEncoder(Encoder );
     
-    // decoder
-    DecodeState BytesToFrame(const char*& data, size_t len, RpcMessage& frame);
-    bool OnFrame(RpcMessage& frame);
+    // decode
+    std::shared_ptr<google::protobuf::Message> OnData(const char*& data, size_t len);
+    // set promise
+    bool OnMessage(std::shared_ptr<google::protobuf::Message> msg);
 
-    BytesToFrameDecoder b2fDecoder_;
-
-    int minLen_;
-
-    // encoder
-    //MessageToMessageEncoder m2mEncoder_;
-    //MessageToBytesEncoder m2bEncoder_;
-    //BytesToBytesEncoder b2bEncoder_;
+    void SetDecoder(Decoder dec);
 
 private:
     ananas::Connection* const conn_;
@@ -135,55 +140,58 @@ private:
 
     // pending requests
     struct RequestContext {
-        Promise<RpcMessage> promise; 
-        std::unique_ptr<google::protobuf::Message> response;
+        Promise<std::shared_ptr<google::protobuf::Message>> promise; 
+        std::shared_ptr<google::protobuf::Message> response;
     };
+
     std::unordered_map<int, RequestContext> pendingCalls_;
 
+    // coders
+    Decoder decoder_;
+    Encoder encoder_;
+
     int GenId();
+    static thread_local int reqIdGen_;
 };
-    template <typename RSP>
-    inline 
-    Future<RSP> ClientChannel::Invoke(const std::string& method, const ::google::protobuf::Message& request)
+
+template <typename RSP>
+Future<RSP> ClientChannel::Invoke(const std::string& method,
+                                  const ::google::protobuf::Message& request)
+{
+    if (!service_->GetService()->GetDescriptor()->FindMethodByName(method))
+        return MakeExceptionFuture<RSP>(std::runtime_error("No such method " + method));
+
+    Promise<std::shared_ptr<google::protobuf::Message>> promise; 
+    auto fut = promise.GetFuture();
+
+    // encode and send request
+    Buffer bytes = PbToBytesEncoder(method, request);
+    if (!conn_->SendPacket(bytes.ReadAddr(), bytes.ReadableSize())) // SendPacketInLoop
     {
-        if (!service_->GetService()->GetDescriptor()->FindMethodByName(method))
-            return MakeExceptionFuture<RSP>(std::runtime_error("No such method " + method));
-
-        Promise<RpcMessage> promise; 
-        auto fut = promise.GetFuture();
-
-        // encode and send request
-        // if (encoder_) bytes = encoder_(methodName, request);
-        ananas::Buffer bytes = PbToBytesEncoder(method, request);
-        if (!conn_->SendPacket(bytes.ReadAddr(), bytes.ReadableSize())) // SendPacketInLoop
-        {
-            return MakeExceptionFuture<RSP>(std::runtime_error("SendPacket failed"));
-        }
-        else
-        {
-            // save context
-            RequestContext reqContext;
-            reqContext.promise = std::move(promise);
-            reqContext.response.reset(new RSP()); // dragon
-
-            // convert RpcMessage to RSP 
-            auto decodeFut = fut.Then([this, rsp = (RSP*)reqContext.response.get()](const RpcMessage& rpcMessage) {
-                    // TODO 自定义解析函数?  RSP ParseFromString(const string& serialized);
-                    // 默认使用了pb解析 
-                    // TODO  自定义parse
-                    // bool FrameToMessageDecoder(RpcMessage frame, Message* msg)  {
-                    //       msg->ParseFromString(frame.response().serialized_response()); 
-                    //       switch(msg->GetTypeName())
-                    // }
-                    //this->FrameToMessageDecoder(this, rpcMessage, rsp);
-                    PBFrameToMessageDecoder(rpcMessage, rsp);
-                    return std::move(*rsp);
-            });
-     
-            pendingCalls_.insert(std::make_pair(reqIdGen_ , std::move(reqContext)));
-            return decodeFut;
-        }
+        return MakeExceptionFuture<RSP>(std::runtime_error("SendPacket failed"));
     }
+    else
+    {
+        // save context
+        RequestContext reqContext;
+        reqContext.promise = std::move(promise);
+        reqContext.response.reset(new RSP()); // dragon
+
+        // convert RpcMessage to RSP 
+        RSP* rsp = (RSP* )reqContext.response.get();
+        auto decodeFut = fut.Then([this, rsp](std::shared_ptr<google::protobuf::Message>&& msg) {
+                if (decoder_.m2mDecoder_)
+                    decoder_.m2mDecoder_(*msg, *rsp);
+                else // msg type must be RSP
+                    *rsp = std::move(*std::static_pointer_cast<RSP>(msg));
+
+                return std::move(*rsp);
+        });
+ 
+        pendingCalls_.insert(std::make_pair(reqIdGen_, std::move(reqContext)));
+        return decodeFut;
+    }
+}
 
 
 } // end namespace rpc

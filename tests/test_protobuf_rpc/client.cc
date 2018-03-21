@@ -62,8 +62,14 @@ int main(int ac, char* av[])
     // initiate request test
     rpc::test::EchoRequest req;
     req.set_text(g_text);
+
     rpc::Call<rpc::test::EchoResponse>("ananas.rpc.test.TestService",   // service name
                                        "ToUpper",                       // method name
+                                       req)                            // request args
+                                       .Then(OnResponse);               // response handler
+
+    rpc::Call<rpc::test::EchoResponse>("ananas.rpc.test.TestService",   // service name
+                                       "AppendDots",                    // method name
                                        req)                            // request args
                                        .Then(OnResponse);               // response handler
 
