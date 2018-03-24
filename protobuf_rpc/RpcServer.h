@@ -36,6 +36,7 @@ public:
     // client-side
     bool AddServiceStub(ananas::rpc::ServiceStub* service);
     bool AddServiceStub(std::unique_ptr<ServiceStub>&& service);
+    // We don't add stubs during runtime, so need not to be thread-safe
     ananas::rpc::ServiceStub* GetServiceStub(const std::string& name) const;
 
     // both
@@ -55,7 +56,7 @@ private:
 };
 
 
-#define RPCSERVER ::ananas::rpc::Server::Instance()
+#define RPC_SERVER ::ananas::rpc::Server::Instance()
 
 
 // The entry point for initiate a rpc call.
@@ -69,23 +70,26 @@ Future<RSP> Call(const std::string& service,
                  const ::google::protobuf::Message& req)
 {
     // 1. find service stub
-    auto stub = RPCSERVER.GetServiceStub(service);
+    auto stub = RPC_SERVER.GetServiceStub(service);
     if (!stub)
-    {
         return MakeExceptionFuture<RSP>(std::runtime_error("No such service " + service));
-    }
-                
-    // deep copy because get channel is async
+
+    // deep copy because GetChannel is async
     ::google::protobuf::Message* reqCopy = req.New();
     reqCopy->CopyFrom(req);
 
     // 2. select one channel and invoke method via it
     auto channelFuture = stub->GetChannel();
+
+    // The channelFuture should not to be set timeout, because the TCP connect already set timeout
     return channelFuture.Then([method, reqCopy](ananas::Try<ClientChannel*>&& chan) {
                               try {
                                   std::unique_ptr<google::protobuf::Message> _(reqCopy);
                                   ClientChannel* channel = chan;
-                                  return channel->Invoke<RSP>(method, *reqCopy); // TO be thread-safe
+
+                                  // When reach here, connect is success, so Invoke must
+                                  // be called in channel's EventLoop, no need to be thread-safe
+                                  return channel->Invoke<RSP>(method, *reqCopy);
                               } catch(...) {
                                   return MakeExceptionFuture<RSP>(std::current_exception());
                               }

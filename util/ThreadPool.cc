@@ -108,9 +108,10 @@ void ThreadPool::_MonitorRoutine()
 {
     while (!shutdown_)
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        
         std::unique_lock<std::mutex> guard(mutex_);
+        // fast shutdown
+        cond_.wait_for(guard, std::chrono::seconds(3), [this]() { return shutdown_; } );
+
         if (shutdown_)
             return;
 

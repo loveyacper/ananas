@@ -11,6 +11,7 @@
 #include "net/Typedefs.h"
 #include "net/Socket.h"
 #include "net/Connection.h"
+#include "net/EventLoop.h"
 #include "util/Buffer.h"
 #include "future/Future.h"
 
@@ -30,8 +31,6 @@ class Service;
 
 namespace ananas
 {
-
-class Connection;
 
 namespace rpc
 {
@@ -85,6 +84,7 @@ private:
 
     // pending connects
     using ChannelPromise = Promise<ClientChannel* >;
+    std::mutex connMutex_;
     std::unordered_map<ananas::SocketAddr, std::vector<ChannelPromise> > pendingConns_;
     // if hardCodedUrls_ is not empty, never access name server
     std::vector<Endpoint> hardCodedUrls_;
@@ -124,7 +124,7 @@ public:
     Future<RSP> Invoke(const std::string& method, const ::google::protobuf::Message& request);
 
     // encode
-    ananas::Buffer PbToBytesEncoder(const std::string& method, const google::protobuf::Message& request);
+    ananas::Buffer MessageToBytesEncoder(const std::string& method, const google::protobuf::Message& request);
     void SetEncoder(Encoder );
     
     // decode
@@ -158,6 +158,8 @@ template <typename RSP>
 Future<RSP> ClientChannel::Invoke(const std::string& method,
                                   const ::google::protobuf::Message& request)
 {
+    assert (this->Connection()->GetLoop()->IsInSameLoop());
+
     if (!service_->GetService()->GetDescriptor()->FindMethodByName(method))
         return MakeExceptionFuture<RSP>(std::runtime_error("No such method " + method));
 
@@ -165,7 +167,7 @@ Future<RSP> ClientChannel::Invoke(const std::string& method,
     auto fut = promise.GetFuture();
 
     // encode and send request
-    Buffer bytes = PbToBytesEncoder(method, request);
+    Buffer bytes = this->MessageToBytesEncoder(method, request);
     if (!conn_->SendPacket(bytes.ReadAddr(), bytes.ReadableSize())) // SendPacketInLoop
     {
         return MakeExceptionFuture<RSP>(std::runtime_error("SendPacket failed"));

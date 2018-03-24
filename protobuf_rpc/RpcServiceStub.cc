@@ -77,13 +77,12 @@ Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep)
 
 Future<ClientChannel* > ServiceStub::_Connect(const Endpoint& ep)
 {
-    // TODO multi thread
     ChannelPromise promise;
     auto fut = promise.GetFuture();
 
     bool needConnect = false;
     {
-        // Lock pendingConns_;
+        std::unique_lock<std::mutex> guard(connMutex_);
         auto it = pendingConns_.find(ep.addr);
         if (it == pendingConns_.end())
             needConnect = true;
@@ -105,6 +104,7 @@ Future<ClientChannel* > ServiceStub::_Connect(const Endpoint& ep)
 
 void ServiceStub::OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 { 
+    std::unique_lock<std::mutex> guard(connMutex_);
     auto req = pendingConns_.find(peer.ToString()); 
     if (req != pendingConns_.end()) 
     { 
@@ -151,9 +151,14 @@ void ServiceStub::OnRegister()
 
 void ServiceStub::_OnConnect(ananas::Connection* conn)
 {
+    // It's called in conn's EventLoop, see `ananas::Connector::_OnSuccess`
+    assert (conn->GetLoop()->IsInSameLoop());
+
+    std::unique_lock<std::mutex> guard(connMutex_);
     auto req = pendingConns_.find(conn->Peer());
     assert (req != pendingConns_.end());
 
+    // channelFuture is fulfilled
     for (auto& prom : req->second)
         prom.SetValue(conn->GetUserData<ClientChannel>().get());
 
@@ -235,7 +240,8 @@ int ClientChannel::GenId()
     return ++ reqIdGen_;
 }
 
-ananas::Buffer ClientChannel::PbToBytesEncoder(const std::string& method, const google::protobuf::Message& request)
+ananas::Buffer ClientChannel::MessageToBytesEncoder(const std::string& method,
+                                                    const google::protobuf::Message& request)
 {
     RpcMessage rpcMsg;
     encoder_.m2fEncoder_(&request, rpcMsg);
@@ -247,9 +253,14 @@ ananas::Buffer ClientChannel::PbToBytesEncoder(const std::string& method, const 
     if (!HasField(*req, "method_name")) req->set_method_name(method);
 
     if (encoder_.f2bEncoder_)
+    {
+        // eg. add 4 bytes to indicate the frame length
         return encoder_.f2bEncoder_(rpcMsg);
+    }
     else
     {
+        // if no f2bEncoder_, then send the serialized_request directly
+        // eg. The text protocol
         ananas::Buffer bytes;
         auto data = req->serialized_request();
         bytes.PushData(data.data(), data.size());
@@ -264,10 +275,11 @@ std::shared_ptr<google::protobuf::Message> ClientChannel::OnData(const char*& da
 
 bool ClientChannel::OnMessage(std::shared_ptr<google::protobuf::Message> msg)
 {
-    // msg must have id
     RpcMessage* frame = dynamic_cast<RpcMessage*>(msg.get());
     if (frame)
     {
+        assert (HasField(*frame, "id"));
+
         const int id = frame->response().id();
         auto it = pendingCalls_.find(id);
         if (it != pendingCalls_.end())
@@ -280,7 +292,7 @@ bool ClientChannel::OnMessage(std::shared_ptr<google::protobuf::Message> msg)
     }
     else
     {
-        printf("RpcMessage bad_cast!\n");
+        printf("Don't panic: RpcMessage bad_cast, may be text message\n");
         // default: FIFO, pop the first promise, TO use std::map
         auto it = pendingCalls_.begin();
         it->second.promise.SetValue(std::move(msg));
