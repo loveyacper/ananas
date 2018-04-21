@@ -66,7 +66,7 @@ Future<ClientChannel* > ServiceStub::GetChannel()
 
 Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep)
 {
-    auto channels = GetChannelMap();
+    auto channels = _GetChannelMap();
 
     auto it = channels->find(ep);
     if (it != channels->end())
@@ -137,11 +137,14 @@ void ServiceStub::OnNewConnection(ananas::Connection* conn)
                     
     conn->SetOnConnect(std::bind(&ServiceStub::_OnConnect, this, std::placeholders::_1));
     conn->SetOnDisconnect(std::bind(&ServiceStub::_OnDisconnect, this, std::placeholders::_1));
+    conn->SetOnMessage(&ServiceStub::OnMessage);
+#if 0
     conn->SetOnMessage(std::bind(&ServiceStub::OnMessage,
                                  this,
                                  std::placeholders::_1,
                                  std::placeholders::_2,
                                  std::placeholders::_3));
+#endif
     conn->SetMinPacketSize(kPbHeaderLen); // 
 }
 
@@ -154,15 +157,20 @@ void ServiceStub::_OnConnect(ananas::Connection* conn)
     // It's called in conn's EventLoop, see `ananas::Connector::_OnSuccess`
     assert (conn->GetLoop()->IsInSameLoop());
 
-    std::unique_lock<std::mutex> guard(connMutex_);
-    auto req = pendingConns_.find(conn->Peer());
-    assert (req != pendingConns_.end());
+    std::vector<ChannelPromise> promises;
+    {
+        std::unique_lock<std::mutex> guard(connMutex_);
 
-    // channelFuture is fulfilled
-    for (auto& prom : req->second)
+        auto req = pendingConns_.find(conn->Peer());
+        assert (req != pendingConns_.end());
+
+        promises = std::move(req->second);
+        pendingConns_.erase(req);
+    }
+
+    // channelFuture will be fulfilled
+    for (auto& prom : promises)
         prom.SetValue(conn->GetUserData<ClientChannel>().get());
-
-    pendingConns_.erase(req);
 }
 
 void ServiceStub::_OnDisconnect(ananas::Connection* conn)
@@ -184,7 +192,7 @@ const Endpoint& ServiceStub::ChooseOne() const
     return hardCodedUrls_[lucky];
 }
 
-ServiceStub::ChannelMapPtr ServiceStub::GetChannelMap() 
+ServiceStub::ChannelMapPtr ServiceStub::_GetChannelMap() 
 {
     std::unique_lock<std::mutex> guard(channelMutex_);
     return channels_;
@@ -197,21 +205,20 @@ size_t ServiceStub::OnMessage(ananas::Connection* conn, const char* data, size_t
     size_t offset = 0;
 
     auto channel = conn->GetUserData<ClientChannel>();
-    //while (1)
-    {
-        try {
-            auto msg = channel->OnData(data, len - offset);
-            if (msg)
-            {
-                channel->OnMessage(std::move(msg));
-                offset += (data - start);
-            }
+    // TODO process message like redis
+    try {
+        auto msg = channel->OnData(data, len - offset);
+        if (msg)
+        {
+            channel->OnMessage(std::move(msg));
+            offset += (data - start);
         }
-        catch (const std::exception& e) {
-            printf("Some exception OnData %s\n", e.what());
-            conn->ActiveClose();
-            return 0;
-        }
+    }
+    catch (const std::exception& e) {
+        // Often because evil message
+        printf("Some exception OnData %s\n", e.what());
+        conn->ActiveClose();
+        return 0;
     }
 
     return data - start;
@@ -221,7 +228,8 @@ size_t ServiceStub::OnMessage(ananas::Connection* conn, const char* data, size_t
 ClientChannel::ClientChannel(ananas::Connection* conn,
                              ananas::rpc::ServiceStub* service) :
     conn_(conn),
-    service_(service)
+    service_(service),
+    encoder_(PbToFrameRequestEncoder)
 {
 }
 
@@ -233,6 +241,11 @@ ClientChannel::~ClientChannel()
 ananas::Connection* ClientChannel::Connection() const
 {
     return conn_;
+}
+
+void ClientChannel::SetContext(std::shared_ptr<void> ctx)
+{
+    ctx_ = std::move(ctx);
 }
 
 int ClientChannel::GenId()
@@ -278,7 +291,7 @@ bool ClientChannel::OnMessage(std::shared_ptr<google::protobuf::Message> msg)
     RpcMessage* frame = dynamic_cast<RpcMessage*>(msg.get());
     if (frame)
     {
-        assert (HasField(*frame, "id"));
+        assert (HasField(frame->response(), "id"));
 
         const int id = frame->response().id();
         auto it = pendingCalls_.find(id);

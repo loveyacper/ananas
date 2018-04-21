@@ -55,7 +55,8 @@ DecodeState PbToMessageDecoder(const google::protobuf::Message& , google::protob
 
 // encoder
 using MessageToFrameEncoder = std::function<bool (const google::protobuf::Message* , RpcMessage& )>;
-bool PbToFrameEncoder(const google::protobuf::Message* , RpcMessage& );
+bool PbToFrameRequestEncoder(const google::protobuf::Message* , RpcMessage& );
+bool PbToFrameResponseEncoder(const google::protobuf::Message* , RpcMessage& );
 
 using FrameToBytesEncoder = std::function<ananas::Buffer (const RpcMessage& )>;
 ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& );
@@ -109,7 +110,7 @@ private:
 struct Encoder
 {
 public:
-    Encoder();
+    Encoder(MessageToFrameEncoder enc);
     void Clear();
     void SetMessageToFrameEncoder(MessageToFrameEncoder m2f);
     void SetFrameToBytesEncoder(FrameToBytesEncoder f2b);

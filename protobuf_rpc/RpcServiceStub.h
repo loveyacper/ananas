@@ -59,10 +59,8 @@ public:
     Future<ClientChannel* > GetChannel();
     Future<ClientChannel* > GetChannel(const Endpoint& ep);
 
-    // encode -->  
     void OnNewConnection(ananas::Connection* conn);
-
-    size_t OnMessage(ananas::Connection* conn, const char* data, size_t len);
+    static size_t OnMessage(ananas::Connection* conn, const char* data, size_t len);
 
     //void SetLoadBalancer(const std::string& serviceUrl);
     void OnRegister();
@@ -76,9 +74,11 @@ private:
     // channels are in different eventLoops
     using ChannelMap = std::unordered_map<Endpoint, ClientChannel* >;
     using ChannelMapPtr = std::shared_ptr<ChannelMap>;
+
+    ChannelMapPtr _GetChannelMap();
+
     std::mutex channelMutex_;
     ChannelMapPtr channels_;
-    ChannelMapPtr GetChannelMap();
 
     std::shared_ptr<google::protobuf::Service> service_;
 
@@ -108,17 +108,10 @@ public:
 
     ananas::Connection* Connection() const;
 
-    std::shared_ptr<void> ctx_;
-    void SetContext(std::shared_ptr<void> ctx)
-    {
-        ctx_ = std::move(ctx);
-    }
+    void SetContext(std::shared_ptr<void> ctx);
 
     template <typename T>
-    std::shared_ptr<T> GetContext() const
-    {
-        return std::static_pointer_cast<T>(ctx_);
-    }
+    std::shared_ptr<T> GetContext() const;
 
     template <typename RSP>
     Future<RSP> Invoke(const std::string& method, const ::google::protobuf::Message& request);
@@ -129,14 +122,16 @@ public:
     
     // decode
     std::shared_ptr<google::protobuf::Message> OnData(const char*& data, size_t len);
-    // set promise
-    bool OnMessage(std::shared_ptr<google::protobuf::Message> msg);
-
     void SetDecoder(Decoder dec);
+
+    // fullfil promise
+    bool OnMessage(std::shared_ptr<google::protobuf::Message> msg);
 
 private:
     ananas::Connection* const conn_;
     ananas::rpc::ServiceStub* const service_;
+
+    std::shared_ptr<void> ctx_;
 
     // pending requests
     struct RequestContext {
@@ -154,11 +149,17 @@ private:
     static thread_local int reqIdGen_;
 };
 
+template <typename T>
+std::shared_ptr<T> ClientChannel::GetContext() const
+{
+    return std::static_pointer_cast<T>(ctx_);
+}
+
 template <typename RSP>
 Future<RSP> ClientChannel::Invoke(const std::string& method,
                                   const ::google::protobuf::Message& request)
 {
-    assert (this->Connection()->GetLoop()->IsInSameLoop());
+    assert (conn_->GetLoop()->IsInSameLoop());
 
     if (!service_->GetService()->GetDescriptor()->FindMethodByName(method))
         return MakeExceptionFuture<RSP>(std::runtime_error("No such method " + method));
@@ -177,7 +178,7 @@ Future<RSP> ClientChannel::Invoke(const std::string& method,
         // save context
         RequestContext reqContext;
         reqContext.promise = std::move(promise);
-        reqContext.response.reset(new RSP()); // dragon
+        reqContext.response.reset(new RSP()); // here be dragon
 
         // convert RpcMessage to RSP 
         RSP* rsp = (RSP* )reqContext.response.get();

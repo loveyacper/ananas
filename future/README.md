@@ -2,11 +2,11 @@
 
     ananas提供了非常强大的promise&future实现，对异步编程、并发编程提供了良好的支持。
     尽管C++11也提供了promise，很遗憾，不支持then，只能以阻塞的方式使用，这限制了它的用途。
-    ananas Promise在std::promise之上做了扩展，支持链式回调、超时回调、对多个并发操作的处理。
+    与std::promise相比,ananas Promise做了很多扩展，支持链式回调、超时回调、对多个并发操作的处理。
 
 ## future是ananas的核心
 
-    ananas rpc框架的完全基于future和protobuf实现,RPC调用就是采用了基于future异步模式,因此如果要使用rpc,最好对future
+    ananas rpc框架完全基于future和protobuf实现,RPC调用只采用基于future异步模式,因此如果要使用rpc,最好对future
     有一个深刻理解.
 
 * **异步场景1:对一连串异步操作的处理**

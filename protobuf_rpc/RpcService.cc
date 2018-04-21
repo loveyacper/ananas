@@ -15,8 +15,7 @@ namespace ananas
 namespace rpc
 {
 
-Service::Service(google::protobuf::Service* service) :
-    minLen_(0)
+Service::Service(google::protobuf::Service* service)
 {
     service_.reset(service);
     name_ = service->GetDescriptor()->full_name();
@@ -43,7 +42,9 @@ bool Service::Start()
         return false;
 
     auto& app = ananas::Application::Instance();
-    app.Listen(bindAddr_, std::bind(&Service::OnNewConnection, this, std::placeholders::_1));
+    app.Listen(bindAddr_, std::bind(&Service::OnNewConnection,
+                                    this,
+                                    std::placeholders::_1));
     return true;
 }
 
@@ -52,14 +53,9 @@ const std::string& Service::FullName() const
     return name_;
 }
 
-void Service::SetOnMessage(TcpMessageCallback cb)
-{
-    handleMsg_ = std::move(cb);
-}
-
 void Service::OnNewConnection(ananas::Connection* conn)
 {
-    auto channel = std::make_shared<ananas::rpc::ServerChannel>(conn, this);
+    auto channel = std::make_shared<ServerChannel>(conn, this);
     conn->SetUserData(channel);
 
     assert (conn->GetLoop()->Id() < channels_.size());
@@ -68,22 +64,11 @@ void Service::OnNewConnection(ananas::Connection* conn)
     bool succ = channelMap.insert({conn->GetUniqueId(), channel.get()}).second;
     assert (succ);
 
-    conn->SetOnDisconnect(std::bind(&Service::_OnDisconnect, this, std::placeholders::_1));
+    if (onCreateChannel_)
+        onCreateChannel_(channel.get());
 
-    if (handleMsg_)
-    {
-        conn->SetMinPacketSize(minLen_);
-        conn->SetOnMessage(handleMsg_);
-    }
-    else
-    {
-        conn->SetMinPacketSize(kPbHeaderLen);
-        conn->SetOnMessage(std::bind(&Service::OnProtobufMessage,
-                                     this,
-                                     std::placeholders::_1,
-                                     std::placeholders::_2,
-                                     std::placeholders::_3));
-    }
+    conn->SetOnDisconnect(std::bind(&Service::_OnDisconnect, this, std::placeholders::_1));
+    conn->SetOnMessage(&Service::_OnMessage);
 }
 
 void Service::OnRegister()
@@ -91,84 +76,43 @@ void Service::OnRegister()
     channels_.resize(Application::Instance().NumOfWorker());
 }
 
-size_t Service::OnProtobufMessage(ananas::Connection* conn, const char* data, size_t len)
+void Service::SetMethodSelector(std::function<const char* (const google::protobuf::Message* )> ms)
 {
-    assert (len >= kPbHeaderLen);
+    methodSelector_ = std::move(ms);
+}
 
+void Service::SetOnCreateChannel(std::function<void (ServerChannel* )> occ)
+{
+    onCreateChannel_ = std::move(occ);
+}
+
+size_t Service::_OnMessage(ananas::Connection* conn, const char* data, size_t len)
+{
     const char* const start = data;
+    size_t offset = 0;
 
-    // TODO 
-    //const auto state = BytesToPbDecoder(data, len, msg);
+    auto channel = conn->GetUserData<ServerChannel>();
+
+    // TODO process message like redis
     try {
-        auto msg = BytesToPbDecoder(data, len);
+        // 如果是二进制消息，这里进行包的完整性分析，如果是完整的包，将得到了一个RpcMessage,还需要进一步解包
+        // 如果是文本消息，包的完整性分析和解包是一步完成的，直接得到Message，无须再解包
+        const char* const thisStart = data;
+        auto msg = channel->OnData(data, len - offset);
         if (msg)
         {
-            RpcMessage* rpcMsg = dynamic_cast<RpcMessage*>(msg.get());
-            if (rpcMsg->has_request())
-                _ProcessRequest(conn, rpcMsg->request());
-            else
-            {
-                conn->ActiveClose(); // evil client
-            }
+            channel->OnMessage(std::move(msg));
+            offset += (data - thisStart);
         }
-
     }
-    catch (...) {
-        // evil client
+    catch (const std::exception& e) {
+        // Often because evil message
+        printf("Some exception OnData %s\n", e.what());
         conn->ActiveClose();
         return 0;
     }
 
-    return static_cast<size_t>(data - start);
-}
-
-// server-side
-void Service::_ProcessRequest(ananas::Connection* conn, const ananas::rpc::Request& req)
-{
-    std::string error;
-    int errnum = 0; // TODO
-
-    ANANAS_DEFER
-    {
-        if (!error.empty()) 
-            this->_OnServError(conn, req.id(), errnum, error);
-    };
-
-    if (req.service_name() != service_->GetDescriptor()->full_name())
-    {
-        error = "No such service:" + req.service_name();
-        return;
-    }
-
-    auto method = service_->GetDescriptor()->FindMethodByName(req.method_name());
-    if (!method)
-    {
-        error = "No such method:" + req.method_name();
-        return;
-    }
-
-    /*
-     * The resource manage is a little dirty, because CallMethod accepts raw pointers.
-     * Here is my solution:
-     * 1. request must be delete when exit this function, so if you want to process request
-     * async, you MUST copy it.
-     * 2. response is managed by Closure, so I use shared_ptr.
-     * 3. Closure must be managed by raw pointer, so when call Closure::Run, it will execute
-     * `delete this` when exit, at which time the response is also destroyed.
-     */
-    std::unique_ptr<google::protobuf::Message> request(service_->GetRequestPrototype(method).New()); 
-    if (!request->ParseFromString(req.serialized_request()))
-    {
-        error = "Request invalid";
-        return;
-    }
-
-    std::shared_ptr<google::protobuf::Message> response(service_->GetResponsePrototype(method).New()); 
-
-    const int id = req.id();
-    std::weak_ptr<ananas::Connection> wconn(std::static_pointer_cast<ananas::Connection>(conn->shared_from_this()));
-    service_->CallMethod(method, nullptr, request.get(), response.get(), 
-            new ananas::rpc::Closure(&Service::_OnServDone, this, wconn, id, response));
+    return data - start;
 }
 
 void Service::_OnDisconnect(ananas::Connection* conn)
@@ -178,60 +122,10 @@ void Service::_OnDisconnect(ananas::Connection* conn)
     assert (succ);
 }
 
-void Service::_OnServDone(std::weak_ptr<ananas::Connection> wconn, int id, std::shared_ptr<google::protobuf::Message> response)
-{
-    auto conn = wconn.lock();
-    if (!conn)
-        return;
-
-    RpcMessage rpcMsg;
-    Response& rsp = *rpcMsg.mutable_response();
-
-    rsp.set_id(id);
-    response->SerializeToString(rsp.mutable_serialized_response());
-
-    const int bodyLen = rpcMsg.ByteSize();
-    const int totalLen = kPbHeaderLen + bodyLen;
-    std::unique_ptr<char []> bytes(new char[bodyLen]);
-    rpcMsg.SerializeToArray(bytes.get(), bodyLen);
-
-    // format: 4 byte length, 
-    ananas::SliceVector vslice;
-    vslice.PushBack(&totalLen, sizeof totalLen);
-    vslice.PushBack(bytes.get(), bodyLen);
-
-    conn->SendPacket(vslice);
-}
-
-void Service::_OnServError(ananas::Connection* conn,
-                           int id,
-                           int errnum,
-                           const std::string& errMsg)
-{
-    RpcMessage rpcMsg;
-    Response& rsp = *rpcMsg.mutable_response();
-
-    rsp.set_id(id);
-    rsp.mutable_error()->set_errnum(errnum);
-    rsp.mutable_error()->set_str(errMsg);
-
-    const int bodyLen = rpcMsg.ByteSize();
-    const int totalLen = kPbHeaderLen + bodyLen;
-    std::unique_ptr<char []> bytes(new char[bodyLen]);
-    rpcMsg.SerializeToArray(bytes.get(), bodyLen);
-
-    // format: 4 byte length, 
-    ananas::SliceVector vslice;
-    vslice.PushBack(&totalLen, sizeof totalLen);
-    vslice.PushBack(bytes.get(), bodyLen);
-
-    conn->SendPacket(vslice);
-}
-
-
 ServerChannel::ServerChannel(ananas::Connection* conn, ananas::rpc::Service* service) :
     conn_(conn),
-    service_(service)
+    service_(service),
+    encoder_(PbToFrameResponseEncoder)
 {
 }
 
@@ -248,6 +142,101 @@ ananas::Connection* ServerChannel::Connection() const
 {
     return conn_;
 }
+
+std::shared_ptr<google::protobuf::Message> ServerChannel::OnData(const char*& data, size_t len)
+{
+    return decoder_.b2mDecoder_(data, len);
+}
+
+bool ServerChannel::OnMessage(std::shared_ptr<google::protobuf::Message> req)
+{
+    std::string method;
+    int id = 0;
+    RpcMessage* frame = dynamic_cast<RpcMessage*>(req.get());
+    if (frame)
+    {
+        if (frame->has_request())
+        {
+            id = frame->request().id();
+            method = frame->request().method_name();
+        }
+        else
+            return false; // evil client
+    }
+    else
+    {
+        //printf("Don't panic: RpcMessage bad_cast, may be text message\n");
+        if (!service_->methodSelector_)
+        {
+            printf("Error: how to get funcName_ from message?\n");
+            return false;
+        }
+        else
+        {
+            printf("Debug: how to get funcName_ from message?\n");
+            method = service_->methodSelector_(req.get());
+        }
+    }
+
+    this->_Invoke(method, std::move(req), id);
+    return true;
+}
+    
+void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<google::protobuf::Message> req, int id)
+{
+    const auto googServ = service_->GetService();
+    auto method = googServ->GetDescriptor()->FindMethodByName(methodName);
+    if (!method)
+        return; // NO SUCH FUNC
+
+    if (decoder_.m2mDecoder_)
+    {
+        std::unique_ptr<google::protobuf::Message> request(googServ->GetRequestPrototype(method).New()); 
+        // try catch
+        decoder_.m2mDecoder_(*req, *request); // may be ParseFromString
+        req.reset(request.release());
+    }
+
+    /*
+     * The resource manage is a little dirty, because CallMethod accepts raw pointers.
+     * Here is my solution:
+     * 1. request must be delete when exit this function, so if you want to process request
+     * async, you MUST copy it.
+     * 2. response is managed by Closure, so use shared_ptr.
+     * 3. Closure must be managed by raw pointer, so when call Closure::Run, it will execute
+     * `delete this` when exit, at which time the response is also destroyed.
+     */
+    std::shared_ptr<google::protobuf::Message> response(googServ->GetResponsePrototype(method).New()); 
+
+    std::weak_ptr<ananas::Connection> wconn(std::static_pointer_cast<ananas::Connection>(conn_->shared_from_this()));
+    googServ->CallMethod(method, nullptr, req.get(), response.get(), 
+            new ananas::rpc::Closure(&ServerChannel::_OnServDone, this, wconn, id, response));
+}
+
+void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
+                                int id,
+                                std::shared_ptr<google::protobuf::Message> response)
+{
+    auto conn = wconn.lock();
+    if (!conn) return;
+
+    RpcMessage frame;
+    Response& rsp = *frame.mutable_response();
+    rsp.set_id(id);
+    bool succ = encoder_.m2fEncoder_(response.get(), frame);
+
+    if (encoder_.f2bEncoder_)
+    {
+        ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
+        conn->SendPacket(bytes.ReadAddr(), bytes.ReadableSize());
+    }
+    else
+    {
+        const auto& bytes = rsp.serialized_response();
+        conn->SendPacket(bytes.data(), bytes.size());
+    }
+}
+
 
 } // end namespace rpc
 

@@ -69,10 +69,16 @@ DecodeState PbToMessageDecoder(const google::protobuf::Message& pbMsg, google::p
 }
 
 
-bool PbToFrameEncoder(const google::protobuf::Message* msg, RpcMessage& frame)
+bool PbToFrameRequestEncoder(const google::protobuf::Message* msg, RpcMessage& frame)
 {
     Request* req = frame.mutable_request();
     return msg->SerializeToString(req->mutable_serialized_request());
+}
+
+bool PbToFrameResponseEncoder(const google::protobuf::Message* msg, RpcMessage& frame)
+{
+    Response* rsp = frame.mutable_response();
+    return msg->SerializeToString(rsp->mutable_serialized_response());
 }
 
 ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& rpcMsg)
@@ -81,8 +87,8 @@ ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& rpcMsg)
     const int totalLen = kPbHeaderLen + bodyLen;
 
     ananas::Buffer bytes;
+    bytes.AssureSpace(sizeof totalLen + bodyLen);
     bytes.PushData(&totalLen, sizeof totalLen);
-    bytes.AssureSpace(bodyLen);
 
     bool succ = rpcMsg.SerializeToArray(bytes.WriteAddr(), bodyLen);
     if (!succ)
@@ -108,8 +114,8 @@ bool HasField(const google::protobuf::Message& msg, const std::string& field)
 }
 
 
-Encoder::Encoder() :
-    m2fEncoder_(PbToFrameEncoder),
+Encoder::Encoder(MessageToFrameEncoder enc) :
+    m2fEncoder_(std::move(enc)),
     f2bEncoder_(PBFrameToBytesEncoder),
     default_(true)
 {
