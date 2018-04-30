@@ -5,6 +5,7 @@
 #include "RpcService.h"
 #include "RpcServiceStub.h"
 #include "net/Application.h"
+#include "net/AnanasDebug.h"
 
 namespace ananas
 {
@@ -25,7 +26,7 @@ bool Server::AddService(ananas::rpc::Service* service)
 {
     auto googleService = service->GetService();
     const auto& name = googleService->GetDescriptor()->full_name();
-    printf("AddService %s\n", googleService->GetDescriptor()->name().data());
+    ANANAS_INF << "AddService " << googleService->GetDescriptor()->name().data();
     std::unique_ptr<Service> svr(service);
 
     if (services_.insert(std::make_pair(name, std::move(svr))).second)
@@ -54,7 +55,7 @@ bool Server::AddServiceStub(ananas::rpc::ServiceStub* service)
 {
     auto googleService = service->GetService();
     const auto& name = googleService->GetDescriptor()->full_name();
-    printf("AddServiceStub %s\n", googleService->GetDescriptor()->name().data());
+    ANANAS_INF << "AddServiceStub " << googleService->GetDescriptor()->name().data();
     std::unique_ptr<ServiceStub> svr(service);
 
     if (stubs_.insert(std::make_pair(name, std::move(svr))).second)
@@ -99,17 +100,17 @@ void Server::Start()
     {
         if (kv.second->Start())
         {
-            printf("start succ service %s\n", kv.first.data());
+            ANANAS_INF << "start succ service " << kv.first.data();
         }
         else
         {
-            printf("start failed service %s\n", kv.first.data());
+            ANANAS_ERR << "start failed service " << kv.first.data();
             return;
         }
     }
 
     if (services_.empty())
-        printf("Warning: No available service\n");
+        ANANAS_WRN << "Warning: No available service";
 
     app_.Run();
 }

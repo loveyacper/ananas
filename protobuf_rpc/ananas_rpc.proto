@@ -13,7 +13,7 @@ message Request {
 
 message Error { 
     int32 errnum = 1;
-    string str = 2;
+    string msg = 2;
 }
 
 message Response { 

@@ -138,13 +138,6 @@ void ServiceStub::OnNewConnection(ananas::Connection* conn)
     conn->SetOnConnect(std::bind(&ServiceStub::_OnConnect, this, std::placeholders::_1));
     conn->SetOnDisconnect(std::bind(&ServiceStub::_OnDisconnect, this, std::placeholders::_1));
     conn->SetOnMessage(&ServiceStub::OnMessage);
-#if 0
-    conn->SetOnMessage(std::bind(&ServiceStub::OnMessage,
-                                 this,
-                                 std::placeholders::_1,
-                                 std::placeholders::_2,
-                                 std::placeholders::_3));
-#endif
     conn->SetMinPacketSize(kPbHeaderLen); // 
 }
 
@@ -216,7 +209,7 @@ size_t ServiceStub::OnMessage(ananas::Connection* conn, const char* data, size_t
     }
     catch (const std::exception& e) {
         // Often because evil message
-        printf("Some exception OnData %s\n", e.what());
+        ANANAS_ERR << "Some exception OnData: " << e.what();
         conn->ActiveClose();
         return 0;
     }
@@ -305,7 +298,7 @@ bool ClientChannel::OnMessage(std::shared_ptr<google::protobuf::Message> msg)
     }
     else
     {
-        printf("Don't panic: RpcMessage bad_cast, may be text message\n");
+        ANANAS_WRN << "Don't panic: RpcMessage bad_cast, may be text message";
         // default: FIFO, pop the first promise, TO use std::map
         auto it = pendingCalls_.begin();
         it->second.promise.SetValue(std::move(msg));

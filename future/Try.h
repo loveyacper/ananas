@@ -322,23 +322,36 @@ private:
     std::exception_ptr exception_;
 };
 
+// TryWrapper<T> : if T is Try type, then Type is T otherwise is Try<T>
+template <typename T>
+struct TryWrapper
+{ 
+    using Type = Try<T>;
+};
+
+template <typename T> 
+struct TryWrapper<Try<T>>
+{ 
+    using Type = Try<T>;
+};
+
 
 // Wrap function f(...) return by Try<T>
 template <typename F, typename... Args>
 typename std::enable_if<
     !std::is_same<typename std::result_of<F (Args...)>::type, void>::value,
-    Try<typename std::result_of<F (Args...)>::type >> ::type
+    typename TryWrapper<typename std::result_of<F (Args...)>::type >::Type > ::type
     WrapWithTry(F&& f, Args&&... args)
 {
     using Type = typename std::result_of<F(Args...)>::type;
 
     try
     {
-        return Try<Type>(std::forward<F>(f)(std::forward<Args>(args)...));
+        return typename TryWrapper<Type>::Type(std::forward<F>(f)(std::forward<Args>(args)...));
     }
     catch (std::exception& e) 
     {
-        return Try<Type>(std::current_exception());
+        return typename TryWrapper<Type>::Type(std::current_exception());
     }
 }
 
@@ -365,18 +378,18 @@ typename std::enable_if <
 template <typename F>
 typename std::enable_if<
     !std::is_same<typename std::result_of<F ()>::type, void>::value,
-    Try<typename std::result_of<F ()>::type >> ::type
+    typename TryWrapper<typename std::result_of<F ()>::type >::Type > ::type
     WrapWithTry(F&& f, Try<void>&& arg)
 {
     using Type = typename std::result_of<F()>::type;
 
     try
     {
-        return Try<Type>(std::forward<F>(f)());
+        return typename TryWrapper<Type>::Type(std::forward<F>(f)());
     }
     catch (std::exception& e) 
     {
-        return Try<Type>(std::current_exception());
+        return typename TryWrapper<Type>::Type(std::current_exception());
     }
 }
 

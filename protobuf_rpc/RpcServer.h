@@ -65,14 +65,14 @@ private:
 // `RSP` is the type of response. why use `Try` type? Because may throw exception value
 
 template <typename RSP>
-Future<RSP> Call(const std::string& service,
-                 const std::string& method,
-                 const ::google::protobuf::Message& req)
+Future<ananas::Try<RSP>> Call(const std::string& service,
+                              const std::string& method,
+                              const ::google::protobuf::Message& req)
 {
     // 1. find service stub
     auto stub = RPC_SERVER.GetServiceStub(service);
     if (!stub)
-        return MakeExceptionFuture<RSP>(std::runtime_error("No such service " + service));
+        return MakeExceptionFuture<ananas::Try<RSP>>(std::runtime_error("No such service [" + service + "]"));
 
     // deep copy because GetChannel is async
     ::google::protobuf::Message* reqCopy = req.New();
@@ -91,7 +91,7 @@ Future<RSP> Call(const std::string& service,
                                   // be called in channel's EventLoop, no need to be thread-safe
                                   return channel->Invoke<RSP>(method, *reqCopy);
                               } catch(...) {
-                                  return MakeExceptionFuture<RSP>(std::current_exception());
+                                  return MakeExceptionFuture<ananas::Try<RSP>>(std::current_exception());
                               }
                           });
 }

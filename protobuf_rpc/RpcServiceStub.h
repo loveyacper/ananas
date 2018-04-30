@@ -12,6 +12,7 @@
 #include "net/Socket.h"
 #include "net/Connection.h"
 #include "net/EventLoop.h"
+#include "net/AnanasDebug.h"
 #include "util/Buffer.h"
 #include "future/Future.h"
 
@@ -114,7 +115,7 @@ public:
     std::shared_ptr<T> GetContext() const;
 
     template <typename RSP>
-    Future<RSP> Invoke(const std::string& method, const ::google::protobuf::Message& request);
+    Future<ananas::Try<RSP>> Invoke(const std::string& method, const ::google::protobuf::Message& request);
 
     // encode
     ananas::Buffer MessageToBytesEncoder(const std::string& method, const google::protobuf::Message& request);
@@ -156,13 +157,13 @@ std::shared_ptr<T> ClientChannel::GetContext() const
 }
 
 template <typename RSP>
-Future<RSP> ClientChannel::Invoke(const std::string& method,
-                                  const ::google::protobuf::Message& request)
+Future<ananas::Try<RSP>> ClientChannel::Invoke(const std::string& method,
+                                               const ::google::protobuf::Message& request)
 {
     assert (conn_->GetLoop()->IsInSameLoop());
 
     if (!service_->GetService()->GetDescriptor()->FindMethodByName(method))
-        return MakeExceptionFuture<RSP>(std::runtime_error("No such method " + method));
+        return MakeExceptionFuture<ananas::Try<RSP>>(std::runtime_error("No such method [" + method + "]"));
 
     Promise<std::shared_ptr<google::protobuf::Message>> promise; 
     auto fut = promise.GetFuture();
@@ -171,7 +172,7 @@ Future<RSP> ClientChannel::Invoke(const std::string& method,
     Buffer bytes = this->MessageToBytesEncoder(method, request);
     if (!conn_->SendPacket(bytes.ReadAddr(), bytes.ReadableSize())) // SendPacketInLoop
     {
-        return MakeExceptionFuture<RSP>(std::runtime_error("SendPacket failed"));
+        return MakeExceptionFuture<ananas::Try<RSP>>(std::runtime_error("SendPacket failed!"));
     }
     else
     {
@@ -182,10 +183,20 @@ Future<RSP> ClientChannel::Invoke(const std::string& method,
 
         // convert RpcMessage to RSP 
         RSP* rsp = (RSP* )reqContext.response.get();
-        auto decodeFut = fut.Then([this, rsp](std::shared_ptr<google::protobuf::Message>&& msg) {
-                if (decoder_.m2mDecoder_)
-                    decoder_.m2mDecoder_(*msg, *rsp);
-                else // msg type must be RSP
+        auto decodeFut = fut.Then([this, rsp](std::shared_ptr<google::protobuf::Message>&& msg) -> ananas::Try<RSP> {
+                if (decoder_.m2mDecoder_) {
+                    try {
+                        decoder_.m2mDecoder_(*msg, *rsp);
+                    }
+                    catch (const std::exception& exp) {
+                        return ananas::Try<RSP>(std::current_exception());
+                    }
+                    catch (...) {
+                        ANANAS_ERR << "Unknown exception when m2mDecode";
+                    }
+                }
+                else
+                    // msg type must be RSP
                     *rsp = std::move(*std::static_pointer_cast<RSP>(msg));
 
                 return std::move(*rsp);

@@ -3,10 +3,12 @@
 
 #include "RpcService.h"
 #include "RpcClosure.h"
+#include "RpcException.h"
 #include "ProtobufCoder.h"
 #include "ananas_rpc.pb.h"
 #include "net/Connection.h"
 #include "net/Application.h"
+#include "net/AnanasDebug.h"
 #include "util/Util.h"
 
 namespace ananas
@@ -15,10 +17,10 @@ namespace ananas
 namespace rpc
 {
 
-Service::Service(google::protobuf::Service* service)
+Service::Service(google::protobuf::Service* service) :
+    service_(service),
+    name_(service->GetDescriptor()->full_name())
 {
-    service_.reset(service);
-    name_ = service->GetDescriptor()->full_name();
 }
 
 Service::~Service()
@@ -58,7 +60,7 @@ void Service::OnNewConnection(ananas::Connection* conn)
     auto channel = std::make_shared<ServerChannel>(conn, this);
     conn->SetUserData(channel);
 
-    assert (conn->GetLoop()->Id() < channels_.size());
+    assert (conn->GetLoop()->Id() < static_cast<int>(channels_.size()));
 
     auto& channelMap = channels_[conn->GetLoop()->Id()];
     bool succ = channelMap.insert({conn->GetUniqueId(), channel.get()}).second;
@@ -101,13 +103,29 @@ size_t Service::_OnMessage(ananas::Connection* conn, const char* data, size_t le
         auto msg = channel->OnData(data, len - offset);
         if (msg)
         {
-            channel->OnMessage(std::move(msg));
             offset += (data - thisStart);
+            try {
+                channel->OnMessage(std::move(msg));
+            }
+            catch (const std::logic_error& recovableErr) {
+                channel->OnError(recovableErr);
+                return data - start;
+            }
+            catch (const std::runtime_error& unrecovableErr) {
+                channel->OnError(unrecovableErr);
+                conn->ActiveClose();
+                return data - start;
+            }
+            catch (...) {
+                ANANAS_ERR << "OnMessage: Unknown error";
+                conn->ActiveClose();
+                return data - start;
+            }
         }
     }
     catch (const std::exception& e) {
         // Often because evil message
-        printf("Some exception OnData %s\n", e.what());
+        ANANAS_ERR << "Some exception OnData " << e.what();
         conn->ActiveClose();
         return 0;
     }
@@ -143,6 +161,16 @@ ananas::Connection* ServerChannel::Connection() const
     return conn_;
 }
 
+void ServerChannel::SetEncoder(Encoder enc)
+{
+    encoder_ = std::move(enc);
+}
+
+void ServerChannel::SetDecoder(Decoder dec)
+{
+    decoder_ = std::move(dec);
+}
+
 std::shared_ptr<google::protobuf::Message> ServerChannel::OnData(const char*& data, size_t len)
 {
     return decoder_.b2mDecoder_(data, len);
@@ -151,48 +179,55 @@ std::shared_ptr<google::protobuf::Message> ServerChannel::OnData(const char*& da
 bool ServerChannel::OnMessage(std::shared_ptr<google::protobuf::Message> req)
 {
     std::string method;
-    int id = 0;
+    //int id = 0;
     RpcMessage* frame = dynamic_cast<RpcMessage*>(req.get());
     if (frame)
     {
         if (frame->has_request())
         {
-            id = frame->request().id();
+            currentId_ = frame->request().id();
             method = frame->request().method_name();
+
+            if (frame->request().service_name() != 
+                service_->FullName())
+                throw NoServiceException("Not find service [" + frame->request().service_name() + "]");
         }
         else
-            return false; // evil client
+            throw NoRequestException();
     }
     else
     {
-        //printf("Don't panic: RpcMessage bad_cast, may be text message\n");
+        currentId_ = -1;
         if (!service_->methodSelector_)
         {
-            printf("Error: how to get funcName_ from message?\n");
-            return false;
+            // error, need methodSelector_
+            ANANAS_ERR << "How to get method name from message? You forget to set methodSelector";
+            throw MethodUndeterminedException("methodSelector not set for [" + service_->FullName() + "]");
         }
         else
         {
-            printf("Debug: how to get funcName_ from message?\n");
             method = service_->methodSelector_(req.get());
+            ANANAS_DBG << "Debug: get method [" << method.data() << "] from message";
         }
     }
 
-    this->_Invoke(method, std::move(req), id);
+    this->_Invoke(method, std::move(req));
     return true;
 }
     
-void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<google::protobuf::Message> req, int id)
+void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<google::protobuf::Message> req)
 {
     const auto googServ = service_->GetService();
     auto method = googServ->GetDescriptor()->FindMethodByName(methodName);
     if (!method)
-        return; // NO SUCH FUNC
+    {
+        ANANAS_ERR << "_Invoke: No such method " << methodName;
+        throw MethodUndeterminedException("Not find method [" + methodName + "]");
+    }
 
     if (decoder_.m2mDecoder_)
     {
         std::unique_ptr<google::protobuf::Message> request(googServ->GetRequestPrototype(method).New()); 
-        // try catch
         decoder_.m2mDecoder_(*req, *request); // may be ParseFromString
         req.reset(request.release());
     }
@@ -210,7 +245,7 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<googl
 
     std::weak_ptr<ananas::Connection> wconn(std::static_pointer_cast<ananas::Connection>(conn_->shared_from_this()));
     googServ->CallMethod(method, nullptr, req.get(), response.get(), 
-            new ananas::rpc::Closure(&ServerChannel::_OnServDone, this, wconn, id, response));
+            new ananas::rpc::Closure(&ServerChannel::_OnServDone, this, wconn, currentId_, response));
 }
 
 void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
@@ -221,9 +256,10 @@ void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
     if (!conn) return;
 
     RpcMessage frame;
-    Response& rsp = *frame.mutable_response();
-    rsp.set_id(id);
+    Response* rsp = frame.mutable_response();
+    rsp->set_id(id);
     bool succ = encoder_.m2fEncoder_(response.get(), frame);
+    assert (succ);
 
     if (encoder_.f2bEncoder_)
     {
@@ -232,8 +268,30 @@ void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
     }
     else
     {
-        const auto& bytes = rsp.serialized_response();
+        const auto& bytes = rsp->serialized_response();
         conn->SendPacket(bytes.data(), bytes.size());
+    }
+}
+
+
+void ServerChannel::OnError(const std::exception& err)
+{
+    RpcMessage frame;
+    Response& rsp = *frame.mutable_response();
+    if (currentId_ != -1) rsp.set_id(currentId_);
+    rsp.mutable_error()->set_msg(err.what());
+    bool succ = encoder_.m2fEncoder_(nullptr, frame);
+    assert (succ);
+
+    if (encoder_.f2bEncoder_)
+    {
+        ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
+        conn_->SendPacket(bytes.ReadAddr(), bytes.ReadableSize());
+    }
+    else
+    {
+        const auto& bytes = rsp.serialized_response();
+        conn_->SendPacket(bytes.data(), bytes.size());
     }
 }
 

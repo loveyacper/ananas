@@ -41,8 +41,9 @@ struct State
 
     std::mutex thenLock_;
 
-    Try<T> value_;
-    std::function<void (Try<T>&& )> then_;
+    using ValueType = typename TryWrapper<T>::Type;
+    ValueType value_;
+    std::function<void (ValueType&& )> then_;
     Progress progress_;
 
     std::function<void (TimeoutCallback&& )> onTimeout_;
@@ -83,7 +84,7 @@ public:
 
         state_->progress_ = internal::Progress::Done;
 
-        state_->value_ = Try<T>(std::move(exp));
+        state_->value_ = typename internal::State<T>::ValueType(std::move(exp));
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -285,12 +286,12 @@ public:
         }
         else if (state_->progress_ == Progress::Done)
         {
-            Try<T> t;
+            typename TryWrapper<T>::Type t;
             try {
                 t = std::move(state_->value_);
             }
             catch(const std::exception& e) {
-                t = Try<T>(std::current_exception());
+                t = (typename TryWrapper<T>::Type)(std::current_exception());
             }
 
             guard.unlock();
@@ -332,7 +333,7 @@ public:
             // 2. set this future's then callback
             SetCallback([sched,
                          func = std::forward<FuncType>(f),
-                         prom = std::move(pm)](Try<T>&& t) mutable {
+                         prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
 
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // run callback, T can be void, thanks to folly Try<>
@@ -375,12 +376,12 @@ public:
         }
         else if (state_->progress_ == Progress::Done)
         {
-            Try<T> t;
+            typename TryWrapper<T>::Type t;
             try {
                 t = std::move(state_->value_);
             }
             catch(const std::exception& e) {
-                t = Try<T>(std::current_exception());
+                t = decltype(t)(std::current_exception());
             }
 
             guard.unlock();
@@ -392,7 +393,7 @@ public:
                 decltype(f(res.template Get<Args>()...)) innerFuture;;
                 if (res.HasException()) {
                     // FIXME if Args... is void
-                    innerFuture = f(Try<typename std::decay<Args...>::type>(res.Exception()));
+                    innerFuture = f(typename TryWrapper<typename std::decay<Args...>::type>::Type(res.Exception()));
                 }
                 else {
                     innerFuture = f(res.template Get<Args>()...);
@@ -404,19 +405,19 @@ public:
                     throw FutureWrongState();
                 }
                 else if (innerFuture.state_->progress_ == Progress::Done) {
-                    Try<FReturnType> t;
+                    typename TryWrapper<FReturnType>::Type t;
                     try {
                         t = std::move(innerFuture.state_->value_);
                     }
                     catch(const std::exception& e) {
-                        t = Try<FReturnType>(std::current_exception());
+                        t = decltype(t)(std::current_exception());
                     }
 
                     guard.unlock();
                     prom.SetValue(std::move(t));
                 }
                 else {
-                    innerFuture.SetCallback([prom = std::move(prom)](Try<FReturnType>&& t) mutable {
+                    innerFuture.SetCallback([prom = std::move(prom)](typename TryWrapper<FReturnType>::Type&& t) mutable {
                         prom.SetValue(std::move(t));
                     });
                 }
@@ -453,13 +454,13 @@ public:
             // 2. set this future's then callback
             SetCallback([sched = sched,
                          func = std::forward<FuncType>(f),
-                         prom = std::move(pm)](Try<T>&& t) mutable {
+                         prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
                     decltype(func(t.template Get<Args>()...)) innerFuture;;
                     if (t.HasException()) {
                         // FIXME if Args... is void
-                        innerFuture = func(Try<typename std::decay<Args...>::type>(t.Exception()));
+                        innerFuture = func(typename TryWrapper<typename std::decay<Args...>::type>::Type(t.Exception()));
                     }
                     else {
                         innerFuture = func(t.template Get<Args>()...);
@@ -471,19 +472,19 @@ public:
                         throw FutureWrongState();
                     }
                     else if (innerFuture.state_->progress_ == Progress::Done) {
-                        Try<FReturnType> t;
+                        typename TryWrapper<FReturnType>::Type t;
                         try {
                             t = std::move(innerFuture.state_->value_);
                         }
                         catch(const std::exception& e) {
-                            t = Try<FReturnType>(std::current_exception());
+                            t = decltype(t)(std::current_exception());
                         }
 
                         guard.unlock();
                         prom.SetValue(std::move(t));
                     }
                     else {
-                        innerFuture.SetCallback([prom = std::move(prom)](Try<FReturnType>&& t) mutable {
+                        innerFuture.SetCallback([prom = std::move(prom)](typename TryWrapper<FReturnType>::Type&& t) mutable {
                             prom.SetValue(std::move(t));
                         });
                     }
@@ -499,7 +500,7 @@ public:
         return std::move(nextFuture);
     }
 
-    void SetCallback(std::function<void (Try<T>&& )>&& func)
+    void SetCallback(std::function<void (typename TryWrapper<T>::Type&& )>&& func)
     {
         state_->then_ = std::move(func);
     }
