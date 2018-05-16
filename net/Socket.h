@@ -37,6 +37,10 @@ struct SocketAddr
     {
         Init(ip, hostport);
     }
+    SocketAddr(const std::string& ip, uint16_t hostport)
+    {
+        Init(ip.data(), hostport);
+    }
 
     SocketAddr(const std::string& ipport)
     {

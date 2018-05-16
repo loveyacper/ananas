@@ -13,9 +13,11 @@ message EchoResponse {
 }
 
 service TestService { 
+    rpc Echo(EchoRequest) returns(EchoResponse) {
+    }  
     rpc ToUpper(EchoRequest) returns(EchoResponse) {
     }  
     rpc AppendDots(EchoRequest) returns(EchoResponse) {
-    }  
+    }
 }
 

@@ -3,6 +3,7 @@
 #define BERT_CONNECTION_H
 
 #include <sys/types.h>
+#include <string>
 
 #include "Socket.h"
 #include "Poller.h"
@@ -50,6 +51,8 @@ public:
     void HandleErrorEvent() override;
 
     bool SendPacket(const void* data, std::size_t len);
+    bool SendPacket(const std::string& data);
+    bool SendPacket(const Buffer& buf);
     bool SendPacket(const BufferVector& datum);
     bool SendPacket(const SliceVector& slice);
 

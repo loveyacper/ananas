@@ -75,8 +75,15 @@ public:
     void Schedule(std::function<void ()> f) override;
 
     // thread-safe
-    template <typename F, typename... Args>
-    void Execute(F&& f, Args&&... args);
+    // F return non-void
+    template <typename F, typename... Args,
+              typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type, typename Dummy = void>
+    auto Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type>;
+
+    // F return void
+    template <typename F, typename... Args,
+              typename = typename std::enable_if<std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type>
+    auto Execute(F&& f, Args&&... args) -> Future<void>;
 
     void Run();
     bool Loop(DurationMs timeout);
@@ -141,22 +148,74 @@ TimerId EventLoop::ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&
                                                         std::forward<Args>(args)...);
 }
 
-template <typename F, typename... Args>
-void EventLoop::Execute(F&& f, Args&&... args)
+// if F return something not void and Future
+// or if F return Future
+template <typename F, typename... Args, typename, typename >
+auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type>
 {
+    using resultType = typename std::result_of<F (Args...)>::type;
+
+    Promise<resultType> promise;
+    auto future = promise.GetFuture();
+
     if (IsInSameLoop())
     {
-        std::forward<F>(f)(std::forward<Args>(args)...);
+        promise.SetValue(std::forward<F>(f)(std::forward<Args>(args)...));
     }
     else
     {
-        auto temp = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-        auto func = [temp]() { (void)temp(); };
+        auto innerTask = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+        auto func = [t = std::move(innerTask), promise = std::move(promise)]() mutable {
+            try {
+                promise.SetValue(Try<resultType>(t()));
+            }
+            catch(...) {
+                promise.SetException(std::current_exception());
+            }
+        };
 
         std::unique_lock<std::mutex> guard(fctrMutex_);
         functors_.emplace_back(std::move(func));
     }
+
+    return future;
 }
+
+// F return void
+template <typename F, typename... Args, typename >
+auto EventLoop::Execute(F&& f, Args&&... args) -> Future<void>
+{
+    using resultType = typename std::result_of<F (Args...)>::type;
+    static_assert(std::is_void<resultType>::value, "must be void");
+
+    Promise<void> promise;
+    auto future = promise.GetFuture();
+
+    if (IsInSameLoop())
+    {
+        std::forward<F>(f)(std::forward<Args>(args)...);
+        promise.SetValue();
+    }
+    else
+    {
+        auto innerTask = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+        auto func = [t = std::move(innerTask), promise = std::move(promise)]() mutable {
+            try {
+                t();
+                promise.SetValue();
+            }
+            catch(...) {
+                promise.SetException(std::current_exception());
+            }
+        };
+
+        std::unique_lock<std::mutex> guard(fctrMutex_);
+        functors_.emplace_back(std::move(func));
+    }
+
+    return future;
+}
+
 
 } // end namespace ananas
 

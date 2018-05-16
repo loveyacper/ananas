@@ -32,21 +32,22 @@ google::protobuf::Service* Service::GetService() const
     return service_.get();
 }
 
-void Service::SetBindAddr(const SocketAddr& addr)
+void Service::SetEndpoint(const Endpoint& ep)
 {
-    assert (!bindAddr_.IsValid());
-    bindAddr_ = addr;
+    assert (!ep.ip().empty());
+    endpoint_ = ep;
 }
 
 bool Service::Start()
 {
-    if (!bindAddr_.IsValid())
+    if (endpoint_.ip().empty())
         return false;
 
     auto& app = ananas::Application::Instance();
-    app.Listen(bindAddr_, std::bind(&Service::OnNewConnection,
-                                    this,
-                                    std::placeholders::_1));
+    SocketAddr bindAddr(endpoint_.ip(), endpoint_.port());
+    app.Listen(bindAddr, std::bind(&Service::OnNewConnection,
+                                   this,
+                                   std::placeholders::_1));
     return true;
 }
 
@@ -78,7 +79,7 @@ void Service::OnRegister()
     channels_.resize(Application::Instance().NumOfWorker());
 }
 
-void Service::SetMethodSelector(std::function<const char* (const google::protobuf::Message* )> ms)
+void Service::SetMethodSelector(std::function<std::string (const google::protobuf::Message* )> ms)
 {
     methodSelector_ = std::move(ms);
 }
@@ -179,7 +180,6 @@ std::shared_ptr<google::protobuf::Message> ServerChannel::OnData(const char*& da
 bool ServerChannel::OnMessage(std::shared_ptr<google::protobuf::Message> req)
 {
     std::string method;
-    //int id = 0;
     RpcMessage* frame = dynamic_cast<RpcMessage*>(req.get());
     if (frame)
     {
@@ -207,7 +207,7 @@ bool ServerChannel::OnMessage(std::shared_ptr<google::protobuf::Message> req)
         else
         {
             method = service_->methodSelector_(req.get());
-            ANANAS_DBG << "Debug: get method [" << method.data() << "] from message";
+            //ANANAS_DBG << "Debug: get method [" << method.data() << "] from message";
         }
     }
 
@@ -228,7 +228,7 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<googl
     if (decoder_.m2mDecoder_)
     {
         std::unique_ptr<google::protobuf::Message> request(googServ->GetRequestPrototype(method).New()); 
-        decoder_.m2mDecoder_(*req, *request); // may be ParseFromString
+        decoder_.m2mDecoder_(*req, *request);
         req.reset(request.release());
     }
 
@@ -257,19 +257,19 @@ void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
 
     RpcMessage frame;
     Response* rsp = frame.mutable_response();
-    rsp->set_id(id);
+    if (id >= 0) rsp->set_id(id);
     bool succ = encoder_.m2fEncoder_(response.get(), frame);
     assert (succ);
 
     if (encoder_.f2bEncoder_)
     {
         ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
-        conn->SendPacket(bytes.ReadAddr(), bytes.ReadableSize());
+        conn->SendPacket(bytes);
     }
     else
     {
         const auto& bytes = rsp->serialized_response();
-        conn->SendPacket(bytes.data(), bytes.size());
+        conn->SendPacket(bytes);
     }
 }
 
@@ -286,12 +286,12 @@ void ServerChannel::OnError(const std::exception& err)
     if (encoder_.f2bEncoder_)
     {
         ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
-        conn_->SendPacket(bytes.ReadAddr(), bytes.ReadableSize());
+        conn_->SendPacket(bytes);
     }
     else
     {
         const auto& bytes = rsp.serialized_response();
-        conn_->SendPacket(bytes.data(), bytes.size());
+        conn_->SendPacket(bytes);
     }
 }
 

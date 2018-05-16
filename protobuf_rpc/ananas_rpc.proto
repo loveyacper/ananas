@@ -4,6 +4,8 @@ syntax = "proto3";
 
 package ananas.rpc;
 
+option cc_generic_services = true;
+
 message Request {
     int32 id = 1;
     string service_name = 2;
@@ -31,6 +33,47 @@ message RpcMessage {
     }
 }
 
+// The endpoint class
+enum Proto
+{
+    TCP = 0;
+    UDP = 1;
+    SSL = 2;
+}
+
+message Endpoint {
+    Proto proto = 1;
+    string ip = 2;
+    int32 port = 3;
+}
+
+message ServiceName {
+    string name = 1;
+}
+
+message EndpointList {
+    repeated Endpoint endpoints = 1;
+}
+
+message Heartbeat {
+    string serviceName = 1;
+    Endpoint endpoint = 2;
+}
+
+message HeartbeatList {
+    repeated Heartbeat info = 1;
+}
+
+message Status {
+    int32 result = 1;
+}
+
+service NameService { 
+    rpc GetEndpoints(ServiceName) returns(EndpointList) {
+    }
+    rpc Keepalive(HeartbeatList) returns(Status) {
+    }
+}
 /*
 extend google.protobuf.ServiceOptions {  
       required uint32 global_service_id = 1000;   

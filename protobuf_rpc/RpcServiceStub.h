@@ -52,25 +52,26 @@ public:
     const std::string& FullName() const;
 
     // serviceUrl list format : tcp://127.0.0.1:6379;tcp://127.0.0.1:6380
-    // TODO name server
+    // Direct connect to, not via name service
     void SetUrlList(const std::string& serviceUrls);
 
     void SetOnCreateChannel(std::function<void (ClientChannel* )> );
 
     Future<ClientChannel* > GetChannel();
-    Future<ClientChannel* > GetChannel(const Endpoint& ep);
 
-    void OnNewConnection(ananas::Connection* conn);
-    static size_t OnMessage(ananas::Connection* conn, const char* data, size_t len);
+    void OnNewConnection(Connection* conn);
+    static size_t OnMessage(Connection* conn, const char* data, size_t len);
 
-    //void SetLoadBalancer(const std::string& serviceUrl);
     void OnRegister();
 private:
     Future<ClientChannel* > _Connect(const Endpoint& ep);
-    void _OnConnect(ananas::Connection* );
-    void _OnDisconnect(ananas::Connection* conn);
-    void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer);
-    const Endpoint& ChooseOne() const;
+    void _OnConnect(Connection* );
+    void _OnDisconnect(Connection* conn);
+    void OnConnFail(EventLoop* loop, const SocketAddr& peer);
+
+    Future<const std::vector<Endpoint>* > _GetEndpoints();
+    static Endpoint SelectEndpoint(const std::vector<Endpoint>* );
+    Future<ClientChannel* > MakeChannel(const Endpoint& );
 
     // channels are in different eventLoops
     using ChannelMap = std::unordered_map<Endpoint, ClientChannel* >;
@@ -86,28 +87,27 @@ private:
     // pending connects
     using ChannelPromise = Promise<ClientChannel* >;
     std::mutex connMutex_;
-    std::unordered_map<ananas::SocketAddr, std::vector<ChannelPromise> > pendingConns_;
+    std::unordered_map<SocketAddr, std::vector<ChannelPromise> > pendingConns_;
     // if hardCodedUrls_ is not empty, never access name server
     std::vector<Endpoint> hardCodedUrls_;
     std::string name_;
 
     // channel init
     std::function<void (ClientChannel* )> onCreateChannel_;
-#if 0
-    // TODO nameserver & load balance
-    std::vector<Endpoint> activeUrls_;
-    std::vector<Endpoint> inactiveUrls_;
-#endif
+
+    // active nodes fetched from name server
+    std::vector<Endpoint> nodes_;
+    //ananas::Time refreshTime_;
 };
 
 class ClientChannel
 {
     friend class ServiceStub;
 public:
-    ClientChannel(ananas::Connection* conn, ananas::rpc::ServiceStub* service);
+    ClientChannel(Connection* conn, ServiceStub* service);
     ~ClientChannel();
 
-    ananas::Connection* Connection() const;
+    Connection* Connection() const;
 
     void SetContext(std::shared_ptr<void> ctx);
 
@@ -115,10 +115,15 @@ public:
     std::shared_ptr<T> GetContext() const;
 
     template <typename RSP>
-    Future<ananas::Try<RSP>> Invoke(const std::string& method, const ::google::protobuf::Message& request);
+    Future<Try<RSP>> Invoke(const std::string& method,
+                            std::shared_ptr<google::protobuf::Message> request);
+
+    template <typename RSP>
+    Future<Try<RSP>> _Invoke(const std::string& method,
+                             std::shared_ptr<google::protobuf::Message> request);
 
     // encode
-    ananas::Buffer MessageToBytesEncoder(const std::string& method, const google::protobuf::Message& request);
+    Buffer MessageToBytesEncoder(const std::string& method, const google::protobuf::Message& request);
     void SetEncoder(Encoder );
     
     // decode
@@ -130,7 +135,7 @@ public:
 
 private:
     ananas::Connection* const conn_;
-    ananas::rpc::ServiceStub* const service_;
+    ServiceStub* const service_;
 
     std::shared_ptr<void> ctx_;
 
@@ -157,22 +162,31 @@ std::shared_ptr<T> ClientChannel::GetContext() const
 }
 
 template <typename RSP>
-Future<ananas::Try<RSP>> ClientChannel::Invoke(const std::string& method,
-                                               const ::google::protobuf::Message& request)
+Future<Try<RSP>> ClientChannel::Invoke(const std::string& method,
+                                       std::shared_ptr<google::protobuf::Message> request)
+{
+    //return _Invoke<RSP>(method, request);
+    auto invoker = std::bind(&ClientChannel::_Invoke<RSP>, this, method, request);
+    return conn_->GetLoop()->Execute(std::move(invoker)).Unwrap();
+}
+
+template <typename RSP>
+Future<Try<RSP>> ClientChannel::_Invoke(const std::string& method,
+                                       std::shared_ptr<google::protobuf::Message> request)
 {
     assert (conn_->GetLoop()->IsInSameLoop());
 
     if (!service_->GetService()->GetDescriptor()->FindMethodByName(method))
-        return MakeExceptionFuture<ananas::Try<RSP>>(std::runtime_error("No such method [" + method + "]"));
+        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("No such method [" + method + "]"));
 
     Promise<std::shared_ptr<google::protobuf::Message>> promise; 
     auto fut = promise.GetFuture();
 
     // encode and send request
-    Buffer bytes = this->MessageToBytesEncoder(method, request);
-    if (!conn_->SendPacket(bytes.ReadAddr(), bytes.ReadableSize())) // SendPacketInLoop
+    Buffer bytes = this->MessageToBytesEncoder(method, *request);
+    if (!conn_->SendPacket(bytes)) // SendPacketInLoop
     {
-        return MakeExceptionFuture<ananas::Try<RSP>>(std::runtime_error("SendPacket failed!"));
+        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("SendPacket failed!"));
     }
     else
     {
@@ -183,13 +197,13 @@ Future<ananas::Try<RSP>> ClientChannel::Invoke(const std::string& method,
 
         // convert RpcMessage to RSP 
         RSP* rsp = (RSP* )reqContext.response.get();
-        auto decodeFut = fut.Then([this, rsp](std::shared_ptr<google::protobuf::Message>&& msg) -> ananas::Try<RSP> {
+        auto decodeFut = fut.Then([this, rsp](std::shared_ptr<google::protobuf::Message>&& msg) -> Try<RSP> {
                 if (decoder_.m2mDecoder_) {
                     try {
                         decoder_.m2mDecoder_(*msg, *rsp);
                     }
                     catch (const std::exception& exp) {
-                        return ananas::Try<RSP>(std::current_exception());
+                        return Try<RSP>(std::current_exception());
                     }
                     catch (...) {
                         ANANAS_ERR << "Unknown exception when m2mDecode";

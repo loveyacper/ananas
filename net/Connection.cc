@@ -352,6 +352,16 @@ bool Connection::SendPacket(const void* data, std::size_t size)
     return true;
 }
 
+bool Connection::SendPacket(const std::string& data)
+{
+    return SendPacket(data.data(), data.size());
+}
+
+bool Connection::SendPacket(const Buffer& data)
+{
+    return SendPacket(const_cast<Buffer&>(data).ReadAddr(), data.ReadableSize());
+}
+
 // iovec for writev
 namespace
 {

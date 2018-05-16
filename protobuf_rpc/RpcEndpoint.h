@@ -3,6 +3,7 @@
 
 #include <string>
 #include "net/Socket.h"
+#include "ananas_rpc.pb.h"
 
 namespace ananas
 {
@@ -10,87 +11,71 @@ namespace ananas
 namespace rpc
 {
 
-struct Endpoint
+inline
+SocketAddr EndpointToSocketAddr(const Endpoint& ep)
 {
-public:
-    Endpoint()
-    {
-    }
-
-    Endpoint(const std::string& url)
-    {
-        FromString(url);
-    }
-
-    // format:  tcp://127.0.0.1:1234
-    bool FromString(const std::string& url);
-    std::string ToString() const;
-
-    bool IsValid() const { return addr.IsValid(); }
-
-public:
-    enum {
-        TCP,
-        UDP,
-        SSL,
-    } proto;
-
-    ananas::SocketAddr addr;
-
-    friend 
-    bool operator==(const Endpoint& a, const Endpoint& b)
-    {
-        return a.proto == b.proto && a.addr == b.addr;
-    }
-};
-
-
+    return SocketAddr(ep.ip().data(), ep.port());
+}
 
 inline
-bool Endpoint::FromString(const std::string& url)
+Endpoint EndpointFromString(const std::string& url)
 {
-    this->addr.Clear();
-
     // len(tcp://1.1.1.1:1) = 15
+    Endpoint ep;
     if (url.size() < 15)
-        return false;
+        return ep;
 
     std::string::size_type sep = url.rfind('/');
     if (sep == std::string::npos)
-        return false;
+        return ep;
 
     if (strncmp(url.data(), "tcp", 3) == 0)
-        proto = TCP;
+        ep.set_proto(TCP);
     else if (strncmp(url.data(), "udp", 3) == 0)
-        proto = UDP;
+        ep.set_proto(UDP);
     else if (strncmp(url.data(), "ssl", 3) == 0)
-        proto = SSL;
+        ep.set_proto(SSL);
     else
-        return false;
+        return ep;
 
-    this->addr.Init(url.substr(sep + 1));
-    return true;
+    std::string ipport = url.substr(sep + 1);
+    std::string::size_type p = ipport.find_first_of(':');
+    if (p == std::string::npos)
+        return ep;
+
+    ep.set_ip(ipport.substr(0, p));
+    ep.set_port(std::stoi(ipport.substr(p + 1)));
+    return ep;
 }
 
-
 inline
-std::string Endpoint::ToString() const
+std::string EndpointToString(const Endpoint& ep)
 {
-    if (!IsValid())
-        return "Invalid Endpoint";
-
     std::string rep;
-    if (proto == TCP)
+    if (ep.proto() == TCP)
         rep = "tcp://";
-    else if (proto == UDP)
+    else if (ep.proto() == UDP)
         rep = "udp://";
     else
         rep = "ssl://";
 
-    rep += addr.ToString();
+    rep += ep.ip() + ":" + std::to_string(ep.port());
     return rep;
 }
 
+inline
+bool operator==(const Endpoint& a, const Endpoint& b)
+{
+    return a.proto() == b.proto() &&
+           a.ip() == b.ip() &&
+           a.port() == b.port();
+}
+
+inline
+bool IsValidEndpoint(const Endpoint& ep)
+{
+    return !ep.ip().empty() && ep.port() > 0;
+}
 
 } // end namespace rpc
 
@@ -105,9 +90,11 @@ namespace std
         typedef std::size_t result_type;
         result_type operator()(const argument_type& s) const noexcept
         {
-            result_type h1 = std::hash<short>{}(s.proto);
-            result_type h2 = std::hash<ananas::SocketAddr>{}(s.addr);
-            return h1 ^ (h2 << 1);
+            result_type h1 = std::hash<int>{}(s.proto());
+            result_type h2 = std::hash<int>{}(s.port());
+            result_type h3 = std::hash<std::string>{}(s.ip());
+            result_type tmp = h1 ^ (h2 << 1);
+            return h3 ^ (tmp << 1);
         }
     };
 }

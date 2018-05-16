@@ -183,7 +183,7 @@ bool EventLoop::Register(int events, std::shared_ptr<internal::Channel> src)
         s_id = 1;
 
     src->SetUniqueId(s_id);
-    ANANAS_ERR << "Register " << s_id << " to me " << pthread_self();
+    ANANAS_INF << "Register " << s_id << " to me " << pthread_self();
 
     if (poller_->Register(src->Identifier(), events, src.get()))
         return channelSet_.insert({src->GetUniqueId(), src}).second;

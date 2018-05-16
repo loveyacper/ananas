@@ -29,6 +29,12 @@ public:
     Server();
     static Server& Instance();
 
+    // base loop
+    EventLoop* BaseLoop();
+
+    // nameserver
+    void SetNameServer(const std::string& url);
+
     // server-side
     bool AddService(ananas::rpc::Service* service);
     bool AddService(std::unique_ptr<Service>&& service);
@@ -49,8 +55,10 @@ private:
     std::unordered_map<std::string, std::unique_ptr<Service> > services_;
     std::unordered_map<std::string, std::unique_ptr<ServiceStub> > stubs_;
 
-    // TODO name server
-    std::vector<Endpoint> nameServers_;
+    ServiceStub* nameServiceStub_ {nullptr};
+
+    // The services's info
+    HeartbeatList keepaliveInfo_;
 
     static Server* s_rpcServer;
 };
@@ -75,21 +83,17 @@ Future<ananas::Try<RSP>> Call(const std::string& service,
         return MakeExceptionFuture<ananas::Try<RSP>>(std::runtime_error("No such service [" + service + "]"));
 
     // deep copy because GetChannel is async
-    ::google::protobuf::Message* reqCopy = req.New();
+    std::shared_ptr<::google::protobuf::Message> reqCopy(req.New());
     reqCopy->CopyFrom(req);
 
     // 2. select one channel and invoke method via it
     auto channelFuture = stub->GetChannel();
 
-    // The channelFuture should not to be set timeout, because the TCP connect already set timeout
+    // The channelFuture need not to set timeout, because the TCP connect already set timeout
     return channelFuture.Then([method, reqCopy](ananas::Try<ClientChannel*>&& chan) {
                               try {
-                                  std::unique_ptr<google::protobuf::Message> _(reqCopy);
-                                  ClientChannel* channel = chan;
-
-                                  // When reach here, connect is success, so Invoke must
-                                  // be called in channel's EventLoop, no need to be thread-safe
-                                  return channel->Invoke<RSP>(method, *reqCopy);
+                                  ClientChannel* channel = chan.Value();
+                                  return channel->Invoke<RSP>(method, reqCopy);
                               } catch(...) {
                                   return MakeExceptionFuture<ananas::Try<RSP>>(std::current_exception());
                               }

@@ -28,10 +28,10 @@ using TimeoutCallback = std::function<void ()>;
 template <typename T>
 struct State
 {
-    static_assert(std::is_same<T, void>::value || std::is_copy_constructible<T>(),
-                  "must be copyable or void");
-    static_assert(std::is_same<T, void>::value || std::is_move_constructible<T>(),
-                  "must be movable or void");
+    static_assert(std::is_same<T, void>::value ||
+                  std::is_copy_constructible<T>() ||
+                  std::is_move_constructible<T>(),
+                  "must be copyable or movable or void");
 
     State() :
         progress_(Progress::None),
@@ -214,10 +214,17 @@ public:
         return Future<T>(state_);
     }
 
+    bool IsReady() const
+    { 
+        return state_->progress_ != internal::Progress::None;
+    }
+
 private:
     std::shared_ptr<internal::State<T>> state_;
 };
 
+template <typename T2>
+Future<T2> MakeExceptionFuture(std::exception_ptr&& );
 
 template <typename T>
 class Future
@@ -242,6 +249,58 @@ public:
     Future(std::shared_ptr<internal::State<T>> state) :
         state_(std::move(state))
     {
+    }
+
+    // T is of type Future<InnerType>
+    template <typename SHIT = T>
+    typename std::enable_if<internal::IsFuture<SHIT>::value, SHIT>::type
+    Unwrap()
+    {
+        using namespace internal;
+        using InnerType = typename IsFuture<SHIT>::Inner;
+
+        static_assert(std::is_same<SHIT, Future<InnerType>>::value, "Kidding me?");
+
+        Promise<InnerType> prom;
+        Future<InnerType> fut = prom.GetFuture();
+
+        std::unique_lock<std::mutex> guard(state_->thenLock_);
+        if (state_->progress_ == Progress::Timeout)
+        {
+            struct FutureWrongState {};
+            throw FutureWrongState();
+        }
+        else if (state_->progress_ == Progress::Done)
+        {
+            //printf("Unwrap done\n");
+            typename TryWrapper<SHIT>::Type innerFuture;
+            try {
+                innerFuture = std::move(state_->value_);
+                return std::move(innerFuture.Value());
+            }
+            catch(const std::exception& e) {
+                return MakeExceptionFuture<InnerType>(std::current_exception());
+            }
+        }
+        else
+        {
+            //printf("Unwrap not done\n");
+            // TODO Scheduler?
+            SetCallback([pm = std::move(prom)](typename TryWrapper<SHIT>::Type&& innerFuture) mutable {
+                    try {
+                        SHIT future = std::move(innerFuture);
+                        future.SetCallback([pm = std::move(pm)](typename TryWrapper<InnerType>::Type&& t) mutable {
+                            //printf("Unwrap callback\n");
+                            pm.SetValue(std::move(t));
+                        });
+                    }
+                    catch (...) {
+                        pm.SetException(std::current_exception());
+                    }
+            });
+        }
+
+        return fut;
     }
 
     template <typename F,

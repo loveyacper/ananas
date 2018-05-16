@@ -9,6 +9,7 @@
 #include "net/Typedefs.h"
 #include "net/Socket.h"
 
+#include "RpcEndpoint.h"
 #include "ProtobufCoder.h"
 
 
@@ -44,7 +45,8 @@ public:
     google::protobuf::Service* GetService() const;
     const std::string& FullName() const;
 
-    void SetBindAddr(const SocketAddr& addr);
+    void SetEndpoint(const Endpoint& ep);
+    const Endpoint& GetEndpoint() const { return endpoint_; }
     bool Start();
 
     void OnNewConnection(ananas::Connection* conn);
@@ -52,7 +54,7 @@ public:
     void OnRegister();
     
     // if the third party protocol, this func tell ananas to invoke which func for request
-    void SetMethodSelector(std::function<const char* (const google::protobuf::Message* )> );
+    void SetMethodSelector(std::function<std::string (const google::protobuf::Message* )> );
 
     void SetOnCreateChannel(std::function<void (ServerChannel* )> );
 
@@ -63,11 +65,11 @@ private:
     void _OnDisconnect(ananas::Connection* conn);
 
     std::unique_ptr<google::protobuf::Service> service_;
-    SocketAddr bindAddr_;
+    Endpoint endpoint_;
     std::string name_;
 
     std::function<void (ServerChannel* )> onCreateChannel_;
-    std::function<const char* (const google::protobuf::Message* )> methodSelector_;
+    std::function<std::string (const google::protobuf::Message* )> methodSelector_;
 
     // each service has many connections, each loop has its own map, avoid mutex
     using ChannelMap = std::unordered_map<unsigned int, ServerChannel* >;

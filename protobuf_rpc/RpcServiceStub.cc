@@ -4,9 +4,9 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <random>
 
 #include "RpcServiceStub.h"
+#include "RpcServer.h"
 #include "net/Socket.h"
 #include "net/Application.h"
 #include "util/Util.h"
@@ -49,23 +49,26 @@ void ServiceStub::SetUrlList(const std::string& serviceUrls)
 
     for (const auto& url : urls)
     {
-        Endpoint ep(url);
-        if (ep.IsValid())
+        Endpoint ep = EndpointFromString(url);
+        if (!ep.ip().empty())
             hardCodedUrls_.push_back(ep);
     }
 
     if (hardCodedUrls_.empty())
-        ; // Warning
+        ANANAS_WRN << "No valid url : " << serviceUrls;
 }
 
 Future<ClientChannel* > ServiceStub::GetChannel()
 {
-    const Endpoint& ep = ChooseOne();
-    return GetChannel(ep);
+    return _GetEndpoints()
+           .Then(SelectEndpoint)
+           .Then(std::bind(&ServiceStub::MakeChannel, this, std::placeholders::_1));
 }
 
-Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep)
+Future<ClientChannel* > ServiceStub::MakeChannel(const Endpoint& ep)
 {
+    if (!IsValidEndpoint(ep))
+        return MakeExceptionFuture<ClientChannel*>(std::runtime_error("No available endpoint"));
     auto channels = _GetChannelMap();
 
     auto it = channels->find(ep);
@@ -81,19 +84,20 @@ Future<ClientChannel* > ServiceStub::_Connect(const Endpoint& ep)
     auto fut = promise.GetFuture();
 
     bool needConnect = false;
+    const SocketAddr dst(EndpointToSocketAddr(ep));
     {
         std::unique_lock<std::mutex> guard(connMutex_);
-        auto it = pendingConns_.find(ep.addr);
+        auto it = pendingConns_.find(dst);
         if (it == pendingConns_.end())
             needConnect = true;
 
-        pendingConns_[ep.addr].emplace_back(std::move(promise)); 
+        pendingConns_[dst].emplace_back(std::move(promise)); 
     }
                     
     if (needConnect)
     {
         // TODO check UDP or TCP, now treat it as TCP
-        Application::Instance().Connect(SocketAddr(ep.addr),
+        Application::Instance().Connect(dst,
                                    std::bind(&ServiceStub::OnNewConnection, this, std::placeholders::_1),
                                    std::bind(&ServiceStub::OnConnFail, this, std::placeholders::_1, std::placeholders::_2),
                                    DurationMs(3000));
@@ -127,8 +131,9 @@ void ServiceStub::OnNewConnection(ananas::Connection* conn)
     conn->SetUserData(channel);
 
     Endpoint ep;
-    ep.proto = Endpoint::TCP;
-    ep.addr = conn->Peer();
+    ep.set_proto(TCP);
+    ep.set_ip(conn->Peer().GetIP());
+    ep.set_port(conn->Peer().GetPort());
     bool succ = channels_->insert({ep, channel.get()}).second;
     assert (succ);
 
@@ -169,20 +174,65 @@ void ServiceStub::_OnConnect(ananas::Connection* conn)
 void ServiceStub::_OnDisconnect(ananas::Connection* conn)
 {
     Endpoint ep;
-    ep.proto = Endpoint::TCP;
-    ep.addr = conn->Peer();
+    ep.set_proto(TCP);
+    ep.set_ip(conn->Peer().GetIP());
+    ep.set_port(conn->Peer().GetPort());
     channels_->erase(ep);
 }
 
-const Endpoint& ServiceStub::ChooseOne() const
+Future<const std::vector<Endpoint>* > ServiceStub::_GetEndpoints()
 {
-    assert (!hardCodedUrls_.empty());
+    const std::vector<Endpoint>* candidates(nullptr);
+                      
+    ANANAS_DBG << "hardCodedUrls_ size:" << hardCodedUrls_.size()
+               << "nodes_.size: " << nodes_.size();
+    if (!hardCodedUrls_.empty())
+        candidates = &hardCodedUrls_;
+    else if (!nodes_.empty()) // and NOT timeout
+        candidates = &nodes_;
 
-    // TODO it is very inefficient on MacOS
-    std::random_device rd;
-    int lucky = rd() % hardCodedUrls_.size();
+    if (candidates)
+    {
+        Promise<const std::vector<Endpoint>* > prom;
+        prom.SetValue(candidates);
 
-    return hardCodedUrls_[lucky];
+        return prom.GetFuture();
+    }
+    else
+    {
+        // call NameServer
+        ananas::rpc::ServiceName name;
+        name.set_name(this->FullName());
+        return Call<EndpointList>("ananas.rpc.NameService", "GetEndpoints", name)
+              .Then([this](Try<EndpointList>&& endpoints) mutable -> const std::vector<Endpoint>* {
+                  this->nodes_.clear();
+                  try {
+                      EndpointList eps = std::move(endpoints); // TODO exception
+                      ANANAS_DBG << "GetEndpoints size :" << eps.endpoints_size();
+                      for  (int i = 0; i < eps.endpoints_size(); ++ i) {
+                          const auto& e = eps.endpoints(i);
+                          this->nodes_.push_back(e);
+                      }
+                  }
+                  catch (const std::exception& e) {
+                      ANANAS_ERR << "GetEndpoints exception:" << e.what();
+                  }
+                  return &this->nodes_;
+              });
+    }
+}
+
+Endpoint ServiceStub::SelectEndpoint(const std::vector<Endpoint>* eps)
+{
+    // TODO use exception.
+    if (!eps || eps->empty())
+        return Endpoint();
+
+    // TEMPORARY CODE
+    static int current = 0;
+    const int lucky = current++ % static_cast<int>(eps->size());
+
+    return (*eps)[lucky];
 }
 
 ServiceStub::ChannelMapPtr ServiceStub::_GetChannelMap() 

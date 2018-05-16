@@ -109,8 +109,37 @@ void Server::Start()
         }
     }
 
+    if (nameServiceStub_)
+    {
+        ANANAS_DBG << "Use nameservice " << nameServiceStub_->FullName();
+    }
+
     if (services_.empty())
+    {
         ANANAS_WRN << "Warning: No available service";
+    }
+    else
+    {
+        BaseLoop()->ScheduleAfterWithRepeat<ananas::kForever>(std::chrono::seconds(3),
+                [this]() {
+                    if (keepaliveInfo_.info_size() == 0)
+                    {
+                        for (const auto& kv : services_)
+                        {
+                            Heartbeat& info = *keepaliveInfo_.add_info();
+                            info.set_servicename(kv.first);
+                            info.mutable_endpoint()->CopyFrom(kv.second->GetEndpoint());
+                        }
+                    }
+
+                    ANANAS_DBG << "Call Keepalive";
+                    Call<Status>("ananas.rpc.NameService", "Keepalive", keepaliveInfo_)
+                    .Then([](Status s) {
+                            printf("Keepalive result\n");
+                            });
+                }
+            );
+    }
 
     app_.Run();
 }
@@ -123,6 +152,23 @@ void Server::Shutdown()
 Server& Server::Instance()
 {
     return *Server::s_rpcServer;
+}
+
+EventLoop* Server::BaseLoop()
+{
+    return app_.BaseLoop();
+}
+    
+void Server::SetNameServer(const std::string& url)
+{
+    assert (!nameServiceStub_);
+
+    nameServiceStub_ = new ServiceStub(new NameService_Stub(nullptr));
+    nameServiceStub_->SetUrlList(url);
+
+    ANANAS_DBG << "SetNameServer " << nameServiceStub_->FullName();
+    
+    this->AddServiceStub(nameServiceStub_);
 }
 
 } // end namespace rpc

@@ -51,26 +51,31 @@ public:
         *answer = request->text();
         answer->append("...................");
 
-        DBG(logger) << "Service AppendDots result = " << *answer;
+        //DBG(logger) << "Service AppendDots result = " << *answer;
 
         done->Run();
     }
 };
 
-int main()
+int main(int ac, char* av[])
 {
+    std::string port = "8765";
+    if (ac > 1)
+        port = av[1];
     // init log
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_rpcserver_test");
 
     // init service
     auto testsrv = new ananas::rpc::Service(new TestServiceImpl);
-    testsrv->SetBindAddr(ananas::SocketAddr("127.0.0.1", 8765));
+    testsrv->SetEndpoint(ananas::rpc::EndpointFromString("tcp://127.0.0.1:" + port));
 
     // bootstrap server
     ananas::rpc::Server server;
     server.SetNumOfWorker(3);
     server.AddService(testsrv);
+
+    server.SetNameServer("tcp://127.0.0.1:9900");
     server.Start();
 
     return 0;
