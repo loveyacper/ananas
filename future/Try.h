@@ -43,7 +43,7 @@ public:
     {
     }
 
-    explicit Try(const T& t) :
+    Try(const T& t) :
         state_(State::Value),
         value_(t)
     {
@@ -55,7 +55,7 @@ public:
     {
     }
 
-    explicit Try(std::exception_ptr e) :
+    Try(std::exception_ptr e) :
         state_(State::Exception),
         exception_(std::move(e))
     {

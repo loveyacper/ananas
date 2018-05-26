@@ -120,6 +120,8 @@ void Server::Start()
     }
     else
     {
+        //if (services_.size() > 1 || services_.begin()->first != "ananas.rpc.NameService")
+        //TODO 
         BaseLoop()->ScheduleAfterWithRepeat<ananas::kForever>(std::chrono::seconds(3),
                 [this]() {
                     if (keepaliveInfo_.info_size() == 0)
@@ -133,10 +135,12 @@ void Server::Start()
                     }
 
                     ANANAS_DBG << "Call Keepalive";
-                    Call<Status>("ananas.rpc.NameService", "Keepalive", keepaliveInfo_)
+                    Call<Status>("ananas.rpc.NameService", "Keepalive", keepaliveInfo_);
+#if 0
                     .Then([](Status s) {
-                            printf("Keepalive result\n");
+                            printf("Keepalive succ\n");
                             });
+#endif
                 }
             );
     }

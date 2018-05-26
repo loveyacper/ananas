@@ -51,6 +51,7 @@ private:
 
     std::mutex mutex_;
     std::condition_variable cond_;
+    // Use raw-pointer because unique_ptr needs complete type
     std::vector<EventLoop* > loops_;
 
     size_t numLoop_;

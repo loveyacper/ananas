@@ -300,6 +300,8 @@ void  Connection::HandleErrorEvent()
 
 bool Connection::SendPacket(const void* data, std::size_t size)
 {
+    assert (loop_->IsInSameLoop());
+
     if (size == 0)
         return true;
 

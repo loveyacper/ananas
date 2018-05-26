@@ -14,6 +14,7 @@ EventLoopGroup::EventLoopGroup(size_t nLoops)
 
 EventLoopGroup::~EventLoopGroup()
 {
+    this->Wait();
 }
 
 void EventLoopGroup::SetNumOfEventLoop(size_t n)
@@ -39,24 +40,24 @@ bool EventLoopGroup::IsStopped() const
 
 void EventLoopGroup::Start()
 {
-    if (state_ != eS_None)
-        return;
+    // only called by main thread
+    assert (state_ == eS_None);
 
     pool_.SetMaxThreads(numLoop_);
-    for (size_t i = 0; i < numLoop_; ++ i)
+    for (size_t i = 0; i < numLoop_; ++i)
     {
         pool_.Execute([this]()
                       {
-                          EventLoop loop(this);
+                          EventLoop* loop = new EventLoop(this);
             
                           {
                               std::unique_lock<std::mutex> guard(mutex_);
-                              loops_.push_back(&loop);
+                              loops_.push_back(loop);
                               if (loops_.size() == numLoop_)
                                   cond_.notify_one();
                           }
 
-                          loop.Run();
+                          loop->Run();
                       });
     }
 
@@ -69,6 +70,11 @@ void EventLoopGroup::Start()
 void EventLoopGroup::Wait()
 {
     pool_.JoinAll();
+
+    for (auto loop : loops_)
+        delete loop;
+
+    loops_.clear();
 }
 
 EventLoop* EventLoopGroup::Next() const

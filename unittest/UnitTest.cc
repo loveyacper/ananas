@@ -13,7 +13,7 @@ enum Color
     Color_max           ,
 };
 
-void  SetColor(Color c)
+void SetColor(Color c)
 {
     static const char* colors[Color_max] = {
         "",
@@ -29,7 +29,9 @@ void  SetColor(Color c)
     fprintf(stdout, "%s", colors[c]);
 }
 
-UnitTestBase::UnitTestBase() : m_pass(true), m_abort(false)
+UnitTestBase::UnitTestBase() :
+    pass_(true),
+    abort_(false)
 {
     UnitTestManager::Instance().AddTest(this);
 }
@@ -37,9 +39,9 @@ UnitTestBase::UnitTestBase() : m_pass(true), m_abort(false)
     
 UnitTestBase& UnitTestBase::SetInfo(const std::string& exprInfo, bool pass, bool abort)
 {
-    m_pass  = pass;
-    m_abort = abort;
-    m_expr  = (m_pass ? "[passed]: " : "[failed]: ") + exprInfo;
+    pass_  = pass;
+    abort_ = abort;
+    expr_  = (pass_ ? "[passed]: " : "[failed]: ") + exprInfo;
     return *this;
 }
 
@@ -47,7 +49,7 @@ UnitTestBase& UnitTestBase::SetInfo(const std::string& exprInfo, bool pass, bool
 void  UnitTestBase::Print() const
 {
     SetColor(Color_red);
-    for (const auto& err : m_errors)
+    for (const auto& err : errors_)
     {
         std::cout << err << std::endl;
     }
@@ -57,15 +59,15 @@ void  UnitTestBase::Print() const
     
 void UnitTestBase::FlushError()
 {
-    if (m_pass)
+    if (pass_)
     {
         SetColor(Color_green);
-        std::cout << m_expr << std::endl;
+        std::cout << expr_ << std::endl;
         return;
     }
 
-    m_errors.push_back(m_expr);
-    if (m_abort)
+    errors_.push_back(expr_);
+    if (abort_)
     {
         Print();
         ::abort();
@@ -73,7 +75,6 @@ void UnitTestBase::FlushError()
 }
 
 
-// test mgr
 UnitTestManager& UnitTestManager::Instance()
 {
     static UnitTestManager mgr;
@@ -82,20 +83,20 @@ UnitTestManager& UnitTestManager::Instance()
 
 void UnitTestManager::AddTest(UnitTestBase* test)
 {
-    m_tests.push_back(test);
+    tests_.push_back(test);
 }
 
 void UnitTestManager::Clear()
 {
-    m_tests.clear();
+    tests_.clear();
 }
 
 void UnitTestManager::Run()
 {
-    std::size_t  pass = 0;
-    std::size_t  fail = 0;
+    std::size_t pass = 0;
+    std::size_t fail = 0;
 
-    for (auto ut : m_tests)
+    for (auto ut : tests_)
     {
         ut->Run();
         if (ut->IsFine())

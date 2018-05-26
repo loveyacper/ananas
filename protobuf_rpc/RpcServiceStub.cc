@@ -42,38 +42,52 @@ const std::string& ServiceStub::FullName() const
 
 void ServiceStub::SetUrlList(const std::string& serviceUrls)
 {
-    hardCodedUrls_.clear();
+    // called from main, only once
+    assert (!hardCodedUrls_);
+    hardCodedUrls_ = std::make_shared<std::vector<Endpoint>>();
 
     auto urls = ananas::SplitString(serviceUrls, ';');
-    hardCodedUrls_.reserve(urls.size());
+    hardCodedUrls_->reserve(urls.size());
 
     for (const auto& url : urls)
     {
         Endpoint ep = EndpointFromString(url);
         if (!ep.ip().empty())
-            hardCodedUrls_.push_back(ep);
+        {
+            hardCodedUrls_->push_back(ep);
+        }
     }
 
-    if (hardCodedUrls_.empty())
+    if (hardCodedUrls_->empty())
         ANANAS_WRN << "No valid url : " << serviceUrls;
 }
 
 Future<ClientChannel* > ServiceStub::GetChannel()
 {
     return _GetEndpoints()
-           .Then(SelectEndpoint)
-           .Then(std::bind(&ServiceStub::MakeChannel, this, std::placeholders::_1));
+           .Then(std::bind(&ServiceStub::_SelectChannel, this, std::placeholders::_1));
 }
 
-Future<ClientChannel* > ServiceStub::MakeChannel(const Endpoint& ep)
+Future<ClientChannel* > ServiceStub::_SelectChannel(Try<std::shared_ptr<std::vector<Endpoint>>>&& eps)
+{
+    try {
+        return _MakeChannel(_SelectEndpoint(eps));
+    }
+    catch (...) {
+        return MakeExceptionFuture<ClientChannel*>(std::current_exception());
+    }
+}
+
+Future<ClientChannel* > ServiceStub::_MakeChannel(const Endpoint& ep)
 {
     if (!IsValidEndpoint(ep))
         return MakeExceptionFuture<ClientChannel*>(std::runtime_error("No available endpoint"));
+
     auto channels = _GetChannelMap();
 
     auto it = channels->find(ep);
     if (it != channels->end())
-        return MakeReadyFuture(it->second);
+        return MakeReadyFuture(it->second.get());
         
     return this->_Connect(ep);
 }
@@ -99,14 +113,14 @@ Future<ClientChannel* > ServiceStub::_Connect(const Endpoint& ep)
         // TODO check UDP or TCP, now treat it as TCP
         Application::Instance().Connect(dst,
                                    std::bind(&ServiceStub::OnNewConnection, this, std::placeholders::_1),
-                                   std::bind(&ServiceStub::OnConnFail, this, std::placeholders::_1, std::placeholders::_2),
+                                   std::bind(&ServiceStub::_OnConnFail, this, std::placeholders::_1, std::placeholders::_2),
                                    DurationMs(3000));
     }
 
     return fut;
 }
 
-void ServiceStub::OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
+void ServiceStub::_OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 { 
     std::unique_lock<std::mutex> guard(connMutex_);
     auto req = pendingConns_.find(peer.ToString()); 
@@ -127,15 +141,19 @@ void ServiceStub::SetOnCreateChannel(std::function<void (ClientChannel* )> cb)
 
 void ServiceStub::OnNewConnection(ananas::Connection* conn)
 {
-    auto channel = std::make_shared<ClientChannel>(conn, this);
+    auto _ = std::static_pointer_cast<ananas::Connection>(conn->shared_from_this());
+    auto channel = std::make_shared<ClientChannel>(_, this);
     conn->SetUserData(channel);
 
     Endpoint ep;
     ep.set_proto(TCP);
     ep.set_ip(conn->Peer().GetIP());
     ep.set_port(conn->Peer().GetPort());
-    bool succ = channels_->insert({ep, channel.get()}).second;
-    assert (succ);
+    {
+        std::unique_lock<std::mutex> guard(channelMutex_);
+        bool succ = channels_->insert({ep, channel}).second;
+        assert (succ);
+    }
 
     if (onCreateChannel_)
         onCreateChannel_(channel.get());
@@ -143,7 +161,7 @@ void ServiceStub::OnNewConnection(ananas::Connection* conn)
     conn->SetOnConnect(std::bind(&ServiceStub::_OnConnect, this, std::placeholders::_1));
     conn->SetOnDisconnect(std::bind(&ServiceStub::_OnDisconnect, this, std::placeholders::_1));
     conn->SetOnMessage(&ServiceStub::OnMessage);
-    conn->SetMinPacketSize(kPbHeaderLen); // 
+    conn->SetMinPacketSize(kPbHeaderLen);
 }
 
 void ServiceStub::OnRegister()
@@ -177,58 +195,100 @@ void ServiceStub::_OnDisconnect(ananas::Connection* conn)
     ep.set_proto(TCP);
     ep.set_ip(conn->Peer().GetIP());
     ep.set_port(conn->Peer().GetPort());
+        
+    std::unique_lock<std::mutex> guard(channelMutex_);
     channels_->erase(ep);
 }
 
-Future<const std::vector<Endpoint>* > ServiceStub::_GetEndpoints()
+Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints()
 {
-    const std::vector<Endpoint>* candidates(nullptr);
-                      
-    ANANAS_DBG << "hardCodedUrls_ size:" << hardCodedUrls_.size()
-               << "nodes_.size: " << nodes_.size();
-    if (!hardCodedUrls_.empty())
-        candidates = &hardCodedUrls_;
-    else if (!nodes_.empty()) // and NOT timeout
-        candidates = &nodes_;
-
-    if (candidates)
+    if (hardCodedUrls_ && !hardCodedUrls_->empty())
     {
-        Promise<const std::vector<Endpoint>* > prom;
-        prom.SetValue(candidates);
+        return MakeReadyFuture(hardCodedUrls_);
+    }
 
-        return prom.GetFuture();
+    // rpc::Call() can be called everywhere, so protect these code
+    std::unique_lock<std::mutex> guard(endpointsMutex_);
+    if (endpoints_ && !endpoints_->empty())
+    {
+        return MakeReadyFuture(endpoints_);
     }
     else
     {
-        // call NameServer
-        ananas::rpc::ServiceName name;
-        name.set_name(this->FullName());
-        return Call<EndpointList>("ananas.rpc.NameService", "GetEndpoints", name)
-              .Then([this](Try<EndpointList>&& endpoints) mutable -> const std::vector<Endpoint>* {
-                  this->nodes_.clear();
-                  try {
-                      EndpointList eps = std::move(endpoints); // TODO exception
-                      ANANAS_DBG << "GetEndpoints size :" << eps.endpoints_size();
-                      for  (int i = 0; i < eps.endpoints_size(); ++ i) {
-                          const auto& e = eps.endpoints(i);
-                          this->nodes_.push_back(e);
-                      }
-                  }
-                  catch (const std::exception& e) {
-                      ANANAS_ERR << "GetEndpoints exception:" << e.what();
-                  }
-                  return &this->nodes_;
-              });
+        // No endpoints, we need visit NameServer
+        Promise<std::shared_ptr<std::vector<Endpoint>>> promise;
+        auto future = promise.GetFuture();
+
+        bool needRefresh = pendingEndpoints_.empty(); // TODO:Timeout is checked by timer
+        pendingEndpoints_.emplace_back(std::move(promise));
+        guard.unlock();
+
+        if (needRefresh)
+        {
+            // call NameServer to GetEndpoints
+            ananas::rpc::ServiceName name;
+            name.set_name(this->FullName());
+            rpc::Call<EndpointList>("ananas.rpc.NameService", "GetEndpoints", name)
+                .Then(std::bind(&ServiceStub::_OnNewEndpointList, this, std::placeholders::_1))
+                .OnTimeout(std::chrono::seconds(3), [this]()
+                {
+                    std::unique_lock<std::mutex> guard(endpointsMutex_);
+                    for (auto& promise : pendingEndpoints_)
+                    {
+                        promise.SetException(std::make_exception_ptr(std::runtime_error("GetEndpoints timeout")));
+                    }
+                    pendingEndpoints_.clear();
+                },
+                RPC_SERVER.BaseLoop());
+        }
+
+        return future;
     }
 }
 
-Endpoint ServiceStub::SelectEndpoint(const std::vector<Endpoint>* eps)
+void ServiceStub::_OnNewEndpointList(Try<EndpointList>&& endpoints)
 {
-    // TODO use exception.
-    if (!eps || eps->empty())
-        return Endpoint();
+    try {
+        EndpointList eps = std::move(endpoints);
+        ANANAS_DBG << "From nameserver, GetEndpoints got : " << eps.DebugString();
+                          
+        auto newEndpoints = std::make_shared<std::vector<Endpoint>>();
+        for  (int i = 0; i < eps.endpoints_size(); ++ i)
+        {
+            const auto& e = eps.endpoints(i);
+            newEndpoints->push_back(e);
+        }
 
-    // TEMPORARY CODE
+        {
+            std::unique_lock<std::mutex> guard(endpointsMutex_);
+            this->endpoints_ = newEndpoints;
+        }
+       
+        for (auto& promise : pendingEndpoints_)
+        {
+            promise.SetValue(newEndpoints);
+        }
+        pendingEndpoints_.clear();
+    }
+    catch (const std::exception& e) {
+        // Do not clear cache if exception from name server
+        ANANAS_ERR << "GetEndpoints exception:" << e.what();
+        std::unique_lock<std::mutex> guard(endpointsMutex_);
+        auto endpoints = this->endpoints_;
+        for (auto& promise : pendingEndpoints_)
+        {
+            promise.SetValue(endpoints);
+        }
+        pendingEndpoints_.clear();
+    }
+}
+
+const Endpoint& ServiceStub::_SelectEndpoint(std::shared_ptr<std::vector<Endpoint>> eps)
+{
+    if (!eps || eps->empty())
+        return Endpoint::default_instance();
+
+    // TEMPORARY CODE TODO load balance
     static int current = 0;
     const int lucky = current++ % static_cast<int>(eps->size());
 
@@ -268,7 +328,7 @@ size_t ServiceStub::OnMessage(ananas::Connection* conn, const char* data, size_t
 }
 
     
-ClientChannel::ClientChannel(ananas::Connection* conn,
+ClientChannel::ClientChannel(std::shared_ptr<Connection> conn,
                              ananas::rpc::ServiceStub* service) :
     conn_(conn),
     service_(service),
@@ -278,12 +338,6 @@ ClientChannel::ClientChannel(ananas::Connection* conn,
 
 ClientChannel::~ClientChannel()
 {
-}
-
-
-ananas::Connection* ClientChannel::Connection() const
-{
-    return conn_;
 }
 
 void ClientChannel::SetContext(std::shared_ptr<void> ctx)
@@ -348,8 +402,9 @@ bool ClientChannel::OnMessage(std::shared_ptr<google::protobuf::Message> msg)
     }
     else
     {
-        ANANAS_WRN << "Don't panic: RpcMessage bad_cast, may be text message";
-        // default: FIFO, pop the first promise, TO use std::map
+        ANANAS_INF << "Don't panic: RpcMessage bad_cast, may be text message";
+        // default: FIFO, pop the first promise
+        // but what if int overflow?
         auto it = pendingCalls_.begin();
         it->second.promise.SetValue(std::move(msg));
         pendingCalls_.erase(it);

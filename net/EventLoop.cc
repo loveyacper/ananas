@@ -37,7 +37,8 @@ void EventLoop::SetMaxOpenFd(rlim_t maxfdPlus1)
         s_maxOpenFdPlus1 = maxfdPlus1;
 }
 
-EventLoop::EventLoop(internal::EventLoopGroup* group) : group_(group)
+EventLoop::EventLoop(internal::EventLoopGroup* group) :
+    group_(group)
 {
     assert (!g_thisLoop && "There must be only one EventLoop per thread");
     g_thisLoop = this;
@@ -52,6 +53,7 @@ EventLoop::EventLoop(internal::EventLoopGroup* group) : group_(group)
     #error "Only support mac os and linux"
 #endif
 
+    notifier_ = std::make_shared<internal::PipeChannel>();
     id_ = s_evId ++;
 }
 
@@ -221,6 +223,8 @@ void EventLoop::Run()
     const DurationMs kDefaultPollTime(10);
     const DurationMs kMinPollTime(1);
 
+    Register(internal::eET_Read, notifier_);
+
     while (!group_->IsStopped())
     {
         auto timeout = std::min(kDefaultPollTime, timers_.NearestTimer());
@@ -245,12 +249,11 @@ bool EventLoop::Loop(DurationMs timeout)
     {
         timers_.Update();
 
-        // Use tmp : if f add callback to functors_
-        decltype(functors_) funcs;
-
         // do not block
         if (fctrMutex_.try_lock())
         {
+            // Use tmp : if f add callback to functors_
+            decltype(functors_) funcs;
             funcs.swap(functors_);
             fctrMutex_.unlock();
 

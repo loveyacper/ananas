@@ -187,6 +187,7 @@ void Application::Connect(const char* ip,
     
 EventLoop* Application::Next()
 {
+    assert (BaseLoop()->IsInSameLoop());
     auto loop = workerGroup_->Next();
     if (loop)
         return loop;

@@ -53,8 +53,7 @@ public:
 
     // serviceUrl list format : tcp://127.0.0.1:6379;tcp://127.0.0.1:6380
     // Direct connect to, not via name service
-    void SetUrlList(const std::string& serviceUrls);
-
+    void SetUrlList(const std::string& hardCodedUrls);
     void SetOnCreateChannel(std::function<void (ClientChannel* )> );
 
     Future<ClientChannel* > GetChannel();
@@ -67,14 +66,17 @@ private:
     Future<ClientChannel* > _Connect(const Endpoint& ep);
     void _OnConnect(Connection* );
     void _OnDisconnect(Connection* conn);
-    void OnConnFail(EventLoop* loop, const SocketAddr& peer);
+    void _OnConnFail(EventLoop* loop, const SocketAddr& peer);
 
-    Future<const std::vector<Endpoint>* > _GetEndpoints();
-    static Endpoint SelectEndpoint(const std::vector<Endpoint>* );
-    Future<ClientChannel* > MakeChannel(const Endpoint& );
+    Future<std::shared_ptr<std::vector<Endpoint>>> _GetEndpoints();
+    Future<ClientChannel* > _SelectChannel(Try<std::shared_ptr<std::vector<Endpoint>>>&& );
+    Future<ClientChannel* > _MakeChannel(const Endpoint& );
+    static const Endpoint& _SelectEndpoint(std::shared_ptr<std::vector<Endpoint>> );
+    void _OnNewEndpointList(Try<EndpointList>&& );
 
-    // channels are in different eventLoops
-    using ChannelMap = std::unordered_map<Endpoint, ClientChannel* >;
+    // channels are in different eventLoops, owned by this and connection
+    // because GetChannel is async, when use channel from other loop, it maybe released when used.
+    using ChannelMap = std::unordered_map<Endpoint, std::shared_ptr<ClientChannel> >;
     using ChannelMapPtr = std::shared_ptr<ChannelMap>;
 
     ChannelMapPtr _GetChannelMap();
@@ -89,25 +91,25 @@ private:
     std::mutex connMutex_;
     std::unordered_map<SocketAddr, std::vector<ChannelPromise> > pendingConns_;
     // if hardCodedUrls_ is not empty, never access name server
-    std::vector<Endpoint> hardCodedUrls_;
+    std::shared_ptr<std::vector<Endpoint>> hardCodedUrls_;
     std::string name_;
 
     // channel init
     std::function<void (ClientChannel* )> onCreateChannel_;
 
     // active nodes fetched from name server
-    std::vector<Endpoint> nodes_;
-    //ananas::Time refreshTime_;
+    std::mutex endpointsMutex_;
+    std::shared_ptr<std::vector<Endpoint>> endpoints_;
+    std::vector<Promise<std::shared_ptr<std::vector<Endpoint>>>> pendingEndpoints_;
+    //ananas::Time refreshTime_; // TODO refresh endpoints
 };
 
 class ClientChannel
 {
     friend class ServiceStub;
 public:
-    ClientChannel(Connection* conn, ServiceStub* service);
+    ClientChannel(std::shared_ptr<Connection> conn, ServiceStub* service);
     ~ClientChannel();
-
-    Connection* Connection() const;
 
     void SetContext(std::shared_ptr<void> ctx);
 
@@ -134,7 +136,7 @@ public:
     bool OnMessage(std::shared_ptr<google::protobuf::Message> msg);
 
 private:
-    ananas::Connection* const conn_;
+    std::weak_ptr<ananas::Connection> conn_;
     ServiceStub* const service_;
 
     std::shared_ptr<void> ctx_;
@@ -145,7 +147,8 @@ private:
         std::shared_ptr<google::protobuf::Message> response;
     };
 
-    std::unordered_map<int, RequestContext> pendingCalls_;
+    // TODO
+    std::map<int, RequestContext> pendingCalls_;
 
     // coders
     Decoder decoder_;
@@ -165,16 +168,21 @@ template <typename RSP>
 Future<Try<RSP>> ClientChannel::Invoke(const std::string& method,
                                        std::shared_ptr<google::protobuf::Message> request)
 {
-    //return _Invoke<RSP>(method, request);
+    auto sc = conn_.lock();
+    if (!sc)
+        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("Connection disappeared when invoke [" + method + "]"));
+
     auto invoker = std::bind(&ClientChannel::_Invoke<RSP>, this, method, request);
-    return conn_->GetLoop()->Execute(std::move(invoker)).Unwrap();
+    return sc->GetLoop()->Execute(std::move(invoker)).Unwrap();
 }
 
 template <typename RSP>
 Future<Try<RSP>> ClientChannel::_Invoke(const std::string& method,
-                                       std::shared_ptr<google::protobuf::Message> request)
+                                        std::shared_ptr<google::protobuf::Message> request)
 {
-    assert (conn_->GetLoop()->IsInSameLoop());
+    auto sc = conn_.lock();
+    assert (sc);
+    assert (sc->GetLoop()->IsInSameLoop());
 
     if (!service_->GetService()->GetDescriptor()->FindMethodByName(method))
         return MakeExceptionFuture<Try<RSP>>(std::runtime_error("No such method [" + method + "]"));
@@ -184,7 +192,7 @@ Future<Try<RSP>> ClientChannel::_Invoke(const std::string& method,
 
     // encode and send request
     Buffer bytes = this->MessageToBytesEncoder(method, *request);
-    if (!conn_->SendPacket(bytes)) // SendPacketInLoop
+    if (!sc->SendPacket(bytes))
     {
         return MakeExceptionFuture<Try<RSP>>(std::runtime_error("SendPacket failed!"));
     }
@@ -207,6 +215,7 @@ Future<Try<RSP>> ClientChannel::_Invoke(const std::string& method,
                     }
                     catch (...) {
                         ANANAS_ERR << "Unknown exception when m2mDecode";
+                        return Try<RSP>(std::current_exception());
                     }
                 }
                 else
@@ -220,7 +229,6 @@ Future<Try<RSP>> ClientChannel::_Invoke(const std::string& method,
         return decodeFut;
     }
 }
-
 
 } // end namespace rpc
 

@@ -7,6 +7,7 @@
 #include <sys/resource.h>
 
 #include "Poller.h"
+#include "PipeChannel.h"
 #include "Typedefs.h"
 #include "util/Timer.h"
 #include "util/Scheduler.h"
@@ -16,12 +17,12 @@ namespace ananas
 {
 
 struct SocketAddr;
-class  Connection;
 
 namespace internal
 {
-class  Connector;
+class Connector;
 class EventLoopGroup;
+//class PipeChannel;
 }
 
 class EventLoop : public Scheduler
@@ -104,11 +105,10 @@ public:
 
 private:
     internal::EventLoopGroup* group_;
-    static bool s_exit;
+    std::unique_ptr<internal::Poller> poller_;
 
-    std::unique_ptr<internal::Poller>  poller_;
+    std::shared_ptr<internal::PipeChannel> notifier_;
 
-    std::mutex timerMutex_;
     internal::TimerManager timers_;
 
     // channelSet_ must be destructed before timers_
@@ -174,8 +174,12 @@ auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of
             }
         };
 
-        std::unique_lock<std::mutex> guard(fctrMutex_);
-        functors_.emplace_back(std::move(func));
+        {
+            std::unique_lock<std::mutex> guard(fctrMutex_);
+            functors_.emplace_back(std::move(func));
+        }
+
+        notifier_->Notify();
     }
 
     return future;
@@ -209,8 +213,12 @@ auto EventLoop::Execute(F&& f, Args&&... args) -> Future<void>
             }
         };
 
-        std::unique_lock<std::mutex> guard(fctrMutex_);
-        functors_.emplace_back(std::move(func));
+        {
+            std::unique_lock<std::mutex> guard(fctrMutex_);
+            functors_.emplace_back(std::move(func));
+        }
+
+        notifier_->Notify();
     }
 
     return future;

@@ -675,6 +675,9 @@ std::shared_ptr<Logger> LogManager::CreateLog(unsigned int level,
 void LogManager::AddBusyLog(Logger* log)
 {
     std::unique_lock<std::mutex> guard(mutex_);
+    if (shutdown_)
+        return;
+
     if (busyLogs_.insert(log).second)
         cond_.notify_one();
 }

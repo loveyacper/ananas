@@ -68,7 +68,7 @@ public:
     }
 
     // TODO: C++11 lambda doesn't support move capture
-    // just for compile, copy Promise is undefined, do NOT do that!
+    // just for compile, copy Promise is ub, do NOT do that!
     Promise(const Promise&) = default;
     Promise& operator= (const Promise&) = default;
 
@@ -83,8 +83,9 @@ public:
             return;
 
         state_->progress_ = internal::Progress::Done;
-
         state_->value_ = typename internal::State<T>::ValueType(std::move(exp));
+        guard.unlock();
+
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -93,14 +94,21 @@ public:
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
     SetValue(SHIT&& t)
     {
+        // if ThenImp is running, here will wait for the lock.
+        // ThenImp will release lock after set then_ callback.
+        // And this func acquired lock, definitely call then_.
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != internal::Progress::None)
             return;
 
         state_->progress_ = internal::Progress::Done;
+        state_->value_ = std::forward<SHIT>(t);
 
-        state_->value_ = std::move(t);
+        guard.unlock();
+        // when here, the state is defined, so mutex is useless
+        // If the ThenImp function run, it'll see the Done state
+        // and call func there, not use then_ callback.
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -116,8 +124,9 @@ public:
             return;
 
         state_->progress_ = internal::Progress::Done;
-
         state_->value_ = t;
+
+        guard.unlock();
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -132,8 +141,9 @@ public:
             return;
 
         state_->progress_ = internal::Progress::Done;
+        state_->value_ = std::forward<Try<SHIT>>(t);
 
-        state_->value_ = std::move(t);
+        guard.unlock();
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -148,8 +158,9 @@ public:
             return;
 
         state_->progress_ = internal::Progress::Done;
-
         state_->value_ = t;
+
+        guard.unlock();
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -164,8 +175,9 @@ public:
             return;
 
         state_->progress_ = internal::Progress::Done;
-
         state_->value_ = Try<void>();
+
+        guard.unlock();
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -180,8 +192,9 @@ public:
             return;
 
         state_->progress_ = internal::Progress::Done;
-
         state_->value_ = Try<void>();
+
+        guard.unlock();
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -196,8 +209,9 @@ public:
             return;
 
         state_->progress_ = internal::Progress::Done;
-
         state_->value_ = Try<void>();
+
+        guard.unlock();
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -272,10 +286,8 @@ public:
         }
         else if (state_->progress_ == Progress::Done)
         {
-            //printf("Unwrap done\n");
-            typename TryWrapper<SHIT>::Type innerFuture;
             try {
-                innerFuture = std::move(state_->value_);
+                auto innerFuture = std::move(state_->value_);
                 return std::move(innerFuture.Value());
             }
             catch(const std::exception& e) {
@@ -284,13 +296,14 @@ public:
         }
         else
         {
-            //printf("Unwrap not done\n");
-            // TODO Scheduler?
             SetCallback([pm = std::move(prom)](typename TryWrapper<SHIT>::Type&& innerFuture) mutable {
                     try {
                         SHIT future = std::move(innerFuture);
                         future.SetCallback([pm = std::move(pm)](typename TryWrapper<InnerType>::Type&& t) mutable {
-                            //printf("Unwrap callback\n");
+                            // No need scheduler here, think about this code:
+                            // `outer.Unwrap().Then(sched, func);`
+                            // outer.Unwrap() is the inner future, the below line
+                            // will trigger func in sched thread.
                             pm.SetValue(std::move(t));
                         });
                     }
@@ -377,6 +390,7 @@ public:
 
                     {
                         std::unique_lock<std::mutex> guard(parent->thenLock_);
+                        // if parent future is Done, let it go down
                         if (parent->progress_ != Progress::None)
                             return;
                     
@@ -449,7 +463,7 @@ public:
                        f = std::forward<FuncType>(f),
                        prom = std::move(pm)]() mutable {
                 // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
-                decltype(f(res.template Get<Args>()...)) innerFuture;;
+                decltype(f(res.template Get<Args>()...)) innerFuture;
                 if (res.HasException()) {
                     // FIXME if Args... is void
                     innerFuture = f(typename TryWrapper<typename std::decay<Args...>::type>::Type(res.Exception()));
@@ -516,7 +530,7 @@ public:
                          prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
-                    decltype(func(t.template Get<Args>()...)) innerFuture;;
+                    decltype(func(t.template Get<Args>()...)) innerFuture;
                     if (t.HasException()) {
                         // FIXME if Args... is void
                         innerFuture = func(typename TryWrapper<typename std::decay<Args...>::type>::Type(t.Exception()));
@@ -628,10 +642,10 @@ inline Future<void> MakeReadyFuture()
 
 // Make exception future
 template <typename T2, typename E>
-inline Future<T2> MakeExceptionFuture(E exp)
+inline Future<T2> MakeExceptionFuture(E&& exp)
 {
     Promise<T2> pm;
-    pm.SetException(std::make_exception_ptr(std::move(exp)));
+    pm.SetException(std::make_exception_ptr(std::forward<E>(exp)));
 
     return pm.GetFuture();
 }
