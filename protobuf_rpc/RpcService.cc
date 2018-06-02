@@ -4,7 +4,6 @@
 #include "RpcService.h"
 #include "RpcClosure.h"
 #include "RpcException.h"
-#include "ProtobufCoder.h"
 #include "ananas_rpc.pb.h"
 #include "net/Connection.h"
 #include "net/Application.h"

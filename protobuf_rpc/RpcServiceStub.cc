@@ -20,7 +20,7 @@ namespace rpc
 {
 
 ServiceStub::ServiceStub(google::protobuf::Service* service) :
-    channels_(new ChannelMap())
+    channels_(std::make_shared<ChannelMap>())
 {
     service_.reset(service);
     name_ = service->GetDescriptor()->full_name();
@@ -68,6 +68,14 @@ Future<ClientChannel* > ServiceStub::GetChannel()
            .Then(std::bind(&ServiceStub::_SelectChannel, this, std::placeholders::_1));
 }
 
+Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep)
+{
+    if (IsValidEndpoint(ep))
+        return _MakeChannel(ep);
+    else
+        return GetChannel();
+}
+
 Future<ClientChannel* > ServiceStub::_SelectChannel(Try<std::shared_ptr<std::vector<Endpoint>>>&& eps)
 {
     try {
@@ -112,7 +120,7 @@ Future<ClientChannel* > ServiceStub::_Connect(const Endpoint& ep)
     {
         // TODO check UDP or TCP, now treat it as TCP
         Application::Instance().Connect(dst,
-                                   std::bind(&ServiceStub::OnNewConnection, this, std::placeholders::_1),
+                                   std::bind(&ServiceStub::_OnNewConnection, this, std::placeholders::_1),
                                    std::bind(&ServiceStub::_OnConnFail, this, std::placeholders::_1, std::placeholders::_2),
                                    DurationMs(3000));
     }
@@ -139,7 +147,7 @@ void ServiceStub::SetOnCreateChannel(std::function<void (ClientChannel* )> cb)
     onCreateChannel_ = std::move(cb);
 }
 
-void ServiceStub::OnNewConnection(ananas::Connection* conn)
+void ServiceStub::_OnNewConnection(ananas::Connection* conn)
 {
     auto _ = std::static_pointer_cast<ananas::Connection>(conn->shared_from_this());
     auto channel = std::make_shared<ClientChannel>(_, this);
@@ -160,7 +168,7 @@ void ServiceStub::OnNewConnection(ananas::Connection* conn)
                     
     conn->SetOnConnect(std::bind(&ServiceStub::_OnConnect, this, std::placeholders::_1));
     conn->SetOnDisconnect(std::bind(&ServiceStub::_OnDisconnect, this, std::placeholders::_1));
-    conn->SetOnMessage(&ServiceStub::OnMessage);
+    conn->SetOnMessage(&ServiceStub::_OnMessage);
     conn->SetMinPacketSize(kPbHeaderLen);
 }
 
@@ -197,7 +205,10 @@ void ServiceStub::_OnDisconnect(ananas::Connection* conn)
     ep.set_port(conn->Peer().GetPort());
         
     std::unique_lock<std::mutex> guard(channelMutex_);
-    channels_->erase(ep);
+    auto it = channels_->find(ep);
+    assert (it != channels_->end());
+    it->second->OnDestroy();
+    channels_->erase(it);
 }
 
 Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints()
@@ -228,8 +239,9 @@ Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints()
             // call NameServer to GetEndpoints
             ananas::rpc::ServiceName name;
             name.set_name(this->FullName());
+            auto scheduler = RPC_SERVER.BaseLoop();
             rpc::Call<EndpointList>("ananas.rpc.NameService", "GetEndpoints", name)
-                .Then(std::bind(&ServiceStub::_OnNewEndpointList, this, std::placeholders::_1))
+                .Then(scheduler, std::bind(&ServiceStub::_OnNewEndpointList, this, std::placeholders::_1))
                 .OnTimeout(std::chrono::seconds(3), [this]()
                 {
                     std::unique_lock<std::mutex> guard(endpointsMutex_);
@@ -239,7 +251,7 @@ Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints()
                     }
                     pendingEndpoints_.clear();
                 },
-                RPC_SERVER.BaseLoop());
+                scheduler);
         }
 
         return future;
@@ -302,7 +314,7 @@ ServiceStub::ChannelMapPtr ServiceStub::_GetChannelMap()
 }
 
 
-size_t ServiceStub::OnMessage(ananas::Connection* conn, const char* data, size_t len)
+size_t ServiceStub::_OnMessage(ananas::Connection* conn, const char* data, size_t len)
 {
     const char* const start = data;
     size_t offset = 0;
@@ -334,6 +346,10 @@ ClientChannel::ClientChannel(std::shared_ptr<Connection> conn,
     service_(service),
     encoder_(PbToFrameRequestEncoder)
 {
+    pendingTimeoutId_ = conn->GetLoop()->ScheduleAfterWithRepeat<ananas::kForever>(
+                                             std::chrono::seconds(1),
+                                             std::bind(&ClientChannel::_CheckPendingTimeout, this)
+                                         );
 }
 
 ClientChannel::~ClientChannel()
@@ -393,9 +409,14 @@ bool ClientChannel::OnMessage(std::shared_ptr<google::protobuf::Message> msg)
         const int id = frame->response().id();
         auto it = pendingCalls_.find(id);
         if (it != pendingCalls_.end())
+        {
             it->second.promise.SetValue(std::move(msg));
+        }
         else
-            return false;// what fucking happened?
+        {
+            ANANAS_ERR << "ClientChannel::OnMessage can not find " << id << ", maybe TIMEOUT already.";
+            return false;
+        }
 
         pendingCalls_.erase(it);
         return true;
@@ -422,7 +443,36 @@ void ClientChannel::SetDecoder(Decoder dec)
 {
     decoder_ = std::move(dec);
 }
+
+void ClientChannel::OnDestroy()
+{
+    if (pendingTimeoutId_)
+    {
+        auto c = conn_.lock();
+        if (c)
+            c->GetLoop()->Cancel(pendingTimeoutId_);
+
+        pendingTimeoutId_.reset();
+    }
+}
     
+void ClientChannel::_CheckPendingTimeout()
+{
+    // TODO set max timeout, default 10s
+    ananas::Time now;
+    for (auto it(pendingCalls_.begin()); it != pendingCalls_.end(); )
+    {
+        if (now < it->second.timestamp + 10 * 1000)
+            return;
+        
+        if (it->second.promise.IsReady())
+            ANANAS_DBG << "Checkout for erase pending call id :" << it->first;
+        else
+            ANANAS_ERR << "TIMEOUT: Checkout for pending call id :" << it->first;
+
+        it = pendingCalls_.erase(it);
+    }
+}
 
 thread_local int ClientChannel::reqIdGen_ {0};
 

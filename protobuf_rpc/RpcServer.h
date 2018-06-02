@@ -34,6 +34,7 @@ public:
 
     // nameserver
     void SetNameServer(const std::string& url);
+    void SetOnCreateNameServerChannel(std::function<void (ClientChannel*)> );
 
     // server-side
     bool AddService(ananas::rpc::Service* service);
@@ -56,9 +57,10 @@ private:
     std::unordered_map<std::string, std::unique_ptr<ServiceStub> > stubs_;
 
     ServiceStub* nameServiceStub_ {nullptr};
+    std::function<void (ClientChannel*)> onCreateNameServiceChannel_;
 
     // The services's info
-    HeartbeatList keepaliveInfo_;
+    std::vector<KeepaliveInfo> keepaliveInfo_;
 
     static Server* s_rpcServer;
 };
@@ -75,7 +77,8 @@ private:
 template <typename RSP>
 Future<ananas::Try<RSP>> Call(const std::string& service,
                               const std::string& method,
-                              const ::google::protobuf::Message& req)
+                              const ::google::protobuf::Message& req,
+                              const Endpoint& ep = Endpoint::default_instance())
 {
     // 1. find service stub
     auto stub = RPC_SERVER.GetServiceStub(service);
@@ -87,7 +90,7 @@ Future<ananas::Try<RSP>> Call(const std::string& service,
     reqCopy->CopyFrom(req);
 
     // 2. select one channel and invoke method via it
-    auto channelFuture = stub->GetChannel();
+    auto channelFuture = stub->GetChannel(ep);
 
     // The channelFuture need not to set timeout, because the TCP connect already set timeout
     return channelFuture.Then([method, reqCopy](ananas::Try<ClientChannel*>&& chan) {

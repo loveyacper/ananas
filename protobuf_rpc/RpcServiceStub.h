@@ -14,6 +14,8 @@
 #include "net/EventLoop.h"
 #include "net/AnanasDebug.h"
 #include "util/Buffer.h"
+#include "util/TimeUtil.h"
+#include "util/Timer.h"
 #include "future/Future.h"
 
 #include "RpcEndpoint.h"
@@ -57,16 +59,17 @@ public:
     void SetOnCreateChannel(std::function<void (ClientChannel* )> );
 
     Future<ClientChannel* > GetChannel();
-
-    void OnNewConnection(Connection* conn);
-    static size_t OnMessage(Connection* conn, const char* data, size_t len);
+    Future<ClientChannel* > GetChannel(const Endpoint& ep);
 
     void OnRegister();
 private:
     Future<ClientChannel* > _Connect(const Endpoint& ep);
+
+    void _OnNewConnection(Connection* conn);
     void _OnConnect(Connection* );
     void _OnDisconnect(Connection* conn);
     void _OnConnFail(EventLoop* loop, const SocketAddr& peer);
+    static size_t _OnMessage(Connection* conn, const char* data, size_t len);
 
     Future<std::shared_ptr<std::vector<Endpoint>>> _GetEndpoints();
     Future<ClientChannel* > _SelectChannel(Try<std::shared_ptr<std::vector<Endpoint>>>&& );
@@ -118,11 +121,7 @@ public:
 
     template <typename RSP>
     Future<Try<RSP>> Invoke(const std::string& method,
-                            std::shared_ptr<google::protobuf::Message> request);
-
-    template <typename RSP>
-    Future<Try<RSP>> _Invoke(const std::string& method,
-                             std::shared_ptr<google::protobuf::Message> request);
+                            const std::shared_ptr<google::protobuf::Message>& request);
 
     // encode
     Buffer MessageToBytesEncoder(const std::string& method, const google::protobuf::Message& request);
@@ -135,7 +134,14 @@ public:
     // fullfil promise
     bool OnMessage(std::shared_ptr<google::protobuf::Message> msg);
 
+    void OnDestroy();
+
 private:
+    template <typename RSP>
+    Future<Try<RSP>> _Invoke(const std::string& method,
+                             const std::shared_ptr<google::protobuf::Message>& request);
+
+    void _CheckPendingTimeout();
     std::weak_ptr<ananas::Connection> conn_;
     ServiceStub* const service_;
 
@@ -145,10 +151,13 @@ private:
     struct RequestContext {
         Promise<std::shared_ptr<google::protobuf::Message>> promise; 
         std::shared_ptr<google::protobuf::Message> response;
+        ananas::Time timestamp;
     };
 
     // TODO
     std::map<int, RequestContext> pendingCalls_;
+    // Check Timeout ID
+    TimerId pendingTimeoutId_;
 
     // coders
     Decoder decoder_;
@@ -166,11 +175,11 @@ std::shared_ptr<T> ClientChannel::GetContext() const
 
 template <typename RSP>
 Future<Try<RSP>> ClientChannel::Invoke(const std::string& method,
-                                       std::shared_ptr<google::protobuf::Message> request)
+                                       const std::shared_ptr<google::protobuf::Message>& request)
 {
     auto sc = conn_.lock();
     if (!sc)
-        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("Connection disappeared when invoke [" + method + "]"));
+        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("Connection lost when invoke [" + method + "]"));
 
     auto invoker = std::bind(&ClientChannel::_Invoke<RSP>, this, method, request);
     return sc->GetLoop()->Execute(std::move(invoker)).Unwrap();
@@ -178,7 +187,7 @@ Future<Try<RSP>> ClientChannel::Invoke(const std::string& method,
 
 template <typename RSP>
 Future<Try<RSP>> ClientChannel::_Invoke(const std::string& method,
-                                        std::shared_ptr<google::protobuf::Message> request)
+                                        const std::shared_ptr<google::protobuf::Message>& request)
 {
     auto sc = conn_.lock();
     assert (sc);

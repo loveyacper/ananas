@@ -7,6 +7,8 @@
 #include "net/Application.h"
 #include "net/AnanasDebug.h"
 
+#include "name_service_protocol/RedisClientContext.h"
+
 namespace ananas
 {
 
@@ -124,18 +126,20 @@ void Server::Start()
         //TODO 
         BaseLoop()->ScheduleAfterWithRepeat<ananas::kForever>(std::chrono::seconds(3),
                 [this]() {
-                    if (keepaliveInfo_.info_size() == 0)
+                    if (keepaliveInfo_.size() == 0)
                     {
                         for (const auto& kv : services_)
                         {
-                            Heartbeat& info = *keepaliveInfo_.add_info();
+                            KeepaliveInfo info;
                             info.set_servicename(kv.first);
                             info.mutable_endpoint()->CopyFrom(kv.second->GetEndpoint());
+                            keepaliveInfo_.push_back(info);
                         }
                     }
 
                     ANANAS_DBG << "Call Keepalive";
-                    Call<Status>("ananas.rpc.NameService", "Keepalive", keepaliveInfo_);
+                    for (const auto& e : keepaliveInfo_)
+                         Call<Status>("ananas.rpc.NameService", "Keepalive", e);
 #if 0
                     .Then([](Status s) {
                             printf("Keepalive succ\n");
@@ -169,10 +173,19 @@ void Server::SetNameServer(const std::string& url)
 
     nameServiceStub_ = new ServiceStub(new NameService_Stub(nullptr));
     nameServiceStub_->SetUrlList(url);
+    if (onCreateNameServiceChannel_)
+        nameServiceStub_->SetOnCreateChannel(onCreateNameServiceChannel_);
+    else
+        nameServiceStub_->SetOnCreateChannel(OnCreateRedisChannel);
 
     ANANAS_DBG << "SetNameServer " << nameServiceStub_->FullName();
     
     this->AddServiceStub(nameServiceStub_);
+}
+
+void Server::SetOnCreateNameServerChannel(std::function<void (ClientChannel*)> occ)
+{
+    onCreateNameServiceChannel_ = std::move(occ);
 }
 
 } // end namespace rpc
