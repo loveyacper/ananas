@@ -63,11 +63,17 @@ ananas rpc只提供了基于future的异步调用，方式如下:
     ananas::rpc::test::EchoRequest req; //定义请求 
     req.set_text("hello world");
 
-    // 发起调用
+    // 发起调用,3秒钟没响应则打印超时
     Call<test::EchoResponse>("ananas.rpc.test.TestService",  // service name
                              "ToUpper",                      // method name
                              req)                            // request args
-                            .Then(OnResponse);               // response handler
+                            .Then(OnResponse)                // response handler
+                            .OnTimeout(std::chrono::seconds(3), // timeout handler
+                                       []()
+                                       {  
+                                           printf("AppendDots超时了\n");
+                                       }, 
+                                       server.BaseLoop());
 
     // 其中OnResponse是注册的回调函数，定义如下：
     void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response)
@@ -98,9 +104,9 @@ ananas rpc只提供了基于future的异步调用，方式如下:
     // 注册刚才定义的服务
     server.AddService(testsrv);
 
-    // 设置名字服务地址，其实默认是redis，服务向redis注册服务名和endpoint
+    // 设置名字服务地址，内置默认的是redis，服务向redis注册服务名和endpoint
     // 客户端在Call之前，会自动访问redis得到此服务的endpoint列表，再发起真正的rpc调用
-    server.SetNameServer("tcp://127.0.0.1:9900");
+    server.SetNameServer("tcp://127.0.0.1:6379");
     // 服务启动，进入无限循环
     server.Start();
 ```
