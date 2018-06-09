@@ -31,7 +31,7 @@ bool Server::AddService(ananas::rpc::Service* service)
     ANANAS_INF << "AddService " << googleService->GetDescriptor()->name().data();
     std::unique_ptr<Service> svr(service);
 
-    if (services_.insert(std::make_pair(name, std::move(svr))).second)
+    if (services_.insert(std::make_pair(StringView(name), std::move(svr))).second)
         service->OnRegister();
     else
         return false;
@@ -60,7 +60,7 @@ bool Server::AddServiceStub(ananas::rpc::ServiceStub* service)
     ANANAS_INF << "AddServiceStub " << googleService->GetDescriptor()->name().data();
     std::unique_ptr<ServiceStub> svr(service);
 
-    if (stubs_.insert(std::make_pair(name, std::move(svr))).second)
+    if (stubs_.insert(std::make_pair(StringView(name), std::move(svr))).second)
         service->OnRegister();
     else
         return false;
@@ -82,7 +82,7 @@ bool Server::AddServiceStub(std::unique_ptr<ServiceStub>&& service)
     return true;
 }
 
-ananas::rpc::ServiceStub* Server::GetServiceStub(const std::string& name) const
+ananas::rpc::ServiceStub* Server::GetServiceStub(const ananas::StringView& name) const
 {
     auto it = stubs_.find(name);
     return it == stubs_.end() ? nullptr : it->second.get();
@@ -102,11 +102,11 @@ void Server::Start()
     {
         if (kv.second->Start())
         {
-            ANANAS_INF << "start succ service " << kv.first.data();
+            ANANAS_INF << "start succ service " << kv.first.Data();
         }
         else
         {
-            ANANAS_ERR << "start failed service " << kv.first.data();
+            ANANAS_ERR << "start failed service " << kv.first.Data();
             return;
         }
     }
@@ -131,7 +131,7 @@ void Server::Start()
                         for (const auto& kv : services_)
                         {
                             KeepaliveInfo info;
-                            info.set_servicename(kv.first);
+                            info.set_servicename(kv.first.ToString());
                             info.mutable_endpoint()->CopyFrom(kv.second->GetEndpoint());
                             keepaliveInfo_.push_back(info);
                         }

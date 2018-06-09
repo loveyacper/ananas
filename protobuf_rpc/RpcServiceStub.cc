@@ -366,8 +366,8 @@ int ClientChannel::GenId()
     return ++ reqIdGen_;
 }
 
-ananas::Buffer ClientChannel::MessageToBytesEncoder(const std::string& method,
-                                                    const google::protobuf::Message& request)
+ananas::Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method,
+                                                     const google::protobuf::Message& request)
 {
     RpcMessage rpcMsg;
     encoder_.m2fEncoder_(&request, rpcMsg);
@@ -376,7 +376,7 @@ ananas::Buffer ClientChannel::MessageToBytesEncoder(const std::string& method,
     Request* req = rpcMsg.mutable_request();
     if (!HasField(*req, "id")) req->set_id(this->GenId());
     if (!HasField(*req, "service_name")) req->set_service_name(service_->FullName());
-    if (!HasField(*req, "method_name")) req->set_method_name(method);
+    if (!HasField(*req, "method_name")) req->set_method_name(std::move(method));
 
     if (encoder_.f2bEncoder_)
     {

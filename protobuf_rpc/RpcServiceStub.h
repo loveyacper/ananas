@@ -16,6 +16,7 @@
 #include "util/Buffer.h"
 #include "util/TimeUtil.h"
 #include "util/Timer.h"
+#include "util/StringView.h"
 #include "future/Future.h"
 
 #include "RpcEndpoint.h"
@@ -102,8 +103,10 @@ private:
 
     // active nodes fetched from name server
     std::mutex endpointsMutex_;
-    std::shared_ptr<std::vector<Endpoint>> endpoints_;
-    std::vector<Promise<std::shared_ptr<std::vector<Endpoint>>>> pendingEndpoints_;
+
+    using EndpointsPtr = std::shared_ptr<std::vector<Endpoint>>;
+    EndpointsPtr endpoints_;
+    std::vector<Promise<EndpointsPtr>> pendingEndpoints_;
     //ananas::Time refreshTime_; // TODO refresh endpoints
 };
 
@@ -120,11 +123,10 @@ public:
     std::shared_ptr<T> GetContext() const;
 
     template <typename RSP>
-    Future<Try<RSP>> Invoke(const std::string& method,
+    Future<Try<RSP>> Invoke(const ananas::StringView& method,
                             const std::shared_ptr<google::protobuf::Message>& request);
 
     // encode
-    Buffer MessageToBytesEncoder(const std::string& method, const google::protobuf::Message& request);
     void SetEncoder(Encoder );
     
     // decode
@@ -138,7 +140,7 @@ public:
 
 private:
     template <typename RSP>
-    Future<Try<RSP>> _Invoke(const std::string& method,
+    Future<Try<RSP>> _Invoke(const ananas::StringView& method,
                              const std::shared_ptr<google::protobuf::Message>& request);
 
     void _CheckPendingTimeout();
@@ -146,6 +148,8 @@ private:
     ServiceStub* const service_;
 
     std::shared_ptr<void> ctx_;
+
+    Buffer _MessageToBytesEncoder(std::string&& method, const google::protobuf::Message& request);
 
     // pending requests
     struct RequestContext {
@@ -174,33 +178,37 @@ std::shared_ptr<T> ClientChannel::GetContext() const
 }
 
 template <typename RSP>
-Future<Try<RSP>> ClientChannel::Invoke(const std::string& method,
+Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
                                        const std::shared_ptr<google::protobuf::Message>& request)
 {
     auto sc = conn_.lock();
     if (!sc)
-        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("Connection lost when invoke [" + method + "]"));
+        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("Connection lost when invoke [" +
+                                                                 method.ToString() +
+                                                                 "]"));
 
     auto invoker = std::bind(&ClientChannel::_Invoke<RSP>, this, method, request);
     return sc->GetLoop()->Execute(std::move(invoker)).Unwrap();
 }
 
+
 template <typename RSP>
-Future<Try<RSP>> ClientChannel::_Invoke(const std::string& method,
+Future<Try<RSP>> ClientChannel::_Invoke(const ananas::StringView& method,
                                         const std::shared_ptr<google::protobuf::Message>& request)
 {
     auto sc = conn_.lock();
     assert (sc);
     assert (sc->GetLoop()->IsInSameLoop());
 
-    if (!service_->GetService()->GetDescriptor()->FindMethodByName(method))
-        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("No such method [" + method + "]"));
+    auto methodStr = method.ToString();
+    if (!service_->GetService()->GetDescriptor()->FindMethodByName(methodStr)) 
+        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("No such method [" + methodStr + "]"));
 
     Promise<std::shared_ptr<google::protobuf::Message>> promise; 
     auto fut = promise.GetFuture();
 
     // encode and send request
-    Buffer bytes = this->MessageToBytesEncoder(method, *request);
+    Buffer bytes = this->_MessageToBytesEncoder(std::move(methodStr), *request);
     if (!sc->SendPacket(bytes))
     {
         return MakeExceptionFuture<Try<RSP>>(std::runtime_error("SendPacket failed!"));

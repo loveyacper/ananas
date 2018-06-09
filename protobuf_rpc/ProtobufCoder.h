@@ -98,12 +98,6 @@ private:
     bool default_;
 };
 
-struct Coder
-{
-    Encoder encoder;
-    Decoder decoder;
-};
-
 
 } // end namespace rpc
 
