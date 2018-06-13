@@ -24,6 +24,7 @@ public:
 
     StringView();
     StringView(const char* );
+    explicit // be care of string's lifetime 
     StringView(const std::string& );
     StringView(const char*, size_t);
 

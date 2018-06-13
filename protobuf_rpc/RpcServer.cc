@@ -45,7 +45,7 @@ bool Server::AddService(std::unique_ptr<Service>&& service)
     auto googleService = service->GetService();
     const auto name = googleService->GetDescriptor()->full_name();
 
-    if (services_.insert(std::make_pair(name, std::move(service))).second)
+    if (services_.insert(std::make_pair(StringView(name), std::move(service))).second)
         srv->OnRegister();
     else
         return false;
@@ -74,7 +74,7 @@ bool Server::AddServiceStub(std::unique_ptr<ServiceStub>&& service)
     auto googleService = service->GetService();
     const auto name = googleService->GetDescriptor()->full_name();
 
-    if (stubs_.insert(std::make_pair(name, std::move(service))).second)
+    if (stubs_.insert(std::make_pair(StringView(name), std::move(service))).second)
         srv->OnRegister();
     else
         return false;

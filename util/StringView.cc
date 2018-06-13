@@ -77,6 +77,7 @@ bool StringView::Empty() const
 void StringView::RemovePrefix(size_t n)
 {
     data_ += n;
+    len_ -= n;
 }
 
 void StringView::RemoveSuffix(size_t n)

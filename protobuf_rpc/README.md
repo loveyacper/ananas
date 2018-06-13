@@ -113,18 +113,18 @@ ananas rpc只提供了基于future的异步调用，方式如下:
 启动RPC客户端类似，只是把Service换成ServiceStub.
 
 ## ananas协议设计
-首先向netty致敬,完美的协议处理链使得实现任何协议都十分优雅。
+首先向netty致敬，完美的协议处理链使得实现任何协议都十分优雅。
 
-ananas rpc也模仿了这样的设计,但在具体的实现过程中仍然遇到了很多问题,个人也反复思考了常见
+ananas rpc也模仿了这样的设计，但在具体的实现过程中仍然遇到了很多问题，个人也反复思考了常见
 的协议，比如http1.1，redis，websocket，https。最终思路如下：
-首先默认的rpc协议是二进制协议；以client发起rpc请求为例，业务层的参数信息被称为message，代码中对应为google::protobuf::Message的子类；
+默认内置的rpc协议是二进制协议；以client发起rpc请求为例，业务层的参数信息被称为message，代码中对应为google::protobuf::Message的子类；
 
-但只有参数信息是远远不够的，框架底层设计了RpcMessage消息类，包含了请求id，服务名、方法名等信息。
-所以请求message将被序列化到RpcMessage的数据字段；这一步称为message到frame的转换，但这样还是不能够网络发送.
+但只有参数信息是远远不够的，框架底层还设计了RpcMessage消息类，包含了请求id，服务名、方法名等信息。
+所以请求message将被序列化到RpcMessage的数据字段；这一步称为message到frame的转换，但这样还是不能够发送到网络.
 
-最后，需要对RpcMessage序列化，并添加4字节长度前缀，这一步称为frame到bytes的转换。
+第二步，需要对RpcMessage序列化，并添加4字节长度前缀，这一步称为frame到bytes的转换。
 现在，请求可以从网络发送了，而且rpc服务器将能够解析请求，并定位到具体的方法调用。
-注意，目前暂缺bytes到bytes的转换。比如，如果在发送之前想对数据加密或压缩呢？这个转换功能是非常容易添加的。
+(注意，目前暂缺bytes到bytes的转换。比如，如果在发送之前想对数据加密或压缩呢？这个转换功能是非常容易添加的)
 
 上面描述的是二进制协议的请求发送。如果是文本协议呢？
 比如HTTP1.1协议。在这种情况下，就没有第二步frame到bytes的转换.
@@ -150,6 +150,7 @@ ananas rpc也模仿了这样的设计,但在具体的实现过程中仍然遇到
         // 使用frame的数据字段存储序列化后的http请求
         auto request = frame.mutable_request();
         std::string* result = request->mutable_serialized_request();
+        result->reserve(64);
         
         // first line
         result->append(req->method());
@@ -171,12 +172,17 @@ ananas rpc也模仿了这样的设计,但在具体的实现过程中仍然遇到
         ananas::rpc::Encoder encoder(nullptr); 
         encoder.SetMessageToFrameEncoder(EncodeHttpToFrame);
         channel->SetEncoder(std::move(encoder));
+        //注意，这里没有设置frame到bytes的转换函数，
+        //因此框架执行完message到frame的转换后，将直接
+        //发送frame中的数据字段
+
         // 出于示例，这里省略了对解码的讨论
     }
 ```
 
 只需要在new客户端stub的时候设置一下channel回调即可:
 ```cpp
+    //每当一条新的http连接建立，将对其调用OnCreateHttpChannel
     httpServiceStub_->SetOnCreateChannel(OnCreateHttpChannel);
 ```
 

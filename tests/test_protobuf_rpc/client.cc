@@ -10,6 +10,7 @@
 
 #include "util/log/Logger.h"
 #include "util/TimeUtil.h"
+#include "util/ConfigParser.h"
 #include "net/EventLoop.h"
 #include "net/Application.h"
 #include "net/Connection.h"
@@ -18,7 +19,7 @@ ananas::Time start, end;
 int nowCount = 0;
 const int totalCount = 20 * 10000;
 
-ananas::rpc::test::EchoRequest req;
+std::shared_ptr<ananas::rpc::test::EchoRequest> req;
 
 std::shared_ptr<ananas::Logger> logger;
 
@@ -43,7 +44,7 @@ void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response)
         if (nowCount == totalCount)
         {
             end.Now();
-            USR(logger) << "OnResponse avg " << (totalCount * 0.1f / (end - start)) << " W/s";
+            USR(logger) << "Done OnResponse avg " << (totalCount * 0.1f / (end - start)) << " W/s";
             ananas::Application::Instance().Exit();
         }
         else
@@ -55,19 +56,20 @@ void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response)
                                      req)
                                     .Then(OnResponse);
         }
-            
-       // USR(logger) << "OnResponse " << rsp.text();
+
+        if (nowCount % 5000 == 0)
+        {
+            end.Now();
+            USR(logger) << "OnResponse avg " << (nowCount * 0.1f / (end - start)) << " W/s";
+        }
+
     } catch(const std::exception& exp) {
         USR(logger) << "OnResponse exception " << exp.what();
-        //std::abort();
     }
 }
 
 int main(int ac, char* av[])
 {
-    if (ac > 1)
-        g_text = av[1];
-
     using namespace ananas;
     using namespace ananas::rpc;
 
@@ -75,38 +77,38 @@ int main(int ac, char* av[])
     LogManager::Instance().Start();
     logger = LogManager::Instance().CreateLog(logALL, logALL, "logger_rpcclient_test");
 
+    // try init config
+    ConfigParser config;
+    if (ac > 1)
+    {
+        if (!config.Load(av[1]))
+        {
+            ERR(logger) << "Load config failed:" << av[1];
+        }
+    }
+
     // init service
     auto teststub = new ServiceStub(new test::TestService_Stub(nullptr));
-    //teststub->SetUrlList("tcp://127.0.0.1:8765");
-    //teststub->SetOnCreateChannel(OnCreateChannel);
+    teststub->SetOnCreateChannel(OnCreateChannel);
 
     // init server 
-
     Server server;
+    server.SetNumOfWorker(config.GetData<int>("threads", 4));
     server.AddServiceStub(teststub);
-    server.SetNameServer("tcp://127.0.0.1:9900");
+    server.SetNameServer("tcp://127.0.0.1:6379");
 
     // initiate request test
-    req.set_text(g_text);
+    req = std::make_shared<ananas::rpc::test::EchoRequest>();
+    req->set_text(g_text);
 
     start.Now();
-#if 0
-    Call<test::EchoResponse>("ananas.rpc.test.TestService",
-                             "Echo",
-                             req)
-                            .Then(OnResponse);
-#endif
-    Call<test::EchoResponse>("ananas.rpc.test.TestService",
-                             "AppendDots",
-                             req)
-                            .Then(OnResponse);
-#if 0
-    Call<test::EchoResponse>("ananas.rpc.test.TestService",  // service name
-                             "ToUpperFuck",                      // method name
-                             req)                            // request args
-                            .Then(OnResponse);               // response handler
-#endif
-
+    for (int i = 0; i < 4; ++ i)
+    {
+        Call<test::EchoResponse>("ananas.rpc.test.TestService",
+                                 "AppendDots",
+                                 req)
+                                .Then(OnResponse);
+    }
 
     // event loop
     server.Start();

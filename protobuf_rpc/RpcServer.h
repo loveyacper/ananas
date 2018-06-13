@@ -70,12 +70,16 @@ private:
 
 #define RPC_SERVER ::ananas::rpc::Server::Instance()
 
+namespace
+{
+
 // internal use
 template <typename RSP>
 Future<ananas::Try<RSP>> _InnerCall(ananas::rpc::ServiceStub* stub,
                                     const ananas::StringView& method,
                                     const std::shared_ptr<::google::protobuf::Message>& reqCopy,
                                     const Endpoint& ep = Endpoint::default_instance());
+} // end namespace
 
 
 // The entry point for initiate a rpc call.
@@ -115,6 +119,8 @@ Future<ananas::Try<RSP>> Call(const ananas::StringView& service,
     return _InnerCall<RSP>(stub, method, reqCopy, ep);
 }
 
+namespace
+{
 
 // internal use
 template <typename RSP>
@@ -137,6 +143,7 @@ Future<ananas::Try<RSP>> _InnerCall(ananas::rpc::ServiceStub* stub,
                           });
 }
 
+} // end namespace
 
 } // end namespace rpc
 

@@ -19,6 +19,10 @@ namespace ananas
 namespace rpc
 {
 
+static const std::string idStr("id");
+static const std::string svrStr("service_name");
+static const std::string methodStr("method_name");
+
 ServiceStub::ServiceStub(google::protobuf::Service* service) :
     channels_(std::make_shared<ChannelMap>())
 {
@@ -374,9 +378,12 @@ ananas::Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method,
 
     // post process frame
     Request* req = rpcMsg.mutable_request();
-    if (!HasField(*req, "id")) req->set_id(this->GenId());
-    if (!HasField(*req, "service_name")) req->set_service_name(service_->FullName());
-    if (!HasField(*req, "method_name")) req->set_method_name(std::move(method));
+    if (!HasField(*req, svrStr)) req->set_service_name(service_->FullName());
+    if (!HasField(*req, methodStr)) req->set_method_name(std::move(method));
+    if (!HasField(*req, idStr))
+        req->set_id(this->GenId());
+    else
+        reqIdGen_ = req->id(); // other protocol may has its own req-id, such as http2
 
     if (encoder_.f2bEncoder_)
     {
@@ -388,7 +395,7 @@ ananas::Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method,
         // if no f2bEncoder_, then send the serialized_request directly
         // eg. The text protocol
         ananas::Buffer bytes;
-        auto data = req->serialized_request();
+        const auto& data = req->serialized_request();
         bytes.PushData(data.data(), data.size());
         return bytes;
     }
@@ -404,7 +411,7 @@ bool ClientChannel::OnMessage(std::shared_ptr<google::protobuf::Message> msg)
     RpcMessage* frame = dynamic_cast<RpcMessage*>(msg.get());
     if (frame)
     {
-        assert (HasField(frame->response(), "id"));
+        assert (HasField(frame->response(), idStr));
 
         const int id = frame->response().id();
         auto it = pendingCalls_.find(id);
@@ -458,11 +465,11 @@ void ClientChannel::OnDestroy()
     
 void ClientChannel::_CheckPendingTimeout()
 {
-    // TODO set max timeout, default 10s
+    // TODO set max timeout, default 15s
     ananas::Time now;
     for (auto it(pendingCalls_.begin()); it != pendingCalls_.end(); )
     {
-        if (now < it->second.timestamp + 10 * 1000)
+        if (now < it->second.timestamp + 15 * 1000)
             return;
         
         if (it->second.promise.IsReady())

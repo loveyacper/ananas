@@ -52,7 +52,6 @@ public:
         answer->append("...................");
 
         //DBG(logger) << "Service AppendDots result = " << *answer;
-
         done->Run();
     }
 };
@@ -72,10 +71,10 @@ int main(int ac, char* av[])
 
     // bootstrap server
     ananas::rpc::Server server;
-    server.SetNumOfWorker(3);
+    server.SetNumOfWorker(4);
     server.AddService(testsrv);
 
-    server.SetNameServer("tcp://127.0.0.1:9900");
+    server.SetNameServer("tcp://127.0.0.1:6379");
     server.Start();
 
     return 0;
