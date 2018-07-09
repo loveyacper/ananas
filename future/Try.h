@@ -65,7 +65,6 @@ public:
     Try(Try<T>&& t) :
         state_(t.state_)
     {
-        t.state_ = State::None;
         if (state_ == State::Value)
             new (&value_)T(std::move(t.value_));
         else if (state_ == State::Exception)
@@ -80,7 +79,6 @@ public:
         this->~Try();
 
         state_ = t.state_;
-        t.state_ = State::None;
         if (state_ == State::Value)
             new (&value_)T(std::move(t.value_));
         else if (state_ == State::Exception)
@@ -228,10 +226,7 @@ public:
         state_(t.state_)
     {
         if (state_ == State::Exception)
-        {
             new (&exception_)std::exception_ptr(std::move(t.exception_));
-            t.state_ = State::Value;
-        }
     }
 
     Try<void>& operator=(Try<void>&& t)
@@ -243,10 +238,7 @@ public:
 
         state_ = t.state_;
         if (state_ == State::Exception)
-        {
             new (&exception_)std::exception_ptr(std::move(t.exception_));
-            t.state_ = State::Value;
-        }
 
         return *this;
     }

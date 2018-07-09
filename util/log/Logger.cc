@@ -259,7 +259,6 @@ void Logger::Flush(enum LogLevel level)
 
 void Logger::_Color(unsigned int color)
 {
-#if defined(__gnu_linux__)
     const char* colorstrings[Max] = {
         "",
         "\033[1;31;40m",
@@ -272,7 +271,6 @@ void Logger::_Color(unsigned int color)
     };
 
     fprintf(stdout, "%s", colorstrings[color]);
-#endif
 }
 
 Logger&  Logger::operator<< (const char* msg)

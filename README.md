@@ -9,8 +9,8 @@ A C++11 RPC framework and toolbox for server-side development.
 * [Requirements](#requirements)
 * [Features](#features)
 * [What's ananas](#whats-ananas)
-    * [需要什么预备知识](需要什么预备知识)
-    * [阅读ananas需要读的书](阅读ananas需要读的书)
+    * [需要什么预备知识](#需要什么预备知识)
+    * [阅读ananas需要读的书](#阅读ananas需要读的书)
 * [源码目录结构](#源码目录结构)
     * [net](#net)
     * [future](#future)
@@ -21,7 +21,7 @@ A C++11 RPC framework and toolbox for server-side development.
     * [tests](#tests)
     * [examples](#examples)
 * [文档待补全](#文档待补全)
-    
+
 <!-- vim-markdown-toc -->
 
 ## Requirements
@@ -77,7 +77,7 @@ A C++11 RPC framework and toolbox for server-side development.
    * [Netty in action](https://book.douban.com/subject/24700704/)
      
      各种语言的网络库千千万，netty是其中翘楚。
- 
+
 ## 源码目录结构
   整个ananas的核心源码在一万行以内，其中net不足四千行，rpc部分约两千多行，只实现必不可少的部分，便于学习。
   ### net

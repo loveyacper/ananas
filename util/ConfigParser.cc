@@ -1,4 +1,5 @@
 #include <vector>
+#include <memory>
 #include <fstream>
 #include "ConfigParser.h"
 
