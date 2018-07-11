@@ -162,15 +162,17 @@ void Application::CreateClientUDP(UDPMessageCallback mcb,
 void Application::Connect(const SocketAddr& dst,
                           NewTcpConnCallback nccb,
                           TcpConnFailCallback cfcb,
-                          DurationMs timeout)
+                          DurationMs timeout,
+                          EventLoop* dstLoop)
 {
     auto loop = BaseLoop();
-    loop->Execute([loop, dst, nccb, cfcb, timeout]()
+    loop->Execute([loop, dst, nccb, cfcb, timeout, dstLoop]()
                   {
                      loop->Connect(dst,
                                    std::move(nccb),
                                    std::move(cfcb),
-                                   timeout);
+                                   timeout,
+                                   dstLoop);
                   });
 }
 
@@ -178,16 +180,17 @@ void Application::Connect(const char* ip,
                           uint16_t hostPort,
                           NewTcpConnCallback nccb,
                           TcpConnFailCallback cfcb,
-                          DurationMs timeout)
+                          DurationMs timeout,
+                          EventLoop* dstLoop)
 {
     SocketAddr dst(ip, hostPort);
-    Connect(dst, std::move(nccb), std::move(cfcb), timeout);
+    Connect(dst, std::move(nccb), std::move(cfcb), timeout, dstLoop);
 }
 
     
 EventLoop* Application::Next()
 {
-    assert (BaseLoop()->IsInSameLoop());
+    //assert (BaseLoop()->IsInSameLoop());
     auto loop = workerGroup_->Next();
     if (loop)
         return loop;

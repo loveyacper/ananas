@@ -31,7 +31,7 @@ public:
 
     void SetNewConnCallback(NewTcpConnCallback cb);
     void SetFailCallback(TcpConnFailCallback cb);
-    bool Connect(const SocketAddr& addr, DurationMs timeout);
+    bool Connect(const SocketAddr& addr, DurationMs timeout, EventLoop* dstLoop = nullptr);
 
     int Identifier() const override;
     bool HandleReadEvent() override;
@@ -47,6 +47,7 @@ private:
     int localSock_ = kInvalid;
     SocketAddr peer_;
     EventLoop* const loop_;
+    EventLoop* dstLoop_;
 
     ConnectState state_ = ConnectState::none;
 

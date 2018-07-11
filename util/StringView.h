@@ -28,7 +28,7 @@ public:
     StringView(const std::string& );
     StringView(const char*, size_t);
 
-    const_reference operator[](int index) const &;
+    const_reference operator[](size_t index) const;
 
     const_pointer Data() const;
     const_reference Front() const;

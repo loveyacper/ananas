@@ -64,36 +64,29 @@ public:
 
     void OnRegister();
 private:
-    Future<ClientChannel* > _Connect(const Endpoint& ep);
+    Future<ClientChannel* > _Connect(EventLoop* , const Endpoint& ep);
 
-    void _OnNewConnection(Connection* conn);
+    void _OnNewConnection(Connection* );
     void _OnConnect(Connection* );
-    void _OnDisconnect(Connection* conn);
+    void _OnDisconnect(Connection* );
     void _OnConnFail(EventLoop* loop, const SocketAddr& peer);
     static size_t _OnMessage(Connection* conn, const char* data, size_t len);
 
     Future<std::shared_ptr<std::vector<Endpoint>>> _GetEndpoints();
-    Future<ClientChannel* > _SelectChannel(Try<std::shared_ptr<std::vector<Endpoint>>>&& );
-    Future<ClientChannel* > _MakeChannel(const Endpoint& );
+    Future<ClientChannel* > _SelectChannel(EventLoop* , Try<std::shared_ptr<std::vector<Endpoint>>>&& );
+    Future<ClientChannel* > _MakeChannel(EventLoop* , const Endpoint& );
     static const Endpoint& _SelectEndpoint(std::shared_ptr<std::vector<Endpoint>> );
     void _OnNewEndpointList(Try<EndpointList>&& );
 
-    // channels are in different eventLoops, owned by this and connection
-    // because GetChannel is async, when use channel from other loop, it maybe released when used.
     using ChannelMap = std::unordered_map<Endpoint, std::shared_ptr<ClientChannel> >;
-    using ChannelMapPtr = std::shared_ptr<ChannelMap>;
-
-    ChannelMapPtr _GetChannelMap();
-
-    std::mutex channelMutex_;
-    ChannelMapPtr channels_;
+    std::vector<ChannelMap> channels_;
 
     std::shared_ptr<google::protobuf::Service> service_;
 
     // pending connects
     using ChannelPromise = Promise<ClientChannel* >;
-    std::mutex connMutex_;
-    std::unordered_map<SocketAddr, std::vector<ChannelPromise> > pendingConns_;
+    // one unordered_map per loop
+    std::vector<std::unordered_map<SocketAddr, std::vector<ChannelPromise> >> pendingConns_;
     // if hardCodedUrls_ is not empty, never access name server
     std::shared_ptr<std::vector<Endpoint>> hardCodedUrls_;
     std::string name_;
@@ -187,8 +180,15 @@ Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
                                                                  method.ToString() +
                                                                  "]"));
 
-    auto invoker = std::bind(&ClientChannel::_Invoke<RSP>, this, method, request);
-    return sc->GetLoop()->Execute(std::move(invoker)).Unwrap();
+    if (sc->GetLoop()->IsInSameLoop())
+    {
+        return _Invoke<RSP>(method, request);
+    }
+    else
+    {
+        auto invoker = std::bind(&ClientChannel::_Invoke<RSP>, this, method, request);
+        return sc->GetLoop()->Execute(std::move(invoker)).Unwrap();
+    }
 }
 
 

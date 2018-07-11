@@ -85,10 +85,7 @@ EventLoop* EventLoopGroup::Next() const
     if (loops_.empty())
         return nullptr;
 
-    if (currentLoop_  >= loops_.size())
-        currentLoop_ = 0;
-
-    return loops_[currentLoop_++];
+    return loops_[currentLoop_++ % loops_.size()];
 }
 
 } // end namespace internal

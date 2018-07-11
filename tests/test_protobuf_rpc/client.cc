@@ -17,7 +17,7 @@
 
 ananas::Time start, end;
 int nowCount = 0;
-const int totalCount = 20 * 10000;
+const int totalCount = 200 * 10000;
 
 std::shared_ptr<ananas::rpc::test::EchoRequest> req;
 
@@ -47,7 +47,7 @@ void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response)
             USR(logger) << "Done OnResponse avg " << (totalCount * 0.1f / (end - start)) << " W/s";
             ananas::Application::Instance().Exit();
         }
-        else
+        else if (nowCount < totalCount)
         {
             using namespace ananas;
             using namespace ananas::rpc;
@@ -57,7 +57,7 @@ void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response)
                                     .Then(OnResponse);
         }
 
-        if (nowCount % 5000 == 0)
+        if (nowCount % 50000 == 0)
         {
             end.Now();
             USR(logger) << "OnResponse avg " << (nowCount * 0.1f / (end - start)) << " W/s";
@@ -91,9 +91,10 @@ int main(int ac, char* av[])
     auto teststub = new ServiceStub(new test::TestService_Stub(nullptr));
     teststub->SetOnCreateChannel(OnCreateChannel);
 
+    const int threads = 8;
     // init server 
     Server server;
-    server.SetNumOfWorker(config.GetData<int>("threads", 4));
+    server.SetNumOfWorker(config.GetData<int>("threads", threads));
     server.AddServiceStub(teststub);
     server.SetNameServer("tcp://127.0.0.1:6379");
 
@@ -101,14 +102,18 @@ int main(int ac, char* av[])
     req = std::make_shared<ananas::rpc::test::EchoRequest>();
     req->set_text(g_text);
 
-    start.Now();
-    for (int i = 0; i < 4; ++ i)
-    {
-        Call<test::EchoResponse>("ananas.rpc.test.TestService",
-                                 "AppendDots",
-                                 req)
-                                .Then(OnResponse);
-    }
+    auto starter = [&]() {
+        start.Now();
+        for (int i = 0; i < threads; ++ i)
+        {
+            Call<test::EchoResponse>("ananas.rpc.test.TestService",
+                                     "AppendDots",
+                                     req)
+                                    .Then(OnResponse);
+        }
+    };
+
+    server.BaseLoop()->ScheduleAfter(std::chrono::seconds(1), starter);
 
     // event loop
     server.Start();

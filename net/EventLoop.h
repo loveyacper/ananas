@@ -57,12 +57,14 @@ public:
     bool Connect(const SocketAddr& dst,
                  NewTcpConnCallback nccb,
                  TcpConnFailCallback cfcb,
-                 DurationMs timeout = DurationMs::max());
+                 DurationMs timeout = DurationMs::max(),
+                 EventLoop* dstLoop = nullptr);
     bool Connect(const char* ip,
                  uint16_t hostPort,
                  NewTcpConnCallback nccb,
                  TcpConnFailCallback cfcb,
-                 DurationMs timeout = DurationMs::max());
+                 DurationMs timeout = DurationMs::max(),
+                 EventLoop* dstLoop = nullptr);
 
     // timer : NOT thread-safe
     template <int RepeatCount, typename Duration, typename F, typename... Args>

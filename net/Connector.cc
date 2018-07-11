@@ -14,7 +14,8 @@ namespace internal
 {
 
 Connector::Connector(EventLoop* loop) :
-    loop_(loop)
+    loop_(loop),
+    dstLoop_(nullptr)
 {
 }
 
@@ -46,7 +47,7 @@ void Connector::SetFailCallback(TcpConnFailCallback cb)
     onConnectFail_ = std::move(cb);
 }
 
-bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
+bool Connector::Connect(const SocketAddr& addr, DurationMs timeout, EventLoop* dstLoop)
 {
     if (!addr.IsValid())
         return false;
@@ -64,6 +65,8 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout)
     localSock_ = CreateTCPSocket();
     if (localSock_ == kInvalid)
         return false;
+
+    dstLoop_ = dstLoop;
 
     SetNonBlock(localSock_);
     SetNodelay(localSock_);
@@ -133,13 +136,13 @@ bool Connector::HandleWriteEvent()
                    << ", error is " << error;
         return false;
     }
-        
+
     _OnSuccess();
     return true;
 }
 
 void Connector::HandleErrorEvent()
-{ 
+{
     if (localSock_ == kInvalid)
         return;
 
@@ -149,13 +152,16 @@ void Connector::HandleErrorEvent()
 void Connector::_OnSuccess()
 {
     assert (state_ != ConnectState::connected);
+    // when connect failed, write event happened after error event
+    if (state_ == ConnectState::failed)
+        return;
 
     const auto oldState = state_;
     state_  = ConnectState::connected;
     ANANAS_INF << "Connect success! Socket " << localSock_
-               << ", connected to port " << peer_.ToString();
+               << ", connected to " << peer_.ToString();
 
-    auto loop = Application::Instance().Next();
+    auto loop = dstLoop_ ? dstLoop_ : Application::Instance().Next();
     int connfd = localSock_;
     auto onFail = std::move(onConnectFail_);
     auto newCb = std::move(newConnCallback_);
@@ -163,9 +169,10 @@ void Connector::_OnSuccess()
     // unregister connector
     if (oldState == ConnectState::connecting)
         this->loop_->Unregister(eET_Write, shared_from_this());
-            
+
     auto func = [loop, connfd, peer, newCb, onFail]()
     {
+        assert (loop->IsInSameLoop());
         // create new conn
         auto c = std::make_shared<Connection>(loop);
         c->Init(connfd, peer);
@@ -199,11 +206,20 @@ void Connector::_OnFailed()
     ANANAS_INF << "Failed client socket " << localSock_
                << " connected to " << peer_.ToString();
 
-    if (onConnectFail_) 
-        onConnectFail_(loop_, peer_);
+    const auto loop = dstLoop_ ? dstLoop_ : loop_;
+    auto onFail = [this, loop]()
+    {
+        // must be called in dstLoop
+        if (onConnectFail_) 
+            onConnectFail_(loop, peer_);
+    };
 
-    if (oldState == ConnectState::connecting)
-        loop_->Unregister(eET_Write, shared_from_this());
+    loop->Execute(std::move(onFail))
+          .Then(loop_, [&, oldState]() {
+              // must be called in loop_
+              if (oldState == ConnectState::connecting)
+                 loop_->Unregister(eET_Write, shared_from_this());
+          });
 }
 
 } // end namespace internal

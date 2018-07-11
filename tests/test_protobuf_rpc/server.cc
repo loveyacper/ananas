@@ -58,20 +58,20 @@ public:
 
 int main(int ac, char* av[])
 {
-    std::string port = "8765";
+    int threads = 6;
     if (ac > 1)
-        port = av[1];
+        threads = std::stoi(av[1]);
     // init log
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_rpcserver_test");
 
     // init service
     auto testsrv = new ananas::rpc::Service(new TestServiceImpl);
-    testsrv->SetEndpoint(ananas::rpc::EndpointFromString("tcp://127.0.0.1:" + port));
+    testsrv->SetEndpoint(ananas::rpc::EndpointFromString("tcp://127.0.0.1:9987"));
 
     // bootstrap server
     ananas::rpc::Server server;
-    server.SetNumOfWorker(4);
+    server.SetNumOfWorker(threads);
     server.AddService(testsrv);
 
     server.SetNameServer("tcp://127.0.0.1:6379");

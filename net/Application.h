@@ -56,13 +56,15 @@ public:
     void Connect(const SocketAddr& dst,
                  NewTcpConnCallback nccb,
                  TcpConnFailCallback cfcb,
-                 DurationMs timeout = DurationMs::max());
+                 DurationMs timeout = DurationMs::max(),
+                 EventLoop* loop = nullptr);
 
     void Connect(const char* ip,
                  uint16_t hostPort,
                  NewTcpConnCallback nccb,
                  TcpConnFailCallback cfcb,
-                 DurationMs timeout = DurationMs::max());
+                 DurationMs timeout = DurationMs::max(),
+                 EventLoop* loop = nullptr);
 
     EventLoop* Next();
     void SetNumOfWorker(size_t n);

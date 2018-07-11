@@ -32,6 +32,8 @@ public:
 
     // base loop
     EventLoop* BaseLoop();
+    // next
+    EventLoop* Next();
 
     // nameserver
     void SetNameServer(const std::string& url);
@@ -45,7 +47,6 @@ public:
     bool AddServiceStub(ananas::rpc::ServiceStub* service);
     bool AddServiceStub(std::unique_ptr<ServiceStub>&& service);
     // We don't add stubs during runtime, so need not to be thread-safe
-    //ananas::rpc::ServiceStub* GetServiceStub(const std::string& name) const;
     ananas::rpc::ServiceStub* GetServiceStub(const ananas::StringView& name) const;
 
     // both

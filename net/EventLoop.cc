@@ -124,19 +124,21 @@ bool EventLoop::Connect(const char* ip,
                         uint16_t hostPort,
                         NewTcpConnCallback nccb,
                         TcpConnFailCallback cfcb,
-                        DurationMs timeout)
+                        DurationMs timeout,
+                        EventLoop* dstLoop)
 {
     SocketAddr addr;
     addr.Init(ip, hostPort);
 
-    return Connect(addr, nccb, cfcb, timeout);
+    return Connect(addr, nccb, cfcb, timeout, dstLoop);
 }
 
 
 bool EventLoop::Connect(const SocketAddr& dst,
                         NewTcpConnCallback nccb,
                         TcpConnFailCallback cfcb,
-                        DurationMs timeout)
+                        DurationMs timeout,
+                        EventLoop* dstLoop)
 {
     using internal::Connector;
 
@@ -144,7 +146,7 @@ bool EventLoop::Connect(const SocketAddr& dst,
     cli->SetFailCallback(cfcb);
     cli->SetNewConnCallback(nccb);
 
-    if (!cli->Connect(dst, timeout))
+    if (!cli->Connect(dst, timeout, dstLoop))
         return false;
 
     return true;

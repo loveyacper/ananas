@@ -31,7 +31,7 @@ StringView::StringView(const char* p, size_t l) :
 }
 
 
-const char& StringView::operator[](int index) const &
+StringView::const_reference StringView::operator[](size_t index) const
 {
     assert (index >= 0 && index < len_);
     return data_[index];

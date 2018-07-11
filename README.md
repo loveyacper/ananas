@@ -10,7 +10,7 @@ A C++11 RPC framework and toolbox for server-side development.
 * [Features](#features)
 * [What's ananas](#whats-ananas)
     * [需要什么预备知识](#需要什么预备知识)
-    * [阅读ananas需要读的书](#阅读ananas需要读的书)
+    * [阅读ananas源码需要读的书](#阅读ananas源码需要读的书)
 * [源码目录结构](#源码目录结构)
     * [net](#net)
     * [future](#future)
@@ -20,7 +20,7 @@ A C++11 RPC framework and toolbox for server-side development.
     * [coroutine](#coroutine)
     * [tests](#tests)
     * [examples](#examples)
-* [文档待补全](#文档待补全)
+* [教程文档待补全,暂没时间](#文档待补全)
 
 <!-- vim-markdown-toc -->
 

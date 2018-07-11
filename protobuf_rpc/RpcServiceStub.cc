@@ -23,8 +23,7 @@ static const std::string idStr("id");
 static const std::string svrStr("service_name");
 static const std::string methodStr("method_name");
 
-ServiceStub::ServiceStub(google::protobuf::Service* service) :
-    channels_(std::make_shared<ChannelMap>())
+ServiceStub::ServiceStub(google::protobuf::Service* service)
 {
     service_.reset(service);
     name_ = service->GetDescriptor()->full_name();
@@ -68,65 +67,93 @@ void ServiceStub::SetUrlList(const std::string& serviceUrls)
 
 Future<ClientChannel* > ServiceStub::GetChannel()
 {
-    return _GetEndpoints()
-           .Then(std::bind(&ServiceStub::_SelectChannel, this, std::placeholders::_1));
+    auto loop = EventLoop::GetCurrentEventLoop();
+    if (!loop || loop == RPC_SERVER.BaseLoop())
+        loop = RPC_SERVER.Next();
+
+    if (loop->IsInSameLoop())
+        return _GetEndpoints()
+              .Then(std::bind(&ServiceStub::_SelectChannel, this, loop, std::placeholders::_1));
+    else
+        return _GetEndpoints()
+              .Then(loop, std::bind(&ServiceStub::_SelectChannel, this, loop, std::placeholders::_1));
 }
 
 Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep)
 {
     if (IsValidEndpoint(ep))
-        return _MakeChannel(ep);
+    {
+        auto loop = EventLoop::GetCurrentEventLoop();
+        if (!loop || loop == RPC_SERVER.BaseLoop())
+            loop = RPC_SERVER.Next();
+
+        if (loop->IsInSameLoop())
+            return _MakeChannel(loop, ep);
+        else
+            return loop->Execute(std::bind(&ServiceStub::_MakeChannel, this, loop, ep)).Unwrap();
+    }
     else
+    {
         return GetChannel();
+    }
 }
 
-Future<ClientChannel* > ServiceStub::_SelectChannel(Try<std::shared_ptr<std::vector<Endpoint>>>&& eps)
+Future<ClientChannel* > ServiceStub::_SelectChannel(EventLoop* loop, Try<std::shared_ptr<std::vector<Endpoint>>>&& eps)
 {
+    assert (loop->IsInSameLoop());
     try {
-        return _MakeChannel(_SelectEndpoint(eps));
+        return _MakeChannel(loop, _SelectEndpoint(eps));
     }
     catch (...) {
         return MakeExceptionFuture<ClientChannel*>(std::current_exception());
     }
-}
+} 
 
-Future<ClientChannel* > ServiceStub::_MakeChannel(const Endpoint& ep)
+Future<ClientChannel* > ServiceStub::_MakeChannel(EventLoop* loop, const Endpoint& ep)
 {
+    assert (loop->IsInSameLoop());
+
     if (!IsValidEndpoint(ep))
         return MakeExceptionFuture<ClientChannel*>(std::runtime_error("No available endpoint"));
 
-    auto channels = _GetChannelMap();
+    const auto& channels = channels_[loop->Id()];
 
-    auto it = channels->find(ep);
-    if (it != channels->end())
+    auto it = channels.find(ep);
+    if (it != channels.end())
         return MakeReadyFuture(it->second.get());
         
-    return this->_Connect(ep);
+    return this->_Connect(loop, ep);
 }
 
-Future<ClientChannel* > ServiceStub::_Connect(const Endpoint& ep)
+Future<ClientChannel* > ServiceStub::_Connect(EventLoop* loop, const Endpoint& ep)
 {
+    assert (loop->IsInSameLoop());
+
     ChannelPromise promise;
     auto fut = promise.GetFuture();
 
-    bool needConnect = false;
     const SocketAddr dst(EndpointToSocketAddr(ep));
-    {
-        std::unique_lock<std::mutex> guard(connMutex_);
-        auto it = pendingConns_.find(dst);
-        if (it == pendingConns_.end())
-            needConnect = true;
+    auto& pendingConns = pendingConns_[loop->Id()];
 
-        pendingConns_[dst].emplace_back(std::move(promise)); 
-    }
+    auto it = pendingConns.find(dst);
+    const bool needConnect = (it == pendingConns.end());
+
+    pendingConns[dst].emplace_back(std::move(promise)); 
                     
     if (needConnect)
     {
+        ANANAS_INF << "Connect to " << dst.ToString() << " in loop " << loop->Id();
         // TODO check UDP or TCP, now treat it as TCP
         Application::Instance().Connect(dst,
-                                   std::bind(&ServiceStub::_OnNewConnection, this, std::placeholders::_1),
-                                   std::bind(&ServiceStub::_OnConnFail, this, std::placeholders::_1, std::placeholders::_2),
-                                   DurationMs(3000));
+                                        std::bind(&ServiceStub::_OnNewConnection,
+                                                  this,
+                                                  std::placeholders::_1),
+                                        std::bind(&ServiceStub::_OnConnFail,
+                                                  this,
+                                                  std::placeholders::_1,
+                                                  std::placeholders::_2),
+                                        DurationMs(3000),
+                                        loop);
     }
 
     return fut;
@@ -134,17 +161,18 @@ Future<ClientChannel* > ServiceStub::_Connect(const Endpoint& ep)
 
 void ServiceStub::_OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
 { 
-    std::unique_lock<std::mutex> guard(connMutex_);
-    auto req = pendingConns_.find(peer.ToString()); 
-    if (req != pendingConns_.end()) 
+    assert (loop->IsInSameLoop());
+    const int id = loop->Id(); 
+    auto& pendingConns = pendingConns_[id];
+    auto req = pendingConns.find(peer); 
+    if (req != pendingConns.end()) 
     { 
         for (auto& prom : req->second) 
             prom.SetException(std::make_exception_ptr(std::runtime_error("Failed connect to " + peer.ToString()))); 
                  
-        pendingConns_.erase(req); 
+        pendingConns.erase(req); 
     }
 }
-
 
 void ServiceStub::SetOnCreateChannel(std::function<void (ClientChannel* )> cb)
 {
@@ -153,17 +181,19 @@ void ServiceStub::SetOnCreateChannel(std::function<void (ClientChannel* )> cb)
 
 void ServiceStub::_OnNewConnection(ananas::Connection* conn)
 {
+    assert (conn->GetLoop()->IsInSameLoop());
+
     auto _ = std::static_pointer_cast<ananas::Connection>(conn->shared_from_this());
     auto channel = std::make_shared<ClientChannel>(_, this);
     conn->SetUserData(channel);
 
-    Endpoint ep;
-    ep.set_proto(TCP);
-    ep.set_ip(conn->Peer().GetIP());
-    ep.set_port(conn->Peer().GetPort());
     {
-        std::unique_lock<std::mutex> guard(channelMutex_);
-        bool succ = channels_->insert({ep, channel}).second;
+        Endpoint ep;
+        ep.set_proto(TCP);
+        ep.set_ip(conn->Peer().GetIP());
+        ep.set_port(conn->Peer().GetPort());
+        auto& channelMap = channels_[conn->GetLoop()->Id()];
+        bool succ = channelMap.insert({ep, channel}).second;
         assert (succ);
     }
 
@@ -178,6 +208,8 @@ void ServiceStub::_OnNewConnection(ananas::Connection* conn)
 
 void ServiceStub::OnRegister()
 {
+    channels_.resize(Application::Instance().NumOfWorker());
+    pendingConns_.resize(Application::Instance().NumOfWorker());
 }
 
 void ServiceStub::_OnConnect(ananas::Connection* conn)
@@ -185,16 +217,12 @@ void ServiceStub::_OnConnect(ananas::Connection* conn)
     // It's called in conn's EventLoop, see `ananas::Connector::_OnSuccess`
     assert (conn->GetLoop()->IsInSameLoop());
 
-    std::vector<ChannelPromise> promises;
-    {
-        std::unique_lock<std::mutex> guard(connMutex_);
+    auto& pendingConns = pendingConns_[conn->GetLoop()->Id()];
+    auto req = pendingConns.find(conn->Peer());
+    assert (req != pendingConns.end());
 
-        auto req = pendingConns_.find(conn->Peer());
-        assert (req != pendingConns_.end());
-
-        promises = std::move(req->second);
-        pendingConns_.erase(req);
-    }
+    std::vector<ChannelPromise> promises(std::move(req->second));
+    pendingConns.erase(req);
 
     // channelFuture will be fulfilled
     for (auto& prom : promises)
@@ -208,19 +236,17 @@ void ServiceStub::_OnDisconnect(ananas::Connection* conn)
     ep.set_ip(conn->Peer().GetIP());
     ep.set_port(conn->Peer().GetPort());
         
-    std::unique_lock<std::mutex> guard(channelMutex_);
-    auto it = channels_->find(ep);
-    assert (it != channels_->end());
+    auto& channelMap = channels_[conn->GetLoop()->Id()];
+    auto it = channelMap.find(ep);
+    assert (it != channelMap.end());
     it->second->OnDestroy();
-    channels_->erase(it);
+    channelMap.erase(it);
 }
 
 Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints()
 {
     if (hardCodedUrls_ && !hardCodedUrls_->empty())
-    {
         return MakeReadyFuture(hardCodedUrls_);
-    }
 
     // rpc::Call() can be called everywhere, so protect these code
     std::unique_lock<std::mutex> guard(endpointsMutex_);
@@ -243,7 +269,8 @@ Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints()
             // call NameServer to GetEndpoints
             ananas::rpc::ServiceName name;
             name.set_name(this->FullName());
-            auto scheduler = RPC_SERVER.BaseLoop();
+            auto scheduler = EventLoop::GetCurrentEventLoop();
+            assert (scheduler);
             rpc::Call<EndpointList>("ananas.rpc.NameService", "GetEndpoints", name)
                 .Then(scheduler, std::bind(&ServiceStub::_OnNewEndpointList, this, std::placeholders::_1))
                 .OnTimeout(std::chrono::seconds(3), [this]()
@@ -254,6 +281,7 @@ Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints()
                         promise.SetException(std::make_exception_ptr(std::runtime_error("GetEndpoints timeout")));
                     }
                     pendingEndpoints_.clear();
+                    pendingEndpoints_.shrink_to_fit();
                 },
                 scheduler);
         }
@@ -285,6 +313,7 @@ void ServiceStub::_OnNewEndpointList(Try<EndpointList>&& endpoints)
             promise.SetValue(newEndpoints);
         }
         pendingEndpoints_.clear();
+        pendingEndpoints_.shrink_to_fit();
     }
     catch (const std::exception& e) {
         // Do not clear cache if exception from name server
@@ -296,6 +325,7 @@ void ServiceStub::_OnNewEndpointList(Try<EndpointList>&& endpoints)
             promise.SetValue(endpoints);
         }
         pendingEndpoints_.clear();
+        pendingEndpoints_.shrink_to_fit();
     }
 }
 
@@ -309,12 +339,6 @@ const Endpoint& ServiceStub::_SelectEndpoint(std::shared_ptr<std::vector<Endpoin
     const int lucky = current++ % static_cast<int>(eps->size());
 
     return (*eps)[lucky];
-}
-
-ServiceStub::ChannelMapPtr ServiceStub::_GetChannelMap() 
-{
-    std::unique_lock<std::mutex> guard(channelMutex_);
-    return channels_;
 }
 
 

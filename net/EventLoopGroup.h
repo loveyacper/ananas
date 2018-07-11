@@ -55,7 +55,7 @@ private:
     std::vector<EventLoop* > loops_;
 
     size_t numLoop_;
-    mutable size_t currentLoop_ {0};
+    mutable std::atomic<size_t> currentLoop_ {0};
 };
 
 } // end namespace internal

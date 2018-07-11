@@ -122,14 +122,10 @@ void Server::Start()
     }
     else
     {
-        //if (services_.size() > 1 || services_.begin()->first != "ananas.rpc.NameService")
-        //TODO 
         BaseLoop()->ScheduleAfterWithRepeat<ananas::kForever>(std::chrono::seconds(3),
                 [this]() {
-                    if (keepaliveInfo_.size() == 0)
-                    {
-                        for (const auto& kv : services_)
-                        {
+                    if (keepaliveInfo_.size() == 0) {
+                        for (const auto& kv : services_) {
                             KeepaliveInfo info;
                             info.set_servicename(kv.first.ToString());
                             info.mutable_endpoint()->CopyFrom(kv.second->GetEndpoint());
@@ -140,11 +136,6 @@ void Server::Start()
                     ANANAS_DBG << "Call Keepalive";
                     for (const auto& e : keepaliveInfo_)
                          Call<Status>("ananas.rpc.NameService", "Keepalive", e);
-#if 0
-                    .Then([](Status s) {
-                            printf("Keepalive succ\n");
-                            });
-#endif
                 }
             );
     }
@@ -165,6 +156,11 @@ Server& Server::Instance()
 EventLoop* Server::BaseLoop()
 {
     return app_.BaseLoop();
+}
+
+EventLoop* Server::Next()
+{
+    return app_.Next();
 }
     
 void Server::SetNameServer(const std::string& url)
