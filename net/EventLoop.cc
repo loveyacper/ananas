@@ -319,7 +319,12 @@ bool EventLoop::IsInSameLoop() const
 void EventLoop::ScheduleAfter(std::chrono::milliseconds duration,
                                   std::function<void()> f)
 {
-    ScheduleAfterWithRepeat<1>(duration, std::move(f));
+    if (IsInSameLoop())
+        ScheduleAfterWithRepeat<1>(duration, std::move(f));
+    else
+        Execute([=]() {
+                    ScheduleAfterWithRepeat<1>(duration, std::move(f));
+                });
 }
 
 void EventLoop::Schedule(std::function<void()> f)

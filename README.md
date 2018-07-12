@@ -20,7 +20,8 @@ A C++11 RPC framework and toolbox for server-side development.
     * [coroutine](#coroutine)
     * [tests](#tests)
     * [examples](#examples)
-* [教程文档待补全,暂没时间](#文档待补全)
+* [教程待补全,暂没时间,有兴趣可先加
+QQ群讨论784231426](#补全)
 
 <!-- vim-markdown-toc -->
 

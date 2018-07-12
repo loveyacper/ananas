@@ -270,6 +270,9 @@ Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints()
             ananas::rpc::ServiceName name;
             name.set_name(this->FullName());
             auto scheduler = EventLoop::GetCurrentEventLoop();
+            if (!scheduler)
+                scheduler = RPC_SERVER.BaseLoop();
+
             assert (scheduler);
             rpc::Call<EndpointList>("ananas.rpc.NameService", "GetEndpoints", name)
                 .Then(scheduler, std::bind(&ServiceStub::_OnNewEndpointList, this, std::placeholders::_1))
