@@ -32,8 +32,11 @@ public:
 
     // base loop
     EventLoop* BaseLoop();
-    // next
+    // next loop
     EventLoop* Next();
+
+    void SetOnInit(std::function<bool (int, char*[])> );
+    void SetOnExit(std::function<void ()> );
 
     // nameserver
     void SetNameServer(const std::string& url);
@@ -51,7 +54,7 @@ public:
 
     // both
     void SetNumOfWorker(size_t n);
-    void Start();
+    void Start(int argc, char* argv[]);
     void Shutdown();
 
 private:

@@ -10,6 +10,7 @@
 
 #include "util/log/Logger.h"
 #include "util/TimeUtil.h"
+#include "util/ThreadPool.h"
 #include "util/ConfigParser.h"
 #include "net/EventLoop.h"
 #include "net/Application.h"
@@ -103,6 +104,7 @@ int main(int ac, char* av[])
     req->set_text(g_text);
 
     auto starter = [&]() {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         start.Now();
         for (int i = 0; i < threads; ++ i)
         {
@@ -113,10 +115,12 @@ int main(int ac, char* av[])
         }
     };
 
-    server.BaseLoop()->ScheduleAfter(std::chrono::seconds(1), starter);
+    ThreadPool pool;
+    pool.Execute(starter);
 
     // event loop
-    server.Start();
+    server.Start(ac, av);
+    pool.JoinAll();
 
     return 0;
 }

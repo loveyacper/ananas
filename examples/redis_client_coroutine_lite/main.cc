@@ -64,7 +64,7 @@ void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAd
     });
 }
 
-int main()
+int main(int ac, char* av[])
 {
     int maxTryCount = 5;
 
@@ -74,7 +74,7 @@ int main()
                                                               std::placeholders::_1,
                                                               std::placeholders::_2));
 
-    app.Run();
+    app.Run(ac, av);
 
     return 0;
 }

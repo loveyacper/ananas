@@ -1,3 +1,4 @@
+#include <cassert>
 #include "ThreadPool.h"
 
 namespace ananas
@@ -8,12 +9,14 @@ std::thread::id ThreadPool::s_mainThread;
 
 ThreadPool::ThreadPool() : currentThreads_{0}, waiters_(0), shutdown_(false)
 {
-    monitor_ = std::thread([this]() { _MonitorRoutine(); } );
-    maxIdleThreads_ = maxThreads_ = std::max(1U, std::thread::hardware_concurrency());
+    maxIdleThreads_ = std::max(1U, std::thread::hardware_concurrency());
+    maxThreads_ = kMaxThreads;
     pendingStopSignal_ = 0;
 
     // init main thread id 
     s_mainThread = std::this_thread::get_id();
+
+    monitor_ = std::thread([this]() { _MonitorRoutine(); } );
 }
 
 ThreadPool::~ThreadPool()
@@ -63,7 +66,7 @@ void ThreadPool::JoinAll()
     }
 }
 
-void ThreadPool::_CreateWorker()
+void ThreadPool::_SpawnWorker()
 {
     // guarded by mutex.
     ++ currentThreads_;
@@ -86,12 +89,14 @@ void ThreadPool::_WorkerRoutine()
             cond_.wait(guard, [this]() { return shutdown_ || !tasks_.empty(); } );
             -- waiters_;
             
+            assert(shutdown_ || !tasks_.empty());
             if (shutdown_ && tasks_.empty())
             {
                 -- currentThreads_;
                 return;
             }
-            
+
+            assert (!tasks_.empty());
             task = std::move(tasks_.front());
             tasks_.pop_front();
         }
@@ -108,10 +113,10 @@ void ThreadPool::_MonitorRoutine()
 {
     while (!shutdown_)
     {
-        std::unique_lock<std::mutex> guard(mutex_);
-        // fast shutdown
-        cond_.wait_for(guard, std::chrono::seconds(3), [this]() { return shutdown_; } );
+        // Do NOT use mutex and cond, otherwise `Execute` will awake me
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
+        std::unique_lock<std::mutex> guard(mutex_);
         if (shutdown_)
             return;
 

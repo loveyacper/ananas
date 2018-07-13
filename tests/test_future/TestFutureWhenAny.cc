@@ -30,11 +30,10 @@ int main()
 
     auto fany = WhenAny(std::begin(futures), std::end(futures));
     fany.Then([](const std::pair<size_t, Try<int>>& result) {
-            std::cerr << "Then collet all! goodbye!\n";
+            std::cerr << "Then collet any! goodbye!\n";
             std::cerr << "Result " << result.first << " = " << result.second << std::endl;
          });
 
-    //std::this_thread::sleep_for(std::chrono::milliseconds(100));
     for (auto& t : threads)
         t.join();
 

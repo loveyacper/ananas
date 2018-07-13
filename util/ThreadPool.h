@@ -37,7 +37,7 @@ public:
     void SetMaxThreads(unsigned int );
     
 private:
-    void _CreateWorker();
+    void _SpawnWorker();
     void _WorkerRoutine();
     void _MonitorRoutine();
     
@@ -67,6 +67,10 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_o
 {
     using resultType = typename std::result_of<F (Args...)>::type;
     
+    std::unique_lock<std::mutex> guard(mutex_);
+    if (shutdown_)
+        return MakeReadyFuture<resultType>(resultType());
+
     Promise<resultType> promise;
     auto future = promise.GetFuture();
 
@@ -79,18 +83,13 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_o
             promise.SetException(std::current_exception());
         }
     };
-    
-    {
-        std::unique_lock<std::mutex> guard(mutex_);
-        if (shutdown_)
-            return MakeReadyFuture<resultType>(resultType());
-        
-        tasks_.emplace_back( [task = std::move(task)]() mutable { (task)(); } );
-        if (waiters_ == 0)
-            _CreateWorker();
-        
-        cond_.notify_one();
-    }
+
+    tasks_.emplace_back(std::move(task));
+    if (waiters_ == 0 && currentThreads_ < maxThreads_)
+        _SpawnWorker();
+
+    guard.unlock();
+    cond_.notify_one();
     
     return future;
 }
@@ -102,6 +101,10 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void>
     using resultType = typename std::result_of<F (Args...)>::type;
     static_assert(std::is_void<resultType>::value, "must be void");
     
+    std::unique_lock<std::mutex> guard(mutex_);
+    if (shutdown_)
+        return MakeReadyFuture();
+
     Promise<resultType> promise;
     auto future = promise.GetFuture();
 
@@ -115,20 +118,13 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void>
             promise.SetException(std::current_exception());
         }
     };
+
+    tasks_.emplace_back(std::move(task));
+    if (waiters_ == 0 && currentThreads_ < maxThreads_)
+        _SpawnWorker();
     
-    {
-        std::unique_lock<std::mutex> guard(mutex_);
-        if (shutdown_)
-            return MakeReadyFuture();
-        
-        tasks_.emplace_back( [task = std::move(task)]() mutable { (task)(); } );
-        if (waiters_ == 0 && currentThreads_ < maxThreads_)
-        {
-            _CreateWorker();
-        }
-        
-        cond_.notify_one();
-    }
+    guard.unlock();
+    cond_.notify_one();
     
     return future;
 }

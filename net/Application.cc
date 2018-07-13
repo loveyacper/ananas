@@ -59,16 +59,28 @@ size_t Application::NumOfWorker() const
     return 1 + workerGroup_->Size();
 }
 
-void Application::Run()
+void Application::Run(int ac, char* av[])
 {
     ANANAS_DEFER
     {
+        if (onExit_)
+            onExit_();
+
         // thread safe exit
         LogManager::Instance().Stop();
     };
 
     if (state_ != State::eS_None)
         return;
+
+    if (onInit_)
+    {
+        if (!onInit_(ac, av))
+        {
+            printf("onInit FAILED, exit!\n");
+            return;
+        }
+    }
 
     state_ = State::eS_Started;
     workerGroup_->Start();
@@ -100,6 +112,16 @@ bool Application::IsExit() const
 EventLoop* Application::BaseLoop()
 {
     return &base_;
+}
+    
+void Application::SetOnInit(std::function<bool (int, char*[])> init)
+{
+    onInit_ = std::move(init);
+}
+
+void Application::SetOnExit(std::function<void ()> onexit)
+{
+    onExit_ = std::move(onexit);
 }
 
 void Application::Listen(const SocketAddr& listenAddr,

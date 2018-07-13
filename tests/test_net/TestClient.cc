@@ -7,13 +7,32 @@
 #include "net/EventLoop.h"
 #include "net/Application.h"
 #include "util/log/Logger.h"
+#include "util/TimeUtil.h"
+
+ananas::Time start, end;
+int nowCount = 0;
+const int totalCount = 200 * 10000;
 
 std::shared_ptr<ananas::Logger> logger;
 
 ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, size_t len)
 {
+    ++ nowCount;
+    if (nowCount == totalCount)
+    {
+        end.Now();
+        USR(logger) << "Done OnResponse avg " << (totalCount * 0.1f / (end - start)) << " W/s";
+        ananas::Application::Instance().Exit();
+        return 0;
+    }
+    if (nowCount % 100000 == 0)
+    {
+        end.Now();
+        USR(logger) << "OnResponse avg " << (nowCount * 0.1f / (end - start)) << " W/s";
+    }
     // echo package
-    conn->SendPacket(data, len);
+    std::string rsp(data, len);
+    conn->SendPacket(rsp.data(), rsp.size());
     return len;
 }
 
@@ -27,7 +46,7 @@ void OnConnect(ananas::Connection* conn)
     INF(logger) << "OnConnect " << conn->Identifier();
             
     std::string tmp = "abcdefghijklmnopqrstuvwxyz";
-    std::string msg = tmp + tmp + tmp + tmp;
+    std::string msg = tmp ;//+ tmp + tmp + tmp;
     conn->SendPacket(msg.data(), msg.size());
 }
 
@@ -81,14 +100,15 @@ int main(int ac, char* av[])
     }
 
     const uint16_t port = 6380;
-    const int kConns = 10;
+    const int kConns = threads;
 
     auto& app = ananas::Application::Instance();
     app.SetNumOfWorker(threads);
     for (int i = 0; i < kConns; ++ i)
         app.Connect("localhost", port, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
 
-    app.Run();
+    start.Now();
+    app.Run(ac, av);
 
     return 0;
 }

@@ -10,7 +10,7 @@ using namespace ananas;
 
 std::shared_ptr<Logger> log;
 
-int main()
+int main(int ac, char* av[])
 {
     LogManager::Instance().Start();
     log = LogManager::Instance().CreateLog(logALL, logConsole);
@@ -49,7 +49,7 @@ int main()
 
     (void)only5;
 
-    app.Run();
+    app.Run(ac, av);
 
     return 0;
 }

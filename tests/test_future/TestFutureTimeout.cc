@@ -16,7 +16,7 @@ Type ThreadFunc()
     return Type(10);
 }
 
-int main()
+int main(int ac, char* av[])
 {
     auto& app = Application::Instance();
     auto& loop = *app.BaseLoop();
@@ -45,7 +45,7 @@ int main()
             app.Exit();
             });
 
-    app.Run();
+    app.Run(ac, av);
 
     tpool.JoinAll();
     return 0;

@@ -25,10 +25,18 @@ public:
     static Application& Instance();
     ~Application();
 
-    void Run();
+    void Run(int argc, char* argv[]);
     void Exit();
     bool IsExit() const;
     EventLoop* BaseLoop();
+
+    // Init is executed before workers start.
+    // So just parse arguments or some else.
+    // Do NOT do anything about network IO
+    void SetOnInit(std::function<bool (int, char*[])> );
+
+    // Exit is executed before app exit
+    void SetOnExit(std::function<void ()> );
 
     // listener
     void Listen(const SocketAddr& listenAddr,
@@ -88,6 +96,9 @@ private:
         eS_Stopped,
     };
     std::atomic<State> state_;
+
+    std::function<bool (int , char*[]) > onInit_;
+    std::function<void ()> onExit_;
 
     static void _DefaultBindCallback(bool succ, const SocketAddr& );
 };

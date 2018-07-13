@@ -1,4 +1,5 @@
 #include <iostream>
+#include <unistd.h>
 #include "RedisContext.h"
 #include "net/EventLoop.h"
 #include "net/Application.h"
@@ -24,16 +25,39 @@ void OnNewConnection(ananas::Connection* conn)
                                                              std::placeholders::_3));
 }
 
-int main()
+bool Init(int ac, char* av[])
+{
+    uint16_t port = 6379;
+
+    int ch = 0;
+    while ((ch = getopt(ac, av, "p:")) != -1)
+    {
+        switch (ch)
+        {
+            case 'p':
+                port = std::stoi(optarg);
+                break;
+
+            default:
+                return false;
+        }
+    }
+
+    auto& app = ananas::Application::Instance();
+    app.Listen("loopback", port, OnNewConnection);
+    return true;
+}
+
+int main(int ac, char* av[])
 {
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logALL, "logger_server_test");
 
-    const uint16_t port = 6379;
-
     auto& app = ananas::Application::Instance();
-    app.Listen("loopback", port, OnNewConnection);
-    app.Run();
+    app.SetOnInit(Init);
+
+    app.Run(ac, av);
+
     return 0;
 }
 

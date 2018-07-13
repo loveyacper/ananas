@@ -38,7 +38,7 @@ int main(int ac, char* av[])
                     ERR(logger) << "ListenUDP failed " << addr.ToString();
             });
 
-    app.Run();
+    app.Run(ac, av);
 
     return 0;
 }

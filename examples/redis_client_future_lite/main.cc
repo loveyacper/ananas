@@ -1,4 +1,6 @@
 #include <iostream>
+#include <unistd.h>
+
 #include "RedisContext.h"
 #include "net/EventLoop.h"
 #include "net/Application.h"
@@ -81,16 +83,43 @@ void OnConnFail(int maxTryCount, ananas::EventLoop* loop, const ananas::SocketAd
     });
 }
 
-int main()
+bool Init(int ac, char* av[])
 {
+    uint16_t port = 6379;
     int maxTryCount = 5;
 
+    int ch = 0;
+    while ((ch = getopt(ac, av, "p:t:")) != -1)
+    {
+        switch (ch)
+        {
+            case 'p':
+                port = std::stoi(optarg);
+                break;
+
+            case 't':
+                maxTryCount = std::stoi(optarg);
+                break;
+
+            default:
+                return false;
+        }
+    }
+
     auto& app = ananas::Application::Instance();
-    app.Connect("loopback", 6379, OnNewConnection, std::bind(&OnConnFail,
+    app.Connect("loopback", port, OnNewConnection, std::bind(&OnConnFail,
                                                               maxTryCount,
                                                               std::placeholders::_1,
                                                               std::placeholders::_2));
-    app.Run();
+    return true;
+}
+
+int main(int ac, char* av[])
+{
+    auto& app = ananas::Application::Instance();
+    app.SetOnInit(Init);
+
+    app.Run(ac, av);
 
     return 0;
 }

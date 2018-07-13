@@ -37,7 +37,7 @@ int main(int ac, char* av[])
     auto& app = ananas::Application::Instance();
     app.CreateClientUDP(OnMessage, OnCreate);
 
-    app.Run();
+    app.Run(ac, av);
 
     return 0;
 }

@@ -628,6 +628,7 @@ void LogManager::Stop()
             return;
 
         shutdown_ = true;
+        guard.unlock();
         cond_.notify_all();
     }
         
@@ -677,7 +678,10 @@ void LogManager::AddBusyLog(Logger* log)
         return;
 
     if (busyLogs_.insert(log).second)
+    {
+        guard.unlock();
         cond_.notify_one();
+    }
 }
 
 

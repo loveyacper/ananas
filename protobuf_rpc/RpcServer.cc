@@ -96,7 +96,7 @@ void Server::SetNumOfWorker(size_t n)
         assert (!!!"Don't change worker number after service added");
 }
 
-void Server::Start()
+void Server::Start(int ac, char* av[])
 {
     for (const auto& kv : services_)
     {
@@ -140,7 +140,7 @@ void Server::Start()
             );
     }
 
-    app_.Run();
+    app_.Run(ac, av);
 }
 
 void Server::Shutdown()
@@ -162,7 +162,17 @@ EventLoop* Server::Next()
 {
     return app_.Next();
 }
-    
+
+void Server::SetOnInit(std::function<bool (int, char*[])> init)
+{
+    app_.SetOnInit(std::move(init));
+}
+
+void Server::SetOnExit(std::function<void ()> onexit)
+{
+    app_.SetOnExit(std::move(onexit));
+}
+
 void Server::SetNameServer(const std::string& url)
 {
     assert (!nameServiceStub_);

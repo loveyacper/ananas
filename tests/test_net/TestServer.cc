@@ -10,7 +10,8 @@ std::shared_ptr<ananas::Logger> logger;
 ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, ananas::PacketLen_t len)
 {
     // echo package
-    conn->SendPacket(data, len);
+    std::string rsp(data, len);
+    conn->SendPacket(rsp.data(), rsp.size());
     return len;
 }
 
@@ -39,7 +40,7 @@ int main(int ac, char* av[])
     app.SetNumOfWorker(workers);
     app.Listen("localhost", 6380, OnNewConnection);
 
-    app.Run();
+    app.Run(ac, av);
 
     return 0;
 }

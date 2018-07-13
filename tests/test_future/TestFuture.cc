@@ -19,7 +19,7 @@ void ThreadFuncV()
     std::cout << "SetValue Void\n";
 }
 
-int main()
+int main(int ac, char* av[])
 {
     std::cout << "main id " << std::this_thread::get_id() << std::endl;
     auto& app = Application::Instance();
@@ -55,7 +55,7 @@ int main()
             printf("every 1 second\n");
             });
 
-    app.Run();
+    app.Run(ac, av);
     tpool.JoinAll();
             
     return 0;
