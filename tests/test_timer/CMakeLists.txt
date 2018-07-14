@@ -5,5 +5,5 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
 ADD_EXECUTABLE(timer_test TestTimer.cc)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/tests)
 
-TARGET_LINK_LIBRARIES(timer_test ananas)
-ADD_DEPENDENCIES(timer_test ananas)
+TARGET_LINK_LIBRARIES(timer_test ananas_net)
+ADD_DEPENDENCIES(timer_test ananas_net)

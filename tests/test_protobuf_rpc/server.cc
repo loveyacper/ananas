@@ -6,7 +6,7 @@
 #include "protobuf_rpc/RpcService.h"
 #include "test_rpc.pb.h"
 
-#include "util/log/Logger.h"
+#include "util/Logger.h"
 #include "net/EventLoop.h"
 
 std::shared_ptr<ananas::Logger> logger;

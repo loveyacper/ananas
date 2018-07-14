@@ -34,6 +34,10 @@ private:
 } // end namespace internal
 } // end namespace ananas
 
+#else
+
+void __Dummy__();
+
 #endif // end #ifdef __gnu_linux__
 
 #endif

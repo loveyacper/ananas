@@ -20,7 +20,7 @@ void NewSSLConnection(const std::string& ctxName, int verifyMode, bool incoming,
     });
 }
 
-int main()
+int main(int ac, char* av)
 {
     ananas::LogManager::Instance().Start();
 
@@ -42,7 +42,7 @@ int main()
                                             true,
                                             std::placeholders::_1));
 
-    app.Run();
+    app.Run(ac, av);
     return 0;
 }
 

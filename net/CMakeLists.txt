@@ -14,7 +14,20 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ENDIF()
 
 
-ADD_LIBRARY(ananas ${ANANAS_SRC})
-ADD_DEPENDENCIES(ananas util)
-TARGET_LINK_LIBRARIES(ananas; util; pthread)
-SET_TARGET_PROPERTIES(ananas PROPERTIES LINKER_LANGUAGE CXX)
+ADD_LIBRARY(ananas_net ${ANANAS_SRC})
+ADD_DEPENDENCIES(ananas_net ananas_util)
+TARGET_LINK_LIBRARIES(ananas_net; ananas_util; pthread)
+SET_TARGET_PROPERTIES(ananas_net PROPERTIES LINKER_LANGUAGE CXX)
+
+
+INSTALL(TARGETS ananas_net DESTINATION lib)
+set(HEADERS
+    Application.h
+    Connection.h
+    EventLoop.h
+    Socket.h
+    Typedefs.h
+   )
+
+INSTALL(FILES ${HEADERS} DESTINATION include/ananas/net)
+

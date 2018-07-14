@@ -3,7 +3,7 @@
 
 #include "net/Connection.h"
 #include "net/Application.h"
-#include "util/log/Logger.h"
+#include "util/Logger.h"
             
 std::shared_ptr<ananas::Logger> logger;
 

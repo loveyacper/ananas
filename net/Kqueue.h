@@ -31,6 +31,10 @@ private:
 } // end namespace internal
 } // end namespace ananas
 
+#else
+
+void __Dummy__();
+
 #endif  // end #if defined(__APPLE__)
 
 #endif

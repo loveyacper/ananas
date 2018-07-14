@@ -11,12 +11,12 @@ ADD_EXECUTABLE(future_whenany_test TestFutureWhenAny.cc)
 ADD_EXECUTABLE(future_whenN_test TestFutureWhenN.cc)
 ADD_EXECUTABLE(future_timeout TestFutureTimeout.cc)
 
-TARGET_LINK_LIBRARIES(future_timeout ananas)
-TARGET_LINK_LIBRARIES(future_test ananas)
-TARGET_LINK_LIBRARIES(future_exception ananas)
-TARGET_LINK_LIBRARIES(future_whenall_test ananas)
-ADD_DEPENDENCIES(future_timeout ananas)
-ADD_DEPENDENCIES(future_test ananas)
+TARGET_LINK_LIBRARIES(future_timeout ananas_net)
+TARGET_LINK_LIBRARIES(future_test ananas_net)
+TARGET_LINK_LIBRARIES(future_exception ananas_net)
+TARGET_LINK_LIBRARIES(future_whenall_test ananas_net)
+ADD_DEPENDENCIES(future_timeout ananas_net)
+ADD_DEPENDENCIES(future_test ananas_net)
 
 SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin/future_tests)
 

@@ -2,7 +2,7 @@
 #define BERT_ANANASDEBUG_H
 
 #include <mutex>
-#include "util/log/Logger.h"
+#include "util/Logger.h"
 
 namespace ananas
 {

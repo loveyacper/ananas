@@ -1,7 +1,6 @@
 #include <iostream>
 #include <unistd.h>
 #include "RedisContext.h"
-#include "net/EventLoop.h"
 #include "net/Application.h"
 
 #include "RedisLog.h"

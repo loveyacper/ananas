@@ -8,7 +8,7 @@
 #include "protobuf_rpc/RpcServiceStub.h"
 #include "test_rpc.pb.h"
 
-#include "util/log/Logger.h"
+#include "util/Logger.h"
 #include "util/TimeUtil.h"
 #include "util/ThreadPool.h"
 #include "util/ConfigParser.h"

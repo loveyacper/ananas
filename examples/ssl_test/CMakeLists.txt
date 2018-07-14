@@ -17,9 +17,9 @@ file(COPY ${PROJECT_SOURCE_DIR}/examples/ssl_test/${CERT_FILES} DESTINATION ${PR
 
 SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin/examples)
 
-TARGET_LINK_LIBRARIES(ssl_server_test ananas; ananas_ssl)
-TARGET_LINK_LIBRARIES(ssl_client_test ananas; ananas_ssl)
+TARGET_LINK_LIBRARIES(ssl_server_test ananas_net; ananas_ssl)
+TARGET_LINK_LIBRARIES(ssl_client_test ananas_net; ananas_ssl)
 
-ADD_DEPENDENCIES(ssl_server_test ananas; ananas_ssl)
-ADD_DEPENDENCIES(ssl_client_test ananas; ananas_ssl)
+ADD_DEPENDENCIES(ssl_server_test ananas_net; ananas_ssl)
+ADD_DEPENDENCIES(ssl_client_test ananas_net; ananas_ssl)
 

@@ -7,7 +7,7 @@
 #include "net/Application.h"
 #include "net/AnanasDebug.h"
 
-#include "name_service_protocol/RedisClientContext.h"
+#include "RedisClientContext.h"
 
 namespace ananas
 {

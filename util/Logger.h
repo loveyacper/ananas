@@ -15,7 +15,7 @@
 #include <thread>
 #include <atomic>
 
-#include "../Buffer.h"
+#include "Buffer.h"
 #include "MmapFile.h"
 
 enum LogLevel

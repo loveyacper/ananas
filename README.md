@@ -10,7 +10,7 @@ A C++11 RPC framework and toolbox for server-side development.
 * [Features](#features)
 * [What's ananas](#whats-ananas)
     * [需要什么预备知识](#需要什么预备知识)
-    * [阅读ananas源码需要读的书](#阅读ananas源码需要读的书)
+    * [阅读ananas源码需要读什么书](#阅读ananas源码需要读什么书)
 * [源码目录结构](#源码目录结构)
     * [net](#net)
     * [future](#future)
@@ -25,11 +25,20 @@ QQ群讨论784231426](#补全)
 
 <!-- vim-markdown-toc -->
 
+* [教程目录](#dummy)
+    * [整体overview](docs/01_overview.md)
+    * [util库使用](docs/util.md)
+    * [网络库使用](docs/networking.md)
+    * [协程介绍](docs/coroutine.md)
+    * [future](docs/future.md)
+    * [rpc](docs/rpc.md)
+
 ## Requirements
-* C++11
-* Linux or MAC OS
-* google protobuf
-* zookeeper or redis
+* C++11 compiler (required)
+* CMake (required)
+* Linux or MAC OS (required)
+* google protobuf (optional)
+* redis for name service (optional, just for demo)
 
 ## Features
 * Protobuf-based rpc.
@@ -45,6 +54,8 @@ QQ群讨论784231426](#补全)
       
 &ensp;&ensp;&ensp;&ensp;ananas并不是一个大而全的框架，出于教学目的，也秉着less is more的原则，它只包含RPC框架该有的部分，非常小巧，便于初学者学习。
 
+&ensp;&ensp;&ensp;&ensp;可以基于ananas rpc编写代码，也可以抛弃rpc，仅仅使用网络库编写应用(类似使用muduo或netty)。
+
 &ensp;&ensp;&ensp;&ensp;ananas主要包括两个部分:基础部分是一个**reactor模式的多线程非阻塞网络库**，基于epoll或kqueue，和陈硕先生的muduo比较相似；ananas有一些部分参考了java netty的实现。如果你是javaer，看到了EventLoopGroup可能会心一笑。
 
 &ensp;&ensp;&ensp;&ensp;另一个部分则是在网络库之上，融合`google protobuf`以及`ananas future`库实现了一套RPC框架，只提供了基于future的异步调用接口。可能有人会问，为什么不提供同步。最大的原因是，我不认为一个非阻塞的框架应该提供同步操作（无协程情况）。尽管netty的future提供了阻塞接口，但官方文档中明确指出不提倡使用。如果思考一下one eventloop per thread模型就明白了，同步很有可能造成死锁。另一个原因是，future接口已经非常易用，并没有将逻辑打的支离破碎，而且支持when-all、when-any、when-N并发模式，十分强大。
@@ -59,7 +70,7 @@ QQ群讨论784231426](#补全)
    
    &ensp;&ensp;对于水平更高一些的用户，建议完整学习网络库和rpc实现，如果对future感兴趣，也可以研究源码，但难度较高。
 
-### 阅读ananas源码需要读的书
+### 阅读ananas源码需要读什么书
    * [Effective modern C++](https://www.amazon.cn/dp/B016OFO492)
      
      学习C++11只需要这一本书,请耐心多读几遍。
@@ -80,7 +91,7 @@ QQ群讨论784231426](#补全)
      各种语言的网络库千千万，netty是其中翘楚。
 
 ## 源码目录结构
-  整个ananas的核心源码在一万行以内，其中net不足四千行，rpc部分约两千多行，只实现必不可少的部分，便于学习。
+  整个ananas的核心源码在一万行以内，其中net和util约六千行，rpc部分约两千多行，只实现必不可少的部分，便于学习。
   ### net
   reactor模式的多线程非阻塞网络库，基于epoll和kqueue，one-eventloop-per-thread模型，支持TCP/UDP/Timer等功能。
   ### future
