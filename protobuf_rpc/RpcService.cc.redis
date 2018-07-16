@@ -5,10 +5,10 @@
 #include "RpcClosure.h"
 #include "RpcException.h"
 #include "ananas_rpc.pb.h"
-#include "ananas/net/Connection.h"
-#include "ananas/net/Application.h"
-#include "ananas/net/AnanasDebug.h"
-#include "ananas/util/Util.h"
+#include "net/Connection.h"
+#include "net/Application.h"
+#include "net/AnanasDebug.h"
+#include "util/Util.h"
 
 namespace ananas
 {
@@ -91,43 +91,56 @@ void Service::SetOnCreateChannel(std::function<void (ServerChannel* )> occ)
 size_t Service::_OnMessage(ananas::Connection* conn, const char* data, size_t len)
 {
     const char* const start = data;
+    const char* const end = data + len;
     size_t offset = 0;
 
     auto channel = conn->GetUserData<ServerChannel>();
+    ANANAS_DEFER
+    {
+        try {
+            channel->_Flush();
+        }
+        catch (const std::exception& e) {
+            ANANAS_ERR << "Exception when _Flush:" << e.what();
+            conn->ActiveClose();
+        }
+    };
 
-    // TODO process message like redis
-    try {
-        // 如果是二进制消息，这里进行包的完整性分析，如果是完整的包，将得到了一个RpcMessage,还需要进一步解包
-        // 如果是文本消息，包的完整性分析和解包是一步完成的，直接得到Message，无须再解包
-        const char* const thisStart = data;
-        auto msg = channel->OnData(data, len - offset);
-        if (msg)
-        {
-            offset += (data - thisStart);
-            try {
-                channel->OnMessage(std::move(msg));
-            }
-            catch (const std::logic_error& recovableErr) {
-                channel->OnError(recovableErr);
-                return data - start;
-            }
-            catch (const std::runtime_error& unrecovableErr) {
-                channel->OnError(unrecovableErr);
-                conn->ActiveClose();
-                return data - start;
-            }
-            catch (...) {
-                ANANAS_ERR << "OnMessage: Unknown error";
-                conn->ActiveClose();
-                return data - start;
+    while (data + conn->GetMinPacketSize() <= end)
+    {
+        try {
+            // if binary msg, check integrity, if integral, we got a RpcMessage, need to parse further.
+            // if text msg, check integrity and parse are together, we got a google::Message.
+            const char* const thisStart = data;
+            auto msg = channel->OnData(data, len - offset);
+            if (msg)
+            {
+                offset += (data - thisStart);
+                try {
+                    channel->OnMessage(std::move(msg));
+                }
+                catch (const std::logic_error& recovableErr) {
+                    channel->OnError(recovableErr);
+                    return data - start;
+                }
+                catch (const std::runtime_error& unrecovableErr) {
+                    channel->OnError(unrecovableErr);
+                    conn->ActiveClose();
+                    return data - start;
+                }
+                catch (...) {
+                    ANANAS_ERR << "OnMessage: Unknown error";
+                    conn->ActiveClose();
+                    return data - start;
+                }
             }
         }
-    }
-    catch (const std::exception& e) {
-        // Often because evil message
-        ANANAS_ERR << "Some exception OnData " << e.what();
-        conn->ActiveClose();
-        return 0;
+        catch (const std::exception& e) {
+            // Often because evil message
+            ANANAS_ERR << "Some exception OnData " << e.what();
+            conn->ActiveClose();
+            return 0;
+        }
     }
 
     return data - start;
@@ -187,8 +200,7 @@ bool ServerChannel::OnMessage(std::shared_ptr<google::protobuf::Message> req)
             currentId_ = frame->request().id();
             method = frame->request().method_name();
 
-            if (frame->request().service_name() != 
-                service_->FullName())
+            if (frame->request().service_name() != service_->FullName())
                 throw NoServiceException("Not find service [" + frame->request().service_name() + "]");
         }
         else
@@ -224,9 +236,11 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<googl
         throw MethodUndeterminedException("Not find method [" + methodName + "]");
     }
 
+    using google::protobuf::Message;
+    using ananas::Connection;
     if (decoder_.m2mDecoder_)
     {
-        std::unique_ptr<google::protobuf::Message> request(googServ->GetRequestPrototype(method).New()); 
+        std::unique_ptr<Message> request(googServ->GetRequestPrototype(method).New()); 
         decoder_.m2mDecoder_(*req, *request);
         req.reset(request.release());
     }
@@ -240,9 +254,9 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<googl
      * 3. Closure must be managed by raw pointer, so when call Closure::Run, it will execute
      * `delete this` when exit, at which time the response is also destroyed.
      */
-    std::shared_ptr<google::protobuf::Message> response(googServ->GetResponsePrototype(method).New()); 
+    std::shared_ptr<Message> response(googServ->GetResponsePrototype(method).New()); 
 
-    std::weak_ptr<ananas::Connection> wconn(std::static_pointer_cast<ananas::Connection>(conn_->shared_from_this()));
+    std::weak_ptr<Connection> wconn(std::static_pointer_cast<Connection>(conn_->shared_from_this()));
     googServ->CallMethod(method, nullptr, req.get(), response.get(), 
             new ananas::rpc::Closure(&ServerChannel::_OnServDone, this, wconn, currentId_, response));
 }
@@ -263,12 +277,15 @@ void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
     if (encoder_.f2bEncoder_)
     {
         ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
-        conn->SendPacket(bytes);
+        //conn->SendPacket(bytes);
+        //But what if want send data to others?
+        this->sendBuf_.PushBack(std::move(bytes));
     }
     else
     {
         const auto& bytes = rsp->serialized_response();
-        conn->SendPacket(bytes);
+        //conn->SendPacket(bytes);
+        this->sendBuf_.PushBack(ananas::Buffer(bytes.data(), bytes.size()));
     }
 }
 
@@ -285,13 +302,23 @@ void ServerChannel::OnError(const std::exception& err)
     if (encoder_.f2bEncoder_)
     {
         ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
-        conn_->SendPacket(bytes);
+        //conn_->SendPacket(bytes);
+        this->sendBuf_.PushBack(std::move(bytes));
     }
     else
     {
         const auto& bytes = rsp.serialized_response();
-        conn_->SendPacket(bytes);
+        //conn_->SendPacket(bytes);
+        this->sendBuf_.PushBack(ananas::Buffer(bytes.data(), bytes.size()));
     }
+}
+
+void ServerChannel::_Flush()
+{
+    if (!conn_->SendPacket(sendBuf_))
+        throw std::runtime_error("SendPacket for response failed");
+
+    sendBuf_.Clear();
 }
 
 

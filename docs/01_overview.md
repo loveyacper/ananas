@@ -2,7 +2,7 @@
 
 ## 环境需求
 
-  确保安装了CMake，且编译器版本能支持C++11。
+  确保安装了CMake，且编译器支持C++11。
 
   另外操作系统必须是linux或MacOS。
 
@@ -24,7 +24,7 @@
 
 ## ananas的定位
 
-ananas主要是出于教学目的而诞生，因此它作为rpc框架，非常小巧，只包含必不可少的组成。但不代表功能的确实，麻雀虽小，五脏俱全。
+ananas主要是出于教学目的而诞生，因此它作为rpc框架，非常小巧，只包含必不可少的组成。但不代表功能的缺失，麻雀虽小，五脏俱全。
 
 ananas编译出来有3个静态库。分别是`libananas_util.a, libananas_net.a, libananas_rpc.a.`
 
@@ -54,7 +54,7 @@ ananas功能十分健壮，网络库可以放心使用在生产环境。但rpc�
   app.Listen("localhost", 6380, OnNewConnection);
 
   // 启动事件循环，不会结束，除非主动关闭(可以发送SIGINT信号优雅关闭)
-  app.Run(ac, av);
+  app.Run(argc, argv);
   ```
 
 是不是很简单？不，事情还没结束，还没有介绍OnNewConnection，它是关键所在。
@@ -108,7 +108,7 @@ ananas功能十分健壮，网络库可以放心使用在生产环境。但rpc�
   app.Connect("localhost", port, OnNewConnection, OnConnFail, ananas::DurationMs(3000));
 
   // 启动事件循环，不会结束，除非主动关闭(可以发送SIGINT信号优雅关闭)
-  app.Run(ac, av);
+  app.Run(argc, argv);
   ```
 
 好吧，客户端连接看上去比服务端监听复杂一点。不怕，下面一一解析。
@@ -142,7 +142,5 @@ ananas功能十分健壮，网络库可以放心使用在生产环境。但rpc�
 
   echo完整代码详见源码`tests/test_net`目录。
 
-* 入门教程暂时结束了，更进一步的教程抽时间再写，现在我要陪女儿了。
-
-* 可联系qq群 784231426
+* 入门教程暂时结束了，更进一步的教程抽时间再写，可联系qq群交流 784231426
 

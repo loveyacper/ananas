@@ -8,7 +8,7 @@
 #include "Socket.h"
 #include "Poller.h"
 #include "Typedefs.h"
-#include "util/Buffer.h"
+#include "ananas/util/Buffer.h"
 
 namespace ananas
 {
@@ -70,6 +70,8 @@ public:
 
     template <typename T>
     std::shared_ptr<T> GetUserData() const;
+
+    size_t GetMinPacketSize() const;
 
 private:
     enum State

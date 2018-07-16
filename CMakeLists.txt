@@ -4,6 +4,7 @@ PROJECT(ANANAS)
 
 SUBDIRS(net)
 SUBDIRS(util)
+SUBDIRS(future) 
 
 OPTION(USE_SSL "Use ssl or not" OFF)
 IF(USE_SSL)

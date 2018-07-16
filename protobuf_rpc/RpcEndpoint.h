@@ -2,7 +2,7 @@
 #define BERT_RPCENDPOINT_H
 
 #include <string>
-#include "net/Socket.h"
+#include "ananas/net/Socket.h"
 #include "ananas_rpc.pb.h"
 
 namespace ananas

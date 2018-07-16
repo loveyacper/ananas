@@ -6,8 +6,10 @@
 #include <vector>
 #include <unordered_map>
 
-#include "ananas/net/Typedefs.h"
-#include "ananas/net/Socket.h"
+#include "net/Typedefs.h"
+#include "net/Socket.h"
+
+#include "util/Buffer.h"
 
 #include "RpcEndpoint.h"
 #include "ProtobufCoder.h"
@@ -98,9 +100,13 @@ private:
     void _OnServDone(std::weak_ptr<ananas::Connection> wconn,
                      int id,
                      std::shared_ptr<google::protobuf::Message> response);
+    void _Flush();
 
     ananas::Connection* const conn_;
     ananas::rpc::Service* const service_;
+
+    // TODO
+    ananas::BufferVector sendBuf_;
 
     // coders
     Decoder decoder_;

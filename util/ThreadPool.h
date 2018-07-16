@@ -4,11 +4,10 @@
 #include <deque>
 #include <thread>
 #include <memory>
-#include <future>
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
-#include "future/Future.h"
+#include "ananas/future/Future.h"
 
 namespace ananas
 {

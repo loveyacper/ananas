@@ -74,12 +74,8 @@ public:
     Logger&  operator<<(long long a);
     Logger&  operator<<(double a);
 
-    Logger& SetCurLevel(unsigned int level) {
-        curLevel_ = level;
-        return *this;
-    }
+    Logger& SetCurLevel(unsigned int level);
 
-    void Start();
     void Shutdown();
 
     bool Update();

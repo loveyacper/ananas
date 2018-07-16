@@ -4,7 +4,7 @@
 
 #include "Socket.h"
 #include "Typedefs.h"
-#include "util/Timer.h"
+#include "ananas/util/Timer.h"
 
 namespace ananas
 {

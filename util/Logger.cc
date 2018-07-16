@@ -590,6 +590,12 @@ void Logger::_WriteLog(int level, size_t len, const char* data)
     }
 }
 
+Logger& Logger::SetCurLevel(unsigned int level)
+{
+    curLevel_ = level;
+    return *this;
+}
+
 void Logger::Shutdown()
 {
     std::unique_lock<std::mutex> guard(mutex_);
@@ -610,7 +616,7 @@ LogManager::LogManager() : shutdown_(true)
 {
     nullLog_.Init(0);
 }
-
+    
 void LogManager::Start()
 {
     std::unique_lock<std::mutex> guard(mutex_);

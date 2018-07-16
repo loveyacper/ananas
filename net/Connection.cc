@@ -598,5 +598,10 @@ void Connection::SetUserData(std::shared_ptr<void> user)
     userData_ = std::move(user);
 }
 
+size_t Connection::GetMinPacketSize() const
+{
+    return minPacketSize_;
+}
+
 } // end namespace ananas
 

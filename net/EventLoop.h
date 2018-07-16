@@ -9,9 +9,9 @@
 #include "Poller.h"
 #include "PipeChannel.h"
 #include "Typedefs.h"
-#include "util/Timer.h"
-#include "util/Scheduler.h"
-#include "future/Future.h"
+#include "ananas/util/Timer.h"
+#include "ananas/util/Scheduler.h"
+#include "ananas/future/Future.h"
 
 namespace ananas
 {

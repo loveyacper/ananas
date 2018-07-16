@@ -10,8 +10,8 @@
 
 #include "RpcEndpoint.h"
 #include "RpcServiceStub.h"
-#include "util/StringView.h"
-#include "future/Future.h"
+#include "ananas/util/StringView.h"
+#include "ananas/future/Future.h"
 
 namespace ananas
 {

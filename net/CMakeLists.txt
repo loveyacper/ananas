@@ -25,6 +25,8 @@ set(HEADERS
     Application.h
     Connection.h
     EventLoop.h
+    PipeChannel.h
+    Poller.h
     Socket.h
     Typedefs.h
    )
