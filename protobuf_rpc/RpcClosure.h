@@ -10,25 +10,20 @@
  * A much more powerful closure than google::protobuf::Closure
  */
 
-namespace ananas
-{
+namespace ananas {
 
-namespace rpc
-{
+namespace rpc {
 
-class Closure : public ::google::protobuf::Closure
-{
+class Closure : public ::google::protobuf::Closure {
 public:
     // F must return void
-    template <typename F, typename... Args, 
+    template <typename F, typename... Args,
               typename = typename std::enable_if<std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type>
-    Closure(F&& f, Args&&... args)
-    {
+    Closure(F&& f, Args&&... args) {
         func_ = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
     }
 
-    void Run() override final
-    {
+    void Run() override final {
         func_();
         delete this; // Forgive the ugly raw pointer from protobuf
     }

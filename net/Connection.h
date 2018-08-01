@@ -10,24 +10,20 @@
 #include "Typedefs.h"
 #include "ananas/util/Buffer.h"
 
-namespace ananas
-{
+namespace ananas {
 
-namespace internal
-{
+namespace internal {
 class Acceptor;
 class Connector;
 }
 
-enum class ShutdownMode
-{
+enum class ShutdownMode {
     eSM_Both,
     eSM_Read,
     eSM_Write,
 };
 
-class Connection : public internal::Channel
-{
+class Connection : public internal::Channel {
 public:
     explicit
     Connection(EventLoop* loop);
@@ -38,9 +34,13 @@ public:
 
     bool Init(int sock, const SocketAddr& peer);
     void SetMaxPacketSize(std::size_t s);
-    const SocketAddr& Peer() const { return peer_; }
+    const SocketAddr& Peer() const {
+        return peer_;
+    }
     void ActiveClose();
-    EventLoop* GetLoop() const { return loop_; }
+    EventLoop* GetLoop() const {
+        return loop_;
+    }
 
     void Shutdown(ShutdownMode mode);
     void SetNodelay(bool enable);
@@ -74,8 +74,7 @@ public:
     size_t GetMinPacketSize() const;
 
 private:
-    enum State
-    {
+    enum State {
         eS_None,
         eS_Connected,
         eS_CloseWaitWrite, // peer close or shutdown write, but I have data to send
@@ -103,7 +102,7 @@ private:
 
     std::function<void (Connection* )> onConnect_;
     std::function<void (Connection* )> onDisconnect_;
-    
+
     TcpMessageCallback onMessage_;
     TcpConnFailCallback onConnFail_;
     TcpWriteCompleteCallback onWriteComplete_;
@@ -112,10 +111,9 @@ private:
     std::shared_ptr<void> userData_;
 };
 
-    
+
 template <typename T>
-inline std::shared_ptr<T> Connection::GetUserData() const
-{
+inline std::shared_ptr<T> Connection::GetUserData() const {
     return std::static_pointer_cast<T>(userData_);
 }
 

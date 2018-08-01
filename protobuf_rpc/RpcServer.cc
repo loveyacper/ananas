@@ -9,23 +9,19 @@
 
 #include "RedisClientContext.h"
 
-namespace ananas
-{
+namespace ananas {
 
-namespace rpc
-{
-    
+namespace rpc {
+
 Server* Server::s_rpcServer = nullptr;
 
 Server::Server() :
-    app_(ananas::Application::Instance())
-{
+    app_(ananas::Application::Instance()) {
     assert (!s_rpcServer);
     s_rpcServer = this;
 }
 
-bool Server::AddService(ananas::rpc::Service* service)
-{
+bool Server::AddService(ananas::rpc::Service* service) {
     auto googleService = service->GetService();
     const auto& name = googleService->GetDescriptor()->full_name();
     ANANAS_INF << "AddService " << googleService->GetDescriptor()->name().data();
@@ -39,8 +35,7 @@ bool Server::AddService(ananas::rpc::Service* service)
     return true;
 }
 
-bool Server::AddService(std::unique_ptr<Service>&& service)
-{
+bool Server::AddService(std::unique_ptr<Service>&& service) {
     auto srv = service.get();
     auto googleService = service->GetService();
     const auto name = googleService->GetDescriptor()->full_name();
@@ -53,8 +48,7 @@ bool Server::AddService(std::unique_ptr<Service>&& service)
     return true;
 }
 
-bool Server::AddServiceStub(ananas::rpc::ServiceStub* service)
-{
+bool Server::AddServiceStub(ananas::rpc::ServiceStub* service) {
     auto googleService = service->GetService();
     const auto& name = googleService->GetDescriptor()->full_name();
     ANANAS_INF << "AddServiceStub " << googleService->GetDescriptor()->name().data();
@@ -68,8 +62,7 @@ bool Server::AddServiceStub(ananas::rpc::ServiceStub* service)
     return true;
 }
 
-bool Server::AddServiceStub(std::unique_ptr<ServiceStub>&& service)
-{
+bool Server::AddServiceStub(std::unique_ptr<ServiceStub>&& service) {
     auto srv = service.get();
     auto googleService = service->GetService();
     const auto name = googleService->GetDescriptor()->full_name();
@@ -82,99 +75,81 @@ bool Server::AddServiceStub(std::unique_ptr<ServiceStub>&& service)
     return true;
 }
 
-ananas::rpc::ServiceStub* Server::GetServiceStub(const ananas::StringView& name) const
-{
+ananas::rpc::ServiceStub* Server::GetServiceStub(const ananas::StringView& name) const {
     auto it = stubs_.find(name);
     return it == stubs_.end() ? nullptr : it->second.get();
 }
 
-void Server::SetNumOfWorker(size_t n)
-{
+void Server::SetNumOfWorker(size_t n) {
     if (services_.empty())
         app_.SetNumOfWorker(n);
     else
         assert (!!!"Don't change worker number after service added");
 }
 
-void Server::Start(int ac, char* av[])
-{
-    for (const auto& kv : services_)
-    {
-        if (kv.second->Start())
-        {
+void Server::Start(int ac, char* av[]) {
+    for (const auto& kv : services_) {
+        if (kv.second->Start()) {
             ANANAS_INF << "start succ service " << kv.first.Data();
-        }
-        else
-        {
+        } else {
             ANANAS_ERR << "start failed service " << kv.first.Data();
             return;
         }
     }
 
-    if (nameServiceStub_)
-    {
+    if (nameServiceStub_) {
         ANANAS_DBG << "Use nameservice " << nameServiceStub_->FullName();
     }
 
-    if (services_.empty())
-    {
+    if (services_.empty()) {
         ANANAS_WRN << "Warning: No available service";
-    }
-    else
-    {
+    } else {
         BaseLoop()->ScheduleAfterWithRepeat<ananas::kForever>(std::chrono::seconds(3),
-                [this]() {
-                    if (keepaliveInfo_.size() == 0) {
-                        for (const auto& kv : services_) {
-                            KeepaliveInfo info;
-                            info.set_servicename(kv.first.ToString());
-                            info.mutable_endpoint()->CopyFrom(kv.second->GetEndpoint());
-                            keepaliveInfo_.push_back(info);
-                        }
-                    }
-
-                    ANANAS_DBG << "Call Keepalive";
-                    for (const auto& e : keepaliveInfo_)
-                         Call<Status>("ananas.rpc.NameService", "Keepalive", e);
+        [this]() {
+            if (keepaliveInfo_.size() == 0) {
+                for (const auto& kv : services_) {
+                    KeepaliveInfo info;
+                    info.set_servicename(kv.first.ToString());
+                    info.mutable_endpoint()->CopyFrom(kv.second->GetEndpoint());
+                    keepaliveInfo_.push_back(info);
                 }
-            );
+            }
+
+            ANANAS_DBG << "Call Keepalive";
+            for (const auto& e : keepaliveInfo_)
+                Call<Status>("ananas.rpc.NameService", "Keepalive", e);
+        }
+                                                             );
     }
 
     app_.Run(ac, av);
 }
 
-void Server::Shutdown()
-{
+void Server::Shutdown() {
     app_.Exit();
 }
-    
-Server& Server::Instance()
-{
+
+Server& Server::Instance() {
     return *Server::s_rpcServer;
 }
 
-EventLoop* Server::BaseLoop()
-{
+EventLoop* Server::BaseLoop() {
     return app_.BaseLoop();
 }
 
-EventLoop* Server::Next()
-{
+EventLoop* Server::Next() {
     return app_.Next();
 }
 
-void Server::SetOnInit(std::function<bool (int, char*[])> init)
-{
+void Server::SetOnInit(std::function<bool (int, char*[])> init) {
     app_.SetOnInit(std::move(init));
 }
 
-void Server::SetOnExit(std::function<void ()> onexit)
-{
+void Server::SetOnExit(std::function<void ()> onexit) {
     app_.SetOnExit(std::move(onexit));
 }
 
-void Server::SetNameServer(const std::string& url)
-{
+void Server::SetNameServer(const std::string& url) {
     assert (!nameServiceStub_);
 
     nameServiceStub_ = new ServiceStub(new NameService_Stub(nullptr));
@@ -185,12 +160,11 @@ void Server::SetNameServer(const std::string& url)
         nameServiceStub_->SetOnCreateChannel(OnCreateRedisChannel);
 
     ANANAS_DBG << "SetNameServer " << nameServiceStub_->FullName();
-    
+
     this->AddServiceStub(nameServiceStub_);
 }
 
-void Server::SetOnCreateNameServerChannel(std::function<void (ClientChannel*)> occ)
-{
+void Server::SetOnCreateNameServerChannel(std::function<void (ClientChannel*)> occ) {
     onCreateNameServiceChannel_ = std::move(occ);
 }
 

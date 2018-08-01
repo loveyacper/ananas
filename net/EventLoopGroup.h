@@ -6,20 +6,17 @@
 
 #include "ananas/util/ThreadPool.h"
 
-namespace ananas
-{
+namespace ananas {
 
 class EventLoop;
 
-namespace internal
-{
+namespace internal {
 
-class EventLoopGroup
-{
+class EventLoopGroup {
 public:
     explicit
     EventLoopGroup(size_t nLoops = 1);
-   ~EventLoopGroup();
+    ~EventLoopGroup();
 
     EventLoopGroup(const EventLoopGroup& ) = delete;
     void operator=(const EventLoopGroup& ) = delete;
@@ -39,8 +36,7 @@ public:
     EventLoop* Next() const;
 
 private:
-    enum State
-    {
+    enum State {
         eS_None,
         eS_Started,
         eS_Stopped,

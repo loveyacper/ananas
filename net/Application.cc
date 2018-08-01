@@ -10,19 +10,17 @@
 #include "EventLoopGroup.h"
 #include "AnanasDebug.h"
 
-static void SignalHandler(int num)
-{
+static void SignalHandler(int num) {
     ananas::Application::Instance().Exit();
 }
 
-static void InitSignal()
-{
+static void InitSignal() {
     struct sigaction sig;
     ::memset(&sig, 0, sizeof(sig));
-   
+
     sig.sa_handler = SignalHandler;
     sigaction(SIGINT, &sig, NULL);
-                                  
+
     // ignore sigpipe
     sig.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &sig, NULL);
@@ -34,35 +32,28 @@ static void InitSignal()
 }
 
 
-namespace ananas
-{
+namespace ananas {
 
-Application::~Application()
-{
+Application::~Application() {
 }
 
-Application& Application::Instance()
-{
+Application& Application::Instance() {
     static Application app;
     return app;
 }
 
-void Application::SetNumOfWorker(size_t num)
-{
+void Application::SetNumOfWorker(size_t num) {
     assert (state_ == State::eS_None);
     workerGroup_->SetNumOfEventLoop(num);
 }
 
-size_t Application::NumOfWorker() const
-{
+size_t Application::NumOfWorker() const {
     // plus one : the baseLoop
     return 1 + workerGroup_->Size();
 }
 
-void Application::Run(int ac, char* av[])
-{
-    ANANAS_DEFER
-    {
+void Application::Run(int ac, char* av[]) {
+    ANANAS_DEFER {
         if (onExit_)
             onExit_();
 
@@ -73,10 +64,8 @@ void Application::Run(int ac, char* av[])
     if (state_ != State::eS_None)
         return;
 
-    if (onInit_)
-    {
-        if (!onInit_(ac, av))
-        {
+    if (onInit_) {
+        if (!onInit_(ac, av)) {
             printf("onInit FAILED, exit!\n");
             return;
         }
@@ -94,8 +83,7 @@ void Application::Run(int ac, char* av[])
     printf("Stopped WorkerEventLoopGroup...\n");
 }
 
-void Application::Exit()
-{
+void Application::Exit() {
     if (state_ == State::eS_Stopped)
         return;
 
@@ -104,45 +92,38 @@ void Application::Exit()
     workerGroup_->Stop();
 }
 
-bool Application::IsExit() const
-{
+bool Application::IsExit() const {
     return state_ == State::eS_Stopped;
 }
-    
-EventLoop* Application::BaseLoop()
-{
+
+EventLoop* Application::BaseLoop() {
     return &base_;
 }
-    
-void Application::SetOnInit(std::function<bool (int, char*[])> init)
-{
+
+void Application::SetOnInit(std::function<bool (int, char*[])> init) {
     onInit_ = std::move(init);
 }
 
-void Application::SetOnExit(std::function<void ()> onexit)
-{
+void Application::SetOnExit(std::function<void ()> onexit) {
     onExit_ = std::move(onexit);
 }
 
 void Application::Listen(const SocketAddr& listenAddr,
                          NewTcpConnCallback cb,
-                         BindCallback bfcb)
-{
+                         BindCallback bfcb) {
     auto loop = BaseLoop();
-    loop->Execute([loop, listenAddr, cb, bfcb]()
-                  {
-                    if (!loop->Listen(listenAddr, std::move(cb)))
-                        bfcb(false, listenAddr);
-                    else
-                        bfcb(true, listenAddr);
-                  });
+    loop->Execute([loop, listenAddr, cb, bfcb]() {
+        if (!loop->Listen(listenAddr, std::move(cb)))
+            bfcb(false, listenAddr);
+        else
+            bfcb(true, listenAddr);
+    });
 }
 
 void Application::Listen(const char* ip,
                          uint16_t hostPort,
                          NewTcpConnCallback cb,
-                         BindCallback bfcb)
-{
+                         BindCallback bfcb) {
     SocketAddr addr(ip, hostPort);
     Listen(addr, std::move(cb), std::move(bfcb));
 }
@@ -150,52 +131,45 @@ void Application::Listen(const char* ip,
 void Application::ListenUDP(const SocketAddr& addr,
                             UDPMessageCallback mcb,
                             UDPCreateCallback ccb,
-                            BindCallback bfcb)
-{
+                            BindCallback bfcb) {
     auto loop = BaseLoop();
-    loop->Execute([loop, addr, mcb, ccb, bfcb]()
-                  {
-                    if (!loop->ListenUDP(addr, std::move(mcb), std::move(ccb)))
-                        bfcb(false, addr);
-                    else
-                        bfcb(true, addr);
-                  });
+    loop->Execute([loop, addr, mcb, ccb, bfcb]() {
+        if (!loop->ListenUDP(addr, std::move(mcb), std::move(ccb)))
+            bfcb(false, addr);
+        else
+            bfcb(true, addr);
+    });
 }
 
 void Application::ListenUDP(const char* ip, uint16_t hostPort,
                             UDPMessageCallback mcb,
                             UDPCreateCallback ccb,
-                            BindCallback bfcb)
-{
+                            BindCallback bfcb) {
     SocketAddr addr(ip, hostPort);
     ListenUDP(addr, std::move(mcb), std::move(ccb), std::move(bfcb));
 }
 
 void Application::CreateClientUDP(UDPMessageCallback mcb,
-                                  UDPCreateCallback ccb)
-{
+                                  UDPCreateCallback ccb) {
     auto loop = BaseLoop();
-    loop->Execute([loop, mcb, ccb]()
-                  {
-                    loop->CreateClientUDP(std::move(mcb), std::move(ccb));
-                  });
+    loop->Execute([loop, mcb, ccb]() {
+        loop->CreateClientUDP(std::move(mcb), std::move(ccb));
+    });
 }
 
 void Application::Connect(const SocketAddr& dst,
                           NewTcpConnCallback nccb,
                           TcpConnFailCallback cfcb,
                           DurationMs timeout,
-                          EventLoop* dstLoop)
-{
+                          EventLoop* dstLoop) {
     auto loop = BaseLoop();
-    loop->Execute([loop, dst, nccb, cfcb, timeout, dstLoop]()
-                  {
-                     loop->Connect(dst,
-                                   std::move(nccb),
-                                   std::move(cfcb),
-                                   timeout,
-                                   dstLoop);
-                  });
+    loop->Execute([loop, dst, nccb, cfcb, timeout, dstLoop]() {
+        loop->Connect(dst,
+                      std::move(nccb),
+                      std::move(cfcb),
+                      timeout,
+                      dstLoop);
+    });
 }
 
 void Application::Connect(const char* ip,
@@ -203,15 +177,13 @@ void Application::Connect(const char* ip,
                           NewTcpConnCallback nccb,
                           TcpConnFailCallback cfcb,
                           DurationMs timeout,
-                          EventLoop* dstLoop)
-{
+                          EventLoop* dstLoop) {
     SocketAddr dst(ip, hostPort);
     Connect(dst, std::move(nccb), std::move(cfcb), timeout, dstLoop);
 }
 
-    
-EventLoop* Application::Next()
-{
+
+EventLoop* Application::Next() {
     //assert (BaseLoop()->IsInSameLoop());
     auto loop = workerGroup_->Next();
     if (loop)
@@ -224,19 +196,14 @@ Application::Application() :
     baseGroup_(new internal::EventLoopGroup(0)),
     base_(baseGroup_.get()),
     workerGroup_(new internal::EventLoopGroup(0)),
-    state_ {State::eS_None}
-{
+    state_ {State::eS_None} {
     InitSignal();
 }
 
-void Application::_DefaultBindCallback(bool succ, const SocketAddr& listenAddr)
-{
-    if (succ)
-    {
+void Application::_DefaultBindCallback(bool succ, const SocketAddr& listenAddr) {
+    if (succ) {
         ANANAS_INF << "Listen succ for " << listenAddr.ToString();
-    }
-    else
-    {
+    } else {
         ANANAS_ERR << "Listen failed for " << listenAddr.ToString();
         Application::Instance().Exit();
     }

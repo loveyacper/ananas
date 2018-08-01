@@ -3,14 +3,11 @@
 
 #include "PipeChannel.h"
 
-namespace ananas
-{
+namespace ananas {
 
-namespace internal
-{
+namespace internal {
 
-PipeChannel::PipeChannel()
-{
+PipeChannel::PipeChannel() {
     int fd[2];
     int ret = ::pipe(fd);
     assert (ret == 0);
@@ -18,36 +15,30 @@ PipeChannel::PipeChannel()
     writeFd_ = fd[1];
 }
 
-PipeChannel::~PipeChannel()
-{
+PipeChannel::~PipeChannel() {
     ::close(readFd_);
     ::close(writeFd_);
 }
 
-int PipeChannel::Identifier() const
-{
+int PipeChannel::Identifier() const {
     return readFd_;
 }
 
-bool PipeChannel::HandleReadEvent()
-{
+bool PipeChannel::HandleReadEvent() {
     char ch;
     auto n = ::read(readFd_, &ch, sizeof ch);
     return n == 1;
 }
 
-bool PipeChannel::HandleWriteEvent()
-{
+bool PipeChannel::HandleWriteEvent() {
     assert (false);
     return false;
 }
 
-void PipeChannel::HandleErrorEvent()
-{
+void PipeChannel::HandleErrorEvent() {
 }
 
-bool PipeChannel::Notify()
-{
+bool PipeChannel::Notify() {
     char ch = 0;
     auto n = ::write(writeFd_, &ch, sizeof ch);
     return n == 1;

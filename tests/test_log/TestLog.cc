@@ -11,8 +11,7 @@ const int kLogs = 100 * 10000;
 
 std::atomic<int> g_complete(0);
 
-int main(int ac, char* av[])
-{
+int main(int ac, char* av[]) {
     if (ac > 1)
         g_threads = std::stoi(av[1]);
 
@@ -27,24 +26,21 @@ int main(int ac, char* av[])
 
     ananas::Time start;
 
-    for (int i = 0; i < g_threads; ++ i)
-    {
+    for (int i = 0; i < g_threads; ++ i) {
         auto log = ananas::LogManager::Instance().CreateLog(logALL, logFile, "logtestdir");
         pool.Execute(
-                [=]()
-                {
-                    for (int n = 0; n < (kLogs/ g_threads); n ++) {
-                        DBG(log) << n << "|abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy|";
-                    }
+        [=]() {
+            for (int n = 0; n < (kLogs/ g_threads); n ++) {
+                DBG(log) << n << "|abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy|";
+            }
 
-                    ++ g_complete;
-                }
+            ++ g_complete;
+        }
         );
     }
 
     // 等待生产者线程结束
-    while (g_complete < g_threads)
-    {
+    while (g_complete < g_threads) {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 

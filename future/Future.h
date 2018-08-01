@@ -10,14 +10,11 @@
 #include "Try.h"
 #include "ananas/util/Scheduler.h"
 
-namespace ananas
-{
+namespace ananas {
 
-namespace internal
-{
+namespace internal {
 
-enum class Progress
-{
+enum class Progress {
     None,
     Timeout,
     Done
@@ -26,8 +23,7 @@ enum class Progress
 using TimeoutCallback = std::function<void ()>;
 
 template <typename T>
-struct State
-{
+struct State {
     static_assert(std::is_same<T, void>::value ||
                   std::is_copy_constructible<T>() ||
                   std::is_move_constructible<T>(),
@@ -35,8 +31,7 @@ struct State
 
     State() :
         progress_(Progress::None),
-        retrieved_ {false}
-    {
+        retrieved_ {false} {
     }
 
     std::mutex thenLock_;
@@ -49,7 +44,9 @@ struct State
     std::function<void (TimeoutCallback&& )> onTimeout_;
     std::atomic<bool> retrieved_;
 
-    bool IsRoot() const { return !onTimeout_; }
+    bool IsRoot() const {
+        return !onTimeout_;
+    }
 };
 
 } // end namespace internal
@@ -59,12 +56,10 @@ template <typename T>
 class Future;
 
 template <typename T>
-class Promise
-{
+class Promise {
 public:
     Promise() :
-        state_(std::make_shared<internal::State<T>>())
-    {
+        state_(std::make_shared<internal::State<T>>()) {
     }
 
     // TODO: C++11 lambda doesn't support move capture
@@ -75,8 +70,7 @@ public:
     Promise(Promise&& pm) = default;
     Promise& operator= (Promise&& pm) = default;
 
-    void SetException(std::exception_ptr exp)
-    {
+    void SetException(std::exception_ptr exp) {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != internal::Progress::None)
@@ -92,8 +86,7 @@ public:
 
     template <typename SHIT = T>
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
-    SetValue(SHIT&& t)
-    {
+    SetValue(SHIT&& t) {
         // if ThenImp is running, here will wait for the lock.
         // ThenImp will release lock after set then_ callback.
         // And this func acquired lock, definitely call then_.
@@ -116,8 +109,7 @@ public:
 
     template <typename SHIT = T>
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
-    SetValue(const SHIT& t)
-    {
+    SetValue(const SHIT& t) {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != internal::Progress::None)
@@ -133,8 +125,7 @@ public:
 
     template <typename SHIT = T>
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
-    SetValue(Try<SHIT>&& t)
-    {
+    SetValue(Try<SHIT>&& t) {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != internal::Progress::None)
@@ -150,8 +141,7 @@ public:
 
     template <typename SHIT = T>
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
-    SetValue(const Try<SHIT>& t)
-    {
+    SetValue(const Try<SHIT>& t) {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != internal::Progress::None)
@@ -167,8 +157,7 @@ public:
 
     template <typename SHIT = T>
     typename std::enable_if<std::is_void<SHIT>::value, void>::type
-    SetValue(Try<void>&& )
-    {
+    SetValue(Try<void>&& ) {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != internal::Progress::None)
@@ -184,8 +173,7 @@ public:
 
     template <typename SHIT = T>
     typename std::enable_if<std::is_void<SHIT>::value, void>::type
-    SetValue(const Try<void>& )
-    {
+    SetValue(const Try<void>& ) {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != internal::Progress::None)
@@ -201,8 +189,7 @@ public:
 
     template <typename SHIT = T>
     typename std::enable_if<std::is_void<SHIT>::value, void>::type
-    SetValue()
-    {
+    SetValue() {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != internal::Progress::None)
@@ -216,11 +203,9 @@ public:
             state_->then_(std::move(state_->value_));
     }
 
-    Future<T> GetFuture()
-    {
+    Future<T> GetFuture() {
         bool expect = false;
-        if (!state_->retrieved_.compare_exchange_strong(expect, true))
-        {
+        if (!state_->retrieved_.compare_exchange_strong(expect, true)) {
             struct FutureAlreadyRetrieved {};
             throw FutureAlreadyRetrieved();
         }
@@ -228,8 +213,7 @@ public:
         return Future<T>(state_);
     }
 
-    bool IsReady() const
-    { 
+    bool IsReady() const {
         return state_->progress_ != internal::Progress::None;
     }
 
@@ -241,17 +225,14 @@ template <typename T2>
 Future<T2> MakeExceptionFuture(std::exception_ptr&& );
 
 template <typename T>
-class Future
-{
-public: 
+class Future {
+public:
     using InnerType = T;
 
     template <typename U>
     friend class Future;
 
-    Future()
-    {
-    }
+    Future() = default;
 
     Future(const Future&) = delete;
     void operator= (const Future&) = delete;
@@ -261,15 +242,13 @@ public:
 
     explicit
     Future(std::shared_ptr<internal::State<T>> state) :
-        state_(std::move(state))
-    {
+        state_(std::move(state)) {
     }
 
     // T is of type Future<InnerType>
     template <typename SHIT = T>
     typename std::enable_if<internal::IsFuture<SHIT>::value, SHIT>::type
-    Unwrap()
-    {
+    Unwrap() {
         using namespace internal;
         using InnerType = typename IsFuture<SHIT>::Inner;
 
@@ -279,37 +258,30 @@ public:
         Future<InnerType> fut = prom.GetFuture();
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ == Progress::Timeout)
-        {
+        if (state_->progress_ == Progress::Timeout) {
             struct FutureWrongState {};
             throw FutureWrongState();
-        }
-        else if (state_->progress_ == Progress::Done)
-        {
+        } else if (state_->progress_ == Progress::Done) {
             try {
                 auto innerFuture = std::move(state_->value_);
                 return std::move(innerFuture.Value());
-            }
-            catch(const std::exception& e) {
+            } catch(const std::exception& e) {
                 return MakeExceptionFuture<InnerType>(std::current_exception());
             }
-        }
-        else
-        {
+        } else {
             SetCallback([pm = std::move(prom)](typename TryWrapper<SHIT>::Type&& innerFuture) mutable {
-                    try {
-                        SHIT future = std::move(innerFuture);
-                        future.SetCallback([pm = std::move(pm)](typename TryWrapper<InnerType>::Type&& t) mutable {
-                            // No need scheduler here, think about this code:
-                            // `outer.Unwrap().Then(sched, func);`
-                            // outer.Unwrap() is the inner future, the below line
-                            // will trigger func in sched thread.
-                            pm.SetValue(std::move(t));
-                        });
-                    }
-                    catch (...) {
-                        pm.SetException(std::current_exception());
-                    }
+                try {
+                    SHIT future = std::move(innerFuture);
+                    future.SetCallback([pm = std::move(pm)](typename TryWrapper<InnerType>::Type&& t) mutable {
+                        // No need scheduler here, think about this code:
+                        // `outer.Unwrap().Then(sched, func);`
+                        // outer.Unwrap() is the inner future, the below line
+                        // will trigger func in sched thread.
+                        pm.SetValue(std::move(t));
+                    });
+                } catch (...) {
+                    pm.SetException(std::current_exception());
+                }
             });
         }
 
@@ -317,27 +289,24 @@ public:
     }
 
     template <typename F,
-              typename R = internal::CallableResult<F, T> > 
-    auto Then(F&& f) -> typename R::ReturnFutureType 
-    {
+              typename R = internal::CallableResult<F, T> >
+    auto Then(F&& f) -> typename R::ReturnFutureType {
         typedef typename R::Arg Arguments;
-        return _ThenImpl<F, R>(nullptr, std::forward<F>(f), Arguments());  
+        return _ThenImpl<F, R>(nullptr, std::forward<F>(f), Arguments());
     }
 
     // f will be called in sched
     template <typename F,
-              typename R = internal::CallableResult<F, T> > 
-    auto Then(Scheduler* sched, F&& f) -> typename R::ReturnFutureType 
-    {
+              typename R = internal::CallableResult<F, T> >
+    auto Then(Scheduler* sched, F&& f) -> typename R::ReturnFutureType {
         typedef typename R::Arg Arguments;
-        return _ThenImpl<F, R>(sched, std::forward<F>(f), Arguments());  
+        return _ThenImpl<F, R>(sched, std::forward<F>(f), Arguments());
     }
 
     //1. F does not return future type
     template <typename F, typename R, typename... Args>
     typename std::enable_if<!R::IsReturnsFuture::value, typename R::ReturnFutureType>::type
-    _ThenImpl(Scheduler* sched, F&& f, internal::ResultOfWrapper<F, Args...> )
-    {
+    _ThenImpl(Scheduler* sched, F&& f, internal::ResultOfWrapper<F, Args...> ) {
         static_assert(std::is_void<T>::value ? sizeof...(Args) == 0 : sizeof...(Args) == 1,
                       "Then callback must take 0/1 argument");
 
@@ -351,26 +320,22 @@ public:
         using FuncType = typename std::decay<F>::type;
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ == Progress::Timeout)
-        {
+        if (state_->progress_ == Progress::Timeout) {
             struct FutureWrongState {};
             throw FutureWrongState();
-        }
-        else if (state_->progress_ == Progress::Done)
-        {
+        } else if (state_->progress_ == Progress::Done) {
             typename TryWrapper<T>::Type t;
             try {
                 t = std::move(state_->value_);
-            }
-            catch(const std::exception& e) {
+            } catch(const std::exception& e) {
                 t = (typename TryWrapper<T>::Type)(std::current_exception());
             }
 
             guard.unlock();
 
             auto func = [res = std::move(t),
-                         f = std::forward<FuncType>(f),
-                         prom = std::move(pm)]() mutable {
+                             f = std::forward<FuncType>(f),
+                prom = std::move(pm)]() mutable {
                 auto result = WrapWithTry(f, std::move(res));
                 prom.SetValue(std::move(result));
             };
@@ -379,34 +344,32 @@ public:
                 sched->Schedule(std::move(func));
             else
                 func();
-        }
-        else
-        {
+        } else {
             // 1. set pm's timeout callback
             nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
-                    auto parent = weak_parent.lock();
-                    if (!parent)
+                auto parent = weak_parent.lock();
+                if (!parent)
+                    return;
+
+                {
+                    std::unique_lock<std::mutex> guard(parent->thenLock_);
+                    // if parent future is Done, let it go down
+                    if (parent->progress_ != Progress::None)
                         return;
 
-                    {
-                        std::unique_lock<std::mutex> guard(parent->thenLock_);
-                        // if parent future is Done, let it go down
-                        if (parent->progress_ != Progress::None)
-                            return;
-                    
-                        parent->progress_ = Progress::Timeout;
-                    }
+                    parent->progress_ = Progress::Timeout;
+                }
 
-                    if (!parent->IsRoot())
-                        parent->onTimeout_(std::move(cb)); // propogate to the root
-                    else
-                        cb();
-                });
+                if (!parent->IsRoot())
+                    parent->onTimeout_(std::move(cb)); // propogate to the root
+                else
+                    cb();
+            });
 
             // 2. set this future's then callback
             SetCallback([sched,
                          func = std::forward<FuncType>(f),
-                         prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
+            prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
 
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // run callback, T can be void, thanks to folly Try<>
@@ -428,8 +391,7 @@ public:
     //2. F return another future type
     template <typename F, typename R, typename... Args>
     typename std::enable_if<R::IsReturnsFuture::value, typename R::ReturnFutureType>::type
-    _ThenImpl(Scheduler* sched, F&& f, internal::ResultOfWrapper<F, Args...>)
-    {
+    _ThenImpl(Scheduler* sched, F&& f, internal::ResultOfWrapper<F, Args...>) {
         static_assert(sizeof...(Args) <= 1, "Then must take zero/one argument");
 
         using FReturnType = typename R::IsReturnsFuture::Inner;
@@ -442,33 +404,28 @@ public:
         using FuncType = typename std::decay<F>::type;
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ == Progress::Timeout)
-        {
+        if (state_->progress_ == Progress::Timeout) {
             struct FutureWrongState {};
             throw FutureWrongState();
-        }
-        else if (state_->progress_ == Progress::Done)
-        {
+        } else if (state_->progress_ == Progress::Done) {
             typename TryWrapper<T>::Type t;
             try {
                 t = std::move(state_->value_);
-            }
-            catch(const std::exception& e) {
+            } catch(const std::exception& e) {
                 t = decltype(t)(std::current_exception());
             }
 
             guard.unlock();
 
             auto cb = [res = std::move(t),
-                       f = std::forward<FuncType>(f),
-                       prom = std::move(pm)]() mutable {
+                           f = std::forward<FuncType>(f),
+                prom = std::move(pm)]() mutable {
                 // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
                 decltype(f(res.template Get<Args>()...)) innerFuture;
                 if (res.HasException()) {
                     // FIXME if Args... is void
                     innerFuture = f(typename TryWrapper<typename std::decay<Args...>::type>::Type(res.Exception()));
-                }
-                else {
+                } else {
                     innerFuture = f(res.template Get<Args>()...);
                 }
 
@@ -476,20 +433,17 @@ public:
                 if (innerFuture.state_->progress_ == Progress::Timeout) {
                     struct FutureWrongState {};
                     throw FutureWrongState();
-                }
-                else if (innerFuture.state_->progress_ == Progress::Done) {
+                } else if (innerFuture.state_->progress_ == Progress::Done) {
                     typename TryWrapper<FReturnType>::Type t;
                     try {
                         t = std::move(innerFuture.state_->value_);
-                    }
-                    catch(const std::exception& e) {
+                    } catch(const std::exception& e) {
                         t = decltype(t)(std::current_exception());
                     }
 
                     guard.unlock();
                     prom.SetValue(std::move(t));
-                }
-                else {
+                } else {
                     innerFuture.SetCallback([prom = std::move(prom)](typename TryWrapper<FReturnType>::Type&& t) mutable {
                         prom.SetValue(std::move(t));
                     });
@@ -500,42 +454,39 @@ public:
                 sched->Schedule(std::move(cb));
             else
                 cb();
-        }
-        else
-        {
+        } else {
             // 1. set pm's timeout callback
             nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
-                    auto parent = weak_parent.lock();
-                    if (!parent)
+                auto parent = weak_parent.lock();
+                if (!parent)
+                    return;
+
+                {
+                    std::unique_lock<std::mutex> guard(parent->thenLock_);
+                    if (parent->progress_ != Progress::None)
                         return;
 
-                    {
-                        std::unique_lock<std::mutex> guard(parent->thenLock_);
-                        if (parent->progress_ != Progress::None)
-                            return;
-                    
-                        parent->progress_ = Progress::Timeout;
-                    }
+                    parent->progress_ = Progress::Timeout;
+                }
 
-                    if (!parent->IsRoot())
-                        parent->onTimeout_(std::move(cb)); // propogate to the root
-                    else
-                        cb();
+                if (!parent->IsRoot())
+                    parent->onTimeout_(std::move(cb)); // propogate to the root
+                else
+                    cb();
 
-                });
+            });
 
             // 2. set this future's then callback
             SetCallback([sched = sched,
-                         func = std::forward<FuncType>(f),
-                         prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
+                               func = std::forward<FuncType>(f),
+                  prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
                     decltype(func(t.template Get<Args>()...)) innerFuture;
                     if (t.HasException()) {
                         // FIXME if Args... is void
                         innerFuture = func(typename TryWrapper<typename std::decay<Args...>::type>::Type(t.Exception()));
-                    }
-                    else {
+                    } else {
                         innerFuture = func(t.template Get<Args>()...);
                     }
 
@@ -543,20 +494,17 @@ public:
                     if (innerFuture.state_->progress_ == Progress::Timeout) {
                         struct FutureWrongState {};
                         throw FutureWrongState();
-                    }
-                    else if (innerFuture.state_->progress_ == Progress::Done) {
+                    } else if (innerFuture.state_->progress_ == Progress::Done) {
                         typename TryWrapper<FReturnType>::Type t;
                         try {
                             t = std::move(innerFuture.state_->value_);
-                        }
-                        catch(const std::exception& e) {
+                        } catch(const std::exception& e) {
                             t = decltype(t)(std::current_exception());
                         }
 
                         guard.unlock();
                         prom.SetValue(std::move(t));
-                    }
-                    else {
+                    } else {
                         innerFuture.SetCallback([prom = std::move(prom)](typename TryWrapper<FReturnType>::Type&& t) mutable {
                             prom.SetValue(std::move(t));
                         });
@@ -567,19 +515,17 @@ public:
                     sched->Schedule(std::move(cb));
                 else
                     cb();
-            }); 
+            });
         }
 
         return std::move(nextFuture);
     }
 
-    void SetCallback(std::function<void (typename TryWrapper<T>::Type&& )>&& func)
-    {
+    void SetCallback(std::function<void (typename TryWrapper<T>::Type&& )>&& func) {
         state_->then_ = std::move(func);
     }
 
-    void SetOnTimeout(std::function<void (internal::TimeoutCallback&& )>&& func)
-    {
+    void SetOnTimeout(std::function<void (internal::TimeoutCallback&& )>&& func) {
         state_->onTimeout_ = std::move(func);
     }
 
@@ -597,22 +543,21 @@ public:
      */
     void OnTimeout(std::chrono::milliseconds duration,
                    internal::TimeoutCallback f,
-                   Scheduler* scheduler)
-    {
+                   Scheduler* scheduler) {
         scheduler->ScheduleAfter(duration, [state = state_, cb = std::move(f)]() mutable {
-                {
-                    std::unique_lock<std::mutex> guard(state->thenLock_);
+            {
+                std::unique_lock<std::mutex> guard(state->thenLock_);
 
-                    if (state->progress_ != internal::Progress::None)
-                        return;
+                if (state->progress_ != internal::Progress::None)
+                    return;
 
-                    state->progress_ = internal::Progress::Timeout;
-                }
+                state->progress_ = internal::Progress::Timeout;
+            }
 
-                if (!state->IsRoot())
-                    state->onTimeout_(std::move(cb)); // propogate to the root future
-                else
-                    cb();
+            if (!state->IsRoot())
+                state->onTimeout_(std::move(cb)); // propogate to the root future
+            else
+                cb();
         });
     }
 
@@ -622,8 +567,7 @@ private:
 
 // Make ready future
 template <typename T2>
-inline Future<typename std::decay<T2>::type> MakeReadyFuture(T2&& value)
-{
+inline Future<typename std::decay<T2>::type> MakeReadyFuture(T2&& value) {
     Promise<typename std::decay<T2>::type> pm;
     auto f(pm.GetFuture());
     pm.SetValue(std::forward<T2>(value));
@@ -631,8 +575,7 @@ inline Future<typename std::decay<T2>::type> MakeReadyFuture(T2&& value)
     return f;
 }
 
-inline Future<void> MakeReadyFuture()
-{
+inline Future<void> MakeReadyFuture() {
     Promise<void> pm;
     auto f(pm.GetFuture());
     pm.SetValue();
@@ -642,8 +585,7 @@ inline Future<void> MakeReadyFuture()
 
 // Make exception future
 template <typename T2, typename E>
-inline Future<T2> MakeExceptionFuture(E&& exp)
-{
+inline Future<T2> MakeExceptionFuture(E&& exp) {
     Promise<T2> pm;
     pm.SetException(std::make_exception_ptr(std::forward<E>(exp)));
 
@@ -651,8 +593,7 @@ inline Future<T2> MakeExceptionFuture(E&& exp)
 }
 
 template <typename T2>
-inline Future<T2> MakeExceptionFuture(std::exception_ptr&& eptr)
-{
+inline Future<T2> MakeExceptionFuture(std::exception_ptr&& eptr) {
     Promise<T2> pm;
     pm.SetException(std::move(eptr));
 
@@ -663,12 +604,11 @@ inline Future<T2> MakeExceptionFuture(std::exception_ptr&& eptr)
 // When All
 template <typename... FT>
 typename internal::CollectAllVariadicContext<typename std::decay<FT>::type::InnerType...>::FutureType
-WhenAll(FT&&... futures)
-{
+WhenAll(FT&&... futures) {
     auto ctx = std::make_shared<internal::CollectAllVariadicContext<typename std::decay<FT>::type::InnerType...>>();
 
-    internal::CollectVariadicHelper<internal::CollectAllVariadicContext>( 
-            ctx, std::forward<typename std::decay<FT>::type>(futures)...);
+    internal::CollectVariadicHelper<internal::CollectAllVariadicContext>(
+        ctx, std::forward<typename std::decay<FT>::type>(futures)...);
 
     return ctx->pm.GetFuture();
 }
@@ -676,39 +616,35 @@ WhenAll(FT&&... futures)
 
 template <class InputIterator>
 Future<
-    std::vector<
-    Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>>
-    WhenAll(InputIterator first, InputIterator last)
-{
+std::vector<
+Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>>
+WhenAll(InputIterator first, InputIterator last) {
     using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
     if (first == last)
         return MakeReadyFuture(std::vector<Try<T>>());
 
-    struct CollectAllContext
-    {
+    struct CollectAllContext {
         CollectAllContext(int n) : results(n) {}
-        ~CollectAllContext()
-        { 
+        ~CollectAllContext() {
             // I think this line is useless.
             // pm.SetValue(std::move(results));
         }
-             
+
         Promise<std::vector<Try<T>>> pm;
         std::vector<Try<T>> results;
         std::atomic<size_t> collected{0};
     };
 
     auto ctx = std::make_shared<CollectAllContext>(std::distance(first, last));
-                
-    for (size_t i = 0; first != last; ++first, ++i)
-    {
+
+    for (size_t i = 0; first != last; ++first, ++i) {
         first->SetCallback([ctx, i](Try<T>&& t) {
-                ctx->results[i] = std::move(t);
-                if (ctx->results.size() - 1 ==
+            ctx->results[i] = std::move(t);
+            if (ctx->results.size() - 1 ==
                     std::atomic_fetch_add (&ctx->collected, std::size_t(1))) {
-                    ctx->pm.SetValue(std::move(ctx->results));
-                }
-            });
+                ctx->pm.SetValue(std::move(ctx->results));
+            }
+        });
     }
 
     return ctx->pm.GetFuture();
@@ -717,62 +653,55 @@ Future<
 // When Any
 template <class InputIterator>
 Future<
-  std::pair<size_t,
-           Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>>
-WhenAny(InputIterator first, InputIterator last)
-{
+std::pair<size_t,
+    Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>>
+WhenAny(InputIterator first, InputIterator last) {
     using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
 
-    if (first == last)
-    {
+    if (first == last) {
         return MakeReadyFuture(std::make_pair(size_t(0), Try<T>(T())));
     }
 
-    struct CollectAnyContext
-    {
+    struct CollectAnyContext {
         CollectAnyContext() {};
         Promise<std::pair<size_t, Try<T>>> pm;
         std::atomic<bool> done{false};
     };
 
     auto ctx = std::make_shared<CollectAnyContext>();
-    for (size_t i = 0; first != last; ++first, ++i)
-    {
+    for (size_t i = 0; first != last; ++first, ++i) {
         first->SetCallback([ctx, i](Try<T>&& t) {
             if (!ctx->done.exchange(true)) {
                 ctx->pm.SetValue(std::make_pair(i, std::move(t)));
             }
-       });
+        });
     }
-           
+
     return ctx->pm.GetFuture();
 }
 
 
-// When N 
+// When N
 template <class InputIterator>
 Future<
-    std::vector<
-    std::pair<size_t, Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>
-    >
-    >
-    WhenN(size_t N, InputIterator first, InputIterator last)
-{
+std::vector<
+std::pair<size_t, Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>
+        >
+        >
+WhenN(size_t N, InputIterator first, InputIterator last) {
     using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
 
     size_t nFutures = std::distance(first, last);
     const size_t needCollect = std::min(nFutures, N);
 
-    if (needCollect == 0)
-    {
+    if (needCollect == 0) {
         return MakeReadyFuture(std::vector<std::pair<size_t, Try<T>>>());
     }
 
-    struct CollectNContext
-    {
+    struct CollectNContext {
         CollectNContext(size_t _needs) : needs(_needs) {}
         Promise<std::vector<std::pair<size_t, Try<T>>>> pm;
-    
+
         std::mutex mutex;
         std::vector<std::pair<size_t, Try<T>>> results;
         const size_t needs;
@@ -780,21 +709,20 @@ Future<
     };
 
     auto ctx = std::make_shared<CollectNContext>(needCollect);
-    for (size_t i = 0; first != last; ++first, ++i)
-    {
+    for (size_t i = 0; first != last; ++first, ++i) {
         first->SetCallback([ctx, i](Try<T>&& t) {
-                std::unique_lock<std::mutex> guard(ctx->mutex);
-                if (ctx->done)
-                    return;
-                    
-                ctx->results.push_back(std::make_pair(i, std::move(t)));
-                if (ctx->needs == ctx->results.size()) {
-                    ctx->done = true;
-                    ctx->pm.SetValue(std::move(ctx->results));
-                }
-            });
+            std::unique_lock<std::mutex> guard(ctx->mutex);
+            if (ctx->done)
+                return;
+
+            ctx->results.push_back(std::make_pair(i, std::move(t)));
+            if (ctx->needs == ctx->results.size()) {
+                ctx->done = true;
+                ctx->pm.SetValue(std::move(ctx->results));
+            }
+        });
     }
-           
+
     return ctx->pm.GetFuture();
 }
 

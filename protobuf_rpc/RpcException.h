@@ -4,45 +4,35 @@
 #include <string>
 #include <stdexcept>
 
-namespace ananas
-{
+namespace ananas {
 
-namespace rpc
-{
+namespace rpc {
 
-class NoServiceException : public std::logic_error
-{
+class NoServiceException : public std::logic_error {
 public:
     NoServiceException(const std::string& e = "") :
-        std::logic_error(e)
-    {
+        std::logic_error(e) {
     }
 };
 
-class NoMethodException : public std::logic_error
-{
+class NoMethodException : public std::logic_error {
 public:
     NoMethodException(const std::string& e = "") :
-        std::logic_error(e)
-    {
+        std::logic_error(e) {
     }
 };
 
-class NoRequestException : public std::invalid_argument
-{
+class NoRequestException : public std::invalid_argument {
 public:
     NoRequestException(const std::string& e = "") :
-        std::invalid_argument(e)
-    {
+        std::invalid_argument(e) {
     }
 };
 
-class MethodUndeterminedException : public std::runtime_error
-{
+class MethodUndeterminedException : public std::runtime_error {
 public:
     MethodUndeterminedException(const std::string& e) :
-        std::runtime_error(e)
-    {
+        std::runtime_error(e) {
     }
 };
 

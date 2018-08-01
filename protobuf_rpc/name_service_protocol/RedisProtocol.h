@@ -4,28 +4,32 @@
 #include <vector>
 #include <string>
 
-enum class ParseResult : int8_t 
-{ 
-    ok, 
-    wait, 
+enum class ParseResult : int8_t {
+    ok,
+    wait,
     error,
 };
 
-class ServerProtocol
-{
+class ServerProtocol {
 public:
     void Reset();
     ParseResult ParseRequest(const char*& ptr, const char* end);
 
-    const std::vector<std::string>& GetParams() const & { return params_; }
+    const std::vector<std::string>& GetParams() const & {
+        return params_;
+    }
     std::vector<std::string>& GetParams()& { return params_; }
     std::vector<std::string>&& GetParams()&& { return std::move(params_); }
 
-    const std::string& GetRawRequest() const & { return content_; }
+    const std::string& GetRawRequest() const & {
+        return content_;
+    }
     std::string& GetRawRequest() & { return content_; }
     std::string&& GetRawRequest() && { return std::move(content_); }
 
-    bool IsInitialState() const { return multi_ == -1; }
+    bool IsInitialState() const {
+        return multi_ == -1;
+    }
 
 private:
     ParseResult _ParseMulti(const char*& ptr, const char* end, int& result);
@@ -42,8 +46,7 @@ private:
 };
 
 
-enum class ResponseType
-{
+enum class ResponseType {
     None,
     Fine,   // +
     Error,  // -
@@ -52,15 +55,16 @@ enum class ResponseType
     Multi,  // *
 };
 
-class ClientProtocol
-{
+class ClientProtocol {
 public:
     ClientProtocol();
 
     void Reset();
     ParseResult Parse(const char*& data, const char* end);
 
-    const std::string& GetContent() const& { return content_; }
+    const std::string& GetContent() const& {
+        return content_;
+    }
     std::string& GetContent() & { return content_; }
     std::string&& GetContent()&& { return std::move(content_); }
 

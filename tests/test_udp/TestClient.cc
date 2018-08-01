@@ -10,21 +10,18 @@ std::shared_ptr<ananas::Logger> logger;
 
 ananas::SocketAddr  g_serverAddr;
 
-void OnMessage(ananas::DatagramSocket* dg, const char* data, size_t len)
-{
+void OnMessage(ananas::DatagramSocket* dg, const char* data, size_t len) {
     INF(logger) << "client receive " << len;
     // echo package
     dg->SendPacket(data, len);
 }
 
-void OnCreate(ananas::DatagramSocket* dg)
-{
+void OnCreate(ananas::DatagramSocket* dg) {
     INF(logger) << "OnCreate " << dg->Identifier();
     dg->SendPacket("helloworld", 10, &g_serverAddr);
 }
 
-int main(int ac, char* av[])
-{
+int main(int ac, char* av[]) {
     ananas::LogManager::Instance().Start();
     logger = ananas::LogManager::Instance().CreateLog(logALL, logFile, "log_client_udptest");
 

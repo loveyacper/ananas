@@ -6,27 +6,22 @@
 #include <string>
 #include <stdexcept>
 
-namespace google
-{
-namespace protobuf
-{
+namespace google {
+namespace protobuf {
 class Message;
 }
 }
 
 
-namespace ananas
-{
+namespace ananas {
 
 class Buffer;
 
-namespace rpc
-{
+namespace rpc {
 
 class RpcMessage;
 
-enum class DecodeState
-{
+enum class DecodeState {
     eS_None,
     eS_Waiting,
     eS_Error,
@@ -44,20 +39,20 @@ public:
 private:
     std::string what_;
 };
-    
+
 // decoder
 // use shared because Try<T>'s T must be copable
 using BytesToMessageDecoder = std::function<std::shared_ptr<google::protobuf::Message> (const char*& data, size_t len)>;
 std::shared_ptr<google::protobuf::Message> BytesToPbDecoder(const char*& data, size_t len);
 
-using MessageToMessageDecoder = std::function<DecodeState (const google::protobuf::Message& , google::protobuf::Message& )>;
-DecodeState PbToMessageDecoder(const google::protobuf::Message& , google::protobuf::Message& );
+using MessageToMessageDecoder = std::function<DecodeState (const google::protobuf::Message&, google::protobuf::Message& )>;
+DecodeState PbToMessageDecoder(const google::protobuf::Message&, google::protobuf::Message& );
 
 
 // encoder
-using MessageToFrameEncoder = std::function<bool (const google::protobuf::Message* , RpcMessage& )>;
-bool PbToFrameRequestEncoder(const google::protobuf::Message* , RpcMessage& );
-bool PbToFrameResponseEncoder(const google::protobuf::Message* , RpcMessage& );
+using MessageToFrameEncoder = std::function<bool (const google::protobuf::Message*, RpcMessage& )>;
+bool PbToFrameRequestEncoder(const google::protobuf::Message*, RpcMessage& );
+bool PbToFrameResponseEncoder(const google::protobuf::Message*, RpcMessage& );
 
 using FrameToBytesEncoder = std::function<ananas::Buffer (const RpcMessage& )>;
 ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& );
@@ -66,8 +61,7 @@ ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& );
 // helper function
 bool HasField(const google::protobuf::Message& msg, const std::string& field);
 
-struct Decoder
-{
+struct Decoder {
 public:
     Decoder();
     void Clear();
@@ -82,8 +76,7 @@ private:
     bool default_;
 };
 
-struct Encoder
-{
+struct Encoder {
 public:
     Encoder(MessageToFrameEncoder enc);
     void Clear();

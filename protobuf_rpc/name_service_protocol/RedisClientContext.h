@@ -5,10 +5,8 @@
 #include <queue>
 #include "RedisProtocol.h"
 
-namespace google
-{
-namespace protobuf
-{
+namespace google {
+namespace protobuf {
 
 class Message;
 class Service;
@@ -16,17 +14,14 @@ class Service;
 }
 }
 
-namespace ananas
-{
+namespace ananas {
 
-namespace rpc
-{
+namespace rpc {
 
 class RpcMessage;
 class ClientChannel;
 
-class RedisClientContext
-{
+class RedisClientContext {
 public:
     bool M2FEncode(const google::protobuf::Message* msg, ananas::rpc::RpcMessage& frame);
     std::shared_ptr<google::protobuf::Message> B2MDecode(const char*& data, size_t len);
@@ -34,8 +29,7 @@ public:
 private:
     ClientProtocol proto_;
 
-    enum class Oper
-    {
+    enum class Oper {
         GET_ENDPOINTS,
         KEEPALIVE,
     };

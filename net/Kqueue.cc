@@ -6,71 +6,60 @@
 #include <errno.h>
 #include <unistd.h>
 
-namespace ananas
-{
-namespace internal
-{
+namespace ananas {
+namespace internal {
 
-Kqueue::Kqueue()
-{
+Kqueue::Kqueue() {
     multiplexer_ = ::kqueue();
     ANANAS_INF << "create kqueue:  " << multiplexer_;
 }
 
-Kqueue::~Kqueue()
-{
+Kqueue::~Kqueue() {
     ANANAS_INF << "close kqueue: " << multiplexer_;
-    if (multiplexer_ != -1)  
+    if (multiplexer_ != -1)
         ::close(multiplexer_);
 }
 
-bool Kqueue::Register(int sock, int events, void* userPtr)
-{
-     struct kevent change[2];
-         
-     int  cnt = 0;
-     
-     if (events & eET_Read)
-     {
-         EV_SET(change + cnt, sock, EVFILT_READ, EV_ADD, 0, 0, userPtr);
-         ++ cnt;
-     }
-                 
-     if (events & eET_Write)
-     {
-         EV_SET(change + cnt, sock, EVFILT_WRITE, EV_ADD, 0, 0, userPtr);
-         ++ cnt;
-     }
-                     
-     return kevent(multiplexer_, change, cnt, NULL, 0, NULL) != -1;
+bool Kqueue::Register(int sock, int events, void* userPtr) {
+    struct kevent change[2];
+
+    int  cnt = 0;
+
+    if (events & eET_Read) {
+        EV_SET(change + cnt, sock, EVFILT_READ, EV_ADD, 0, 0, userPtr);
+        ++ cnt;
+    }
+
+    if (events & eET_Write) {
+        EV_SET(change + cnt, sock, EVFILT_WRITE, EV_ADD, 0, 0, userPtr);
+        ++ cnt;
+    }
+
+    return kevent(multiplexer_, change, cnt, NULL, 0, NULL) != -1;
 }
-    
-bool Kqueue::Unregister(int sock, int events)
-{
+
+bool Kqueue::Unregister(int sock, int events) {
     struct kevent change[2];
     int cnt = 0;
 
-    if (events & eET_Read)
-    {
+    if (events & eET_Read) {
         EV_SET(change + cnt, sock, EVFILT_READ, EV_DELETE, 0, 0, NULL);
         ++ cnt;
     }
 
-    if (events & eET_Write)
-    {
+    if (events & eET_Write) {
         EV_SET(change + cnt, sock, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
         ++ cnt;
     }
-                    
+
     if (cnt == 0)
         return false;
-                        
+
     return -1 != kevent(multiplexer_, change, cnt, NULL, 0, NULL);
 }
 
-   
-bool Kqueue::Modify(int sock, int events, void* userPtr)
-{
+
+bool Kqueue::Modify(int sock, int events, void* userPtr) {
     bool ret = Unregister(sock, eET_Read | eET_Write);
     if (events == 0)
         return ret;
@@ -79,18 +68,16 @@ bool Kqueue::Modify(int sock, int events, void* userPtr)
 }
 
 
-int Kqueue::Poll(std::size_t maxEvent, int timeoutMs)
-{
+int Kqueue::Poll(std::size_t maxEvent, int timeoutMs) {
     if (maxEvent == 0)
         return 0;
 
     while (events_.size() < maxEvent)
         events_.resize(2 * events_.size() + 1);
 
-    struct timespec* pTimeout = NULL;  
+    struct timespec* pTimeout = NULL;
     struct timespec  timeout;
-    if (timeoutMs >= 0)
-    {
+    if (timeoutMs >= 0) {
         pTimeout = &timeout;
         timeout.tv_sec  = timeoutMs / 1000;
         timeout.tv_nsec = timeoutMs % 1000 * 1000000;
@@ -104,8 +91,7 @@ int Kqueue::Poll(std::size_t maxEvent, int timeoutMs)
     if (nFired > 0 && static_cast<size_t>(nFired) > events.size())
         events.resize(nFired);
 
-    for (int i = 0; i < nFired; ++ i)
-    {
+    for (int i = 0; i < nFired; ++ i) {
         FiredEvent& fired = events[i];
         fired.events   = 0;
         fired.userdata = events_[i].udata;
@@ -128,8 +114,7 @@ int Kqueue::Poll(std::size_t maxEvent, int timeoutMs)
 
 #else
 
-void __Dummy__()
-{
+void __Dummy__() {
 }
 
 #endif

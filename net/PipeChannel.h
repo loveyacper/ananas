@@ -3,14 +3,11 @@
 
 #include "Poller.h"
 
-namespace ananas
-{
+namespace ananas {
 
-namespace internal
-{
+namespace internal {
 
-class PipeChannel : public internal::Channel
-{
+class PipeChannel : public internal::Channel {
 public:
     PipeChannel();
     ~PipeChannel();

@@ -8,39 +8,32 @@
 #include "AnanasDebug.h"
 
 
-namespace ananas
-{
-namespace internal
-{
+namespace ananas {
+namespace internal {
 
 const int Acceptor::kListenQueue = 1024;
 
 Acceptor::Acceptor(EventLoop* loop) :
     localSock_(kInvalid),
     localPort_(SocketAddr::kInvalidPort),
-    loop_(loop)
-{
+    loop_(loop) {
 }
 
-Acceptor::~Acceptor()
-{
+Acceptor::~Acceptor() {
     CloseSocket(localSock_);
     ANANAS_INF << "Close Acceptor " << localPort_ ;
 }
 
 
-void Acceptor::SetNewConnCallback(NewTcpConnCallback cb)
-{
+void Acceptor::SetNewConnCallback(NewTcpConnCallback cb) {
     newConnCallback_ = std::move(cb);
 }
 
-bool Acceptor::Bind(const SocketAddr& addr)
-{
+bool Acceptor::Bind(const SocketAddr& addr) {
     if (!addr.IsValid())
         return false;
 
-    if (localSock_ != kInvalid)
-    {
+    if (localSock_ != kInvalid) {
         ANANAS_ERR << "Already listen " << localPort_;
         return false;
     }
@@ -60,15 +53,13 @@ bool Acceptor::Bind(const SocketAddr& addr)
     auto serv = addr.GetAddr();
 
     int ret = ::bind(localSock_, (struct sockaddr*)&serv, sizeof serv);
-    if (kError == ret)
-    {
+    if (kError == ret) {
         ANANAS_ERR << "Cannot bind to " << addr.ToString();
         return false;
     }
 
     ret = ::listen(localSock_, kListenQueue);
-    if (kError == ret)
-    {
+    if (kError == ret) {
         ANANAS_ERR << "Cannot listen on " << addr.ToString();
         return false;
     }
@@ -81,39 +72,30 @@ bool Acceptor::Bind(const SocketAddr& addr)
     return  true;
 }
 
-int Acceptor::Identifier() const
-{
+int Acceptor::Identifier() const {
     return localSock_;
 }
 
-bool Acceptor::HandleReadEvent() 
-{
-    while (true)
-    {
+bool Acceptor::HandleReadEvent() {
+    while (true) {
         int connfd = _Accept();
-        if (connfd != kInvalid)
-        {
+        if (connfd != kInvalid) {
             auto loop = Application::Instance().Next();
-            auto func = [loop, newCb = newConnCallback_, connfd, peer = peer_]()
-            {
+            auto func = [loop, newCb = newConnCallback_, connfd, peer = peer_]() {
                 auto conn(std::make_shared<Connection>(loop));
                 conn->Init(connfd, peer);
                 if (loop->Register(eET_Read, conn)) {
                     newCb(conn.get());
                     conn->_OnConnect();
-                }
-                else {
+                } else {
                     ANANAS_ERR << "Failed to register socket " << conn->Identifier();
                 }
             };
             loop->Execute(std::move(func));
-        }
-        else
-        {
+        } else {
             bool goAhead = false;
             const int error = errno;
-            switch (error)
-            {
+            switch (error) {
             //case EWOULDBLOCK:
             case EAGAIN:
                 return true; // it's fine
@@ -137,7 +119,7 @@ bool Acceptor::HandleReadEvent()
                            << ", CPU may 100%";
                 return true;
 
-            case ENOTSOCK: 
+            case ENOTSOCK:
             case EOPNOTSUPP:
             case EINVAL:
             case EFAULT:
@@ -152,24 +134,21 @@ bool Acceptor::HandleReadEvent()
                 return false;
         }
     }
-    
+
     return true;
 }
 
-bool Acceptor::HandleWriteEvent()
-{
+bool Acceptor::HandleWriteEvent() {
     assert (false);
     return false;
 }
 
-void Acceptor::HandleErrorEvent()
-{
+void Acceptor::HandleErrorEvent() {
     ANANAS_ERR << "Acceptor::HandleErrorEvent";
     loop_->Unregister(eET_Read, shared_from_this());
 }
 
-int Acceptor::_Accept()
-{
+int Acceptor::_Accept() {
     socklen_t addrLength = sizeof peer_;
     return ::accept(localSock_, (struct sockaddr *)&peer_, &addrLength);
 }

@@ -26,40 +26,33 @@ std::shared_ptr<ananas::Logger> logger;
 
 const char* g_text = "hello ananas_rpc";
 
-void OnCreateChannel(ananas::rpc::ClientChannel* chan)
-{
+void OnCreateChannel(ananas::rpc::ClientChannel* chan) {
     DBG(logger) << "OnCreateRpcChannel " << (void*)chan;
 }
 
-void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer)
-{
+void OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer) {
     INF(logger) << "OnConnFail to " << peer.GetPort();
     ananas::Application::Instance().Exit();
 }
 
-void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response)
-{
+void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response) {
     try {
         ananas::rpc::test::EchoResponse rsp = std::move(response);
         ++ nowCount;
-        if (nowCount == totalCount)
-        {
+        if (nowCount == totalCount) {
             end.Now();
             USR(logger) << "Done OnResponse avg " << (totalCount * 0.1f / (end - start)) << " W/s";
             ananas::Application::Instance().Exit();
-        }
-        else if (nowCount < totalCount)
-        {
+        } else if (nowCount < totalCount) {
             using namespace ananas;
             using namespace ananas::rpc;
             Call<test::EchoResponse>("ananas.rpc.test.TestService",
                                      "AppendDots",
                                      req)
-                                    .Then(OnResponse);
+            .Then(OnResponse);
         }
 
-        if (nowCount % 50000 == 0)
-        {
+        if (nowCount % 50000 == 0) {
             end.Now();
             USR(logger) << "OnResponse avg " << (nowCount * 0.1f / (end - start)) << " W/s";
         }
@@ -69,8 +62,7 @@ void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response)
     }
 }
 
-int main(int ac, char* av[])
-{
+int main(int ac, char* av[]) {
     using namespace ananas;
     using namespace ananas::rpc;
 
@@ -80,10 +72,8 @@ int main(int ac, char* av[])
 
     // try init config
     ConfigParser config;
-    if (ac > 1)
-    {
-        if (!config.Load(av[1]))
-        {
+    if (ac > 1) {
+        if (!config.Load(av[1])) {
             ERR(logger) << "Load config failed:" << av[1];
         }
     }
@@ -93,7 +83,7 @@ int main(int ac, char* av[])
     teststub->SetOnCreateChannel(OnCreateChannel);
 
     const int threads = 8;
-    // init server 
+    // init server
     Server server;
     server.SetNumOfWorker(config.GetData<int>("threads", threads));
     server.AddServiceStub(teststub);
@@ -106,12 +96,11 @@ int main(int ac, char* av[])
     auto starter = [&]() {
         std::this_thread::sleep_for(std::chrono::seconds(1));
         start.Now();
-        for (int i = 0; i < threads; ++ i)
-        {
+        for (int i = 0; i < threads; ++ i) {
             Call<test::EchoResponse>("ananas.rpc.test.TestService",
                                      "AppendDots",
                                      req)
-                                    .Then(OnResponse);
+            .Then(OnResponse);
         }
     };
 

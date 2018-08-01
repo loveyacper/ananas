@@ -4,16 +4,23 @@
 
 using namespace ananas::internal;
 
-long f_void(void) { return 1; }
+long f_void(void) {
+    return 1;
+}
 
-int f_int(int a) { return a++; }
+int f_int(int a) {
+    return a++;
+}
 
-void f_lvalue_int(int& a) { ++a; }
+void f_lvalue_int(int& a) {
+    ++a;
+}
 
-void f_rvalue_int(int&& a) { ++a; }
+void f_rvalue_int(int&& a) {
+    ++a;
+}
 
-TEST_CASE(CallableResult)
-{
+TEST_CASE(CallableResult) {
     EXPECT_TRUE(typeid(long) == typeid(CallableResult<decltype(f_void), int>::Arg::Type));
     EXPECT_TRUE(typeid(int) == typeid(CallableResult<decltype(f_int), int>::Arg::Type));
 
@@ -25,8 +32,7 @@ TEST_CASE(CallableResult)
     EXPECT_TRUE(typeid(int) == typeid(CallableResult<decltype(lbd), int>::Arg::Type));
 }
 
-TEST_CASE(CanCallWith)
-{
+TEST_CASE(CanCallWith) {
     auto vlbd = []() {};
     EXPECT_TRUE((CanCallWith<decltype(vlbd)>::value));
     EXPECT_FALSE((CanCallWith<decltype(vlbd), int>::value));
@@ -51,8 +57,7 @@ TEST_CASE(CanCallWith)
 }
 
 
-int main()
-{
+int main() {
     RUN_ALL_TESTS();
     return 0;
 }

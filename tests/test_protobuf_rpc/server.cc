@@ -11,14 +11,12 @@
 
 std::shared_ptr<ananas::Logger> logger;
 
-class TestServiceImpl : public ::ananas::rpc::test::TestService
-{
+class TestServiceImpl : public ::ananas::rpc::test::TestService {
 public:
-    virtual void ToUpper(::google::protobuf::RpcController* ,
+    virtual void ToUpper(::google::protobuf::RpcController*,
                          const ::ananas::rpc::test::EchoRequest* request,
                          ::ananas::rpc::test::EchoResponse* response,
-                         ::google::protobuf::Closure* done) override final
-    {
+                         ::google::protobuf::Closure* done) override final {
         std::string* answer = response->mutable_text();
         answer->resize(request->text().size());
 
@@ -28,11 +26,10 @@ public:
         // No need copy response, because `done` manage it.
         auto loop = ananas::EventLoop::GetCurrentEventLoop();
         loop->ScheduleAfterWithRepeat<1>(std::chrono::seconds(2),
-                                         [request = *request, answer, done]()
-                                         {
-                                            std::transform(request.text().begin(), request.text().end(), answer->begin(), ::toupper);
-                                            done->Run();
-                                         });
+        [request = *request, answer, done]() {
+            std::transform(request.text().begin(), request.text().end(), answer->begin(), ::toupper);
+            done->Run();
+        });
 #else
         std::transform(request->text().begin(), request->text().end(), answer->begin(), ::toupper);
 
@@ -42,11 +39,10 @@ public:
 #endif
     }
 
-    virtual void AppendDots(::google::protobuf::RpcController* ,
+    virtual void AppendDots(::google::protobuf::RpcController*,
                             const ::ananas::rpc::test::EchoRequest* request,
                             ::ananas::rpc::test::EchoResponse* response,
-                            ::google::protobuf::Closure* done) override final
-    {
+                            ::google::protobuf::Closure* done) override final {
         std::string* answer = response->mutable_text();
         *answer = request->text();
         answer->append("...................");
@@ -56,8 +52,7 @@ public:
     }
 };
 
-int main(int ac, char* av[])
-{
+int main(int ac, char* av[]) {
     int threads = 6;
     if (ac > 1)
         threads = std::stoi(av[1]);

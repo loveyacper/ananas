@@ -5,21 +5,17 @@
 #include "ananas/net/Socket.h"
 #include "ananas_rpc.pb.h"
 
-namespace ananas
-{
+namespace ananas {
 
-namespace rpc
-{
+namespace rpc {
 
 inline
-SocketAddr EndpointToSocketAddr(const Endpoint& ep)
-{
+SocketAddr EndpointToSocketAddr(const Endpoint& ep) {
     return SocketAddr(ep.ip().data(), ep.port());
 }
 
 inline
-Endpoint EndpointFromString(const std::string& url)
-{
+Endpoint EndpointFromString(const std::string& url) {
     // len(tcp://1.1.1.1:1) = 15
     Endpoint ep;
     if (url.size() < 15)
@@ -49,8 +45,7 @@ Endpoint EndpointFromString(const std::string& url)
 }
 
 inline
-std::string EndpointToString(const Endpoint& ep)
-{
+std::string EndpointToString(const Endpoint& ep) {
     std::string rep;
     if (ep.proto() == TCP)
         rep = "tcp://";
@@ -64,16 +59,14 @@ std::string EndpointToString(const Endpoint& ep)
 }
 
 inline
-bool operator==(const Endpoint& a, const Endpoint& b)
-{
+bool operator==(const Endpoint& a, const Endpoint& b) {
     return a.proto() == b.proto() &&
            a.ip() == b.ip() &&
            a.port() == b.port();
 }
 
 inline
-bool IsValidEndpoint(const Endpoint& ep)
-{
+bool IsValidEndpoint(const Endpoint& ep) {
     return !ep.ip().empty() && ep.port() > 0;
 }
 
@@ -81,22 +74,19 @@ bool IsValidEndpoint(const Endpoint& ep)
 
 } // end namespace ananas
 
-namespace std
-{
-    template<>
-    struct hash<ananas::rpc::Endpoint>
-    {
-        typedef ananas::rpc::Endpoint argument_type;
-        typedef std::size_t result_type;
-        result_type operator()(const argument_type& s) const noexcept
-        {
-            result_type h1 = std::hash<int>{}(s.proto());
-            result_type h2 = std::hash<int>{}(s.port());
-            result_type h3 = std::hash<std::string>{}(s.ip());
-            result_type tmp = h1 ^ (h2 << 1);
-            return h3 ^ (tmp << 1);
-        }
-    };
+namespace std {
+template<>
+struct hash<ananas::rpc::Endpoint> {
+    typedef ananas::rpc::Endpoint argument_type;
+    typedef std::size_t result_type;
+    result_type operator()(const argument_type& s) const noexcept {
+        result_type h1 = std::hash<int> {}(s.proto());
+        result_type h2 = std::hash<int> {}(s.port());
+        result_type h3 = std::hash<std::string> {}(s.ip());
+        result_type tmp = h1 ^ (h2 << 1);
+        return h3 ^ (tmp << 1);
+    }
+};
 }
 
 #endif

@@ -2,24 +2,19 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-namespace ananas
-{
+namespace ananas {
 
-namespace ssl
-{
+namespace ssl {
 
-SSLManager::SSLManager()
-{
+SSLManager::SSLManager() {
 }
 
-SSLManager& SSLManager::Instance()
-{
+SSLManager& SSLManager::Instance() {
     static SSLManager mgr;
     return mgr;
 }
 
-void SSLManager::GlobalInit()
-{
+void SSLManager::GlobalInit() {
     (void)SSL_library_init();
     OpenSSL_add_all_algorithms();
 
@@ -28,8 +23,7 @@ void SSLManager::GlobalInit()
 }
 
 
-SSLManager::~SSLManager()
-{ 
+SSLManager::~SSLManager() {
     for (const auto& e : ctxSet_)
         SSL_CTX_free(e.second);
 
@@ -38,13 +32,12 @@ SSLManager::~SSLManager()
 }
 
 bool SSLManager::AddCtx(const std::string& name,
-                        const std::string& cafile, 
-                        const std::string& certfile, 
-                        const std::string& keyfile)
-{
+                        const std::string& cafile,
+                        const std::string& certfile,
+                        const std::string& keyfile) {
     if (ctxSet_.count(name))
         return false;
-    
+
     // init support all ssl/tls methods
     SSL_CTX* ctx = SSL_CTX_new(SSLv23_method());
     if (!ctx)
@@ -73,8 +66,7 @@ bool SSLManager::AddCtx(const std::string& name,
     return ctxSet_.insert({name, ctx}).second;
 }
 
-SSL_CTX* SSLManager::GetCtx(const std::string& name) const
-{
+SSL_CTX* SSLManager::GetCtx(const std::string& name) const {
     auto it  = ctxSet_.find(name);
     return it == ctxSet_.end() ? nullptr : it->second;
 }

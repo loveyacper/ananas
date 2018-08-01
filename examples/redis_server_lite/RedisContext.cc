@@ -10,17 +10,14 @@ static thread_local DB* g_db;
 
 
 RedisContext::RedisContext(ananas::Connection* conn) :
-    hostConn_(conn)
-{
+    hostConn_(conn) {
 }
 
-ananas::PacketLen_t RedisContext::OnRecvAll(ananas::Connection* conn, const char* data, ananas::PacketLen_t len)
-{
+ananas::PacketLen_t RedisContext::OnRecvAll(ananas::Connection* conn, const char* data, ananas::PacketLen_t len) {
     ananas::PacketLen_t total = 0;
     ananas::Buffer reply;
 
-    while (total < len)
-    {
+    while (total < len) {
         auto processed = this->_OnRecv(conn, data + total, len - total, &reply);
         if (processed == 0)
             break;
@@ -32,56 +29,45 @@ ananas::PacketLen_t RedisContext::OnRecvAll(ananas::Connection* conn, const char
     return total;
 }
 
-ananas::PacketLen_t RedisContext::_OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len, ananas::Buffer* replyBuf)
-{
+ananas::PacketLen_t RedisContext::_OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len, ananas::Buffer* replyBuf) {
     const char* const end = data + len;
     const char* ptr = data;
 
     auto parseRet = proto_.ParseRequest(ptr, end);
-    if (parseRet == ParseResult::error)
-    {   
+    if (parseRet == ParseResult::error) {
         ERR(logger) << "ParseError for " << data;
         // error protocol
         hostConn_->ActiveClose();
         return 0;
-    } 
-    else if (parseRet != ParseResult::ok) 
-    { 
+    } else if (parseRet != ParseResult::ok) {
         // wait
-        return static_cast<ananas::PacketLen_t>(ptr - data); 
+        return static_cast<ananas::PacketLen_t>(ptr - data);
     }
 
-    // handle packet 
-    const auto& params = proto_.GetParams(); 
-    if (params.empty()) 
+    // handle packet
+    const auto& params = proto_.GetParams();
+    if (params.empty())
         return static_cast<ananas::PacketLen_t>(ptr - data);
-     
-    std::string cmd(params[0]); 
+
+    std::string cmd(params[0]);
     std::transform(params[0].begin(), params[0].end(), cmd.begin(), ::tolower);
-        
+
     const char* reply = nullptr;
     size_t replyBytes = 0;
 
-    if (cmd == "ping")
-    {
+    if (cmd == "ping") {
         reply = "+PONG" CRLF;
         replyBytes = 7;
-    }
-    else if (cmd == "get")
-    {
+    } else if (cmd == "get") {
         reply_ = _Get(params[1]);
 
         reply = reply_.data();
         replyBytes = reply_.size();
-    }
-    else if (cmd == "set")
-    {
+    } else if (cmd == "set") {
         _Set(params[1], params[2]);
         reply = "+OK" CRLF;
         replyBytes = 5;
-    }
-    else
-    {
+    } else {
         ERR(logger) << "Unknown cmd " << cmd;
 
         reply = "-ERR Unknown command\r\n";
@@ -94,10 +80,9 @@ ananas::PacketLen_t RedisContext::_OnRecv(ananas::Connection* conn, const char* 
 }
 
 // helper
-static size_t FormatBulk(const char* str, size_t len, std::string* reply)
-{
+static size_t FormatBulk(const char* str, size_t len, std::string* reply) {
     assert (reply);
-            
+
     size_t oldSize = reply->size();
     (*reply) += '$';
 
@@ -107,13 +92,12 @@ static size_t FormatBulk(const char* str, size_t len, std::string* reply)
 
     if (str && len > 0)
         reply->append(str, len);
-        
+
     reply->append(CRLF, 2);
     return reply->size() - oldSize;
 }
 
-std::string RedisContext::_Get(const std::string& key)
-{
+std::string RedisContext::_Get(const std::string& key) {
     if (!g_db)
         g_db = new DB();
 
@@ -129,8 +113,7 @@ std::string RedisContext::_Get(const std::string& key)
     return res;
 }
 
-void RedisContext::_Set(const std::string& key, const std::string& val)
-{
+void RedisContext::_Set(const std::string& key, const std::string& val) {
     if (!g_db)
         g_db = new DB();
     (*g_db)[key] = val;

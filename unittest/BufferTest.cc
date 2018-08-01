@@ -1,12 +1,11 @@
 
 #include "UnitTest.h"
 #include "util/Buffer.h"
-    
+
 using namespace ananas;
 
 
-TEST_CASE(push)
-{
+TEST_CASE(push) {
     Buffer buf;
 
     size_t ret = buf.PushData("hello", 5);
@@ -17,8 +16,7 @@ TEST_CASE(push)
 }
 
 
-TEST_CASE(peek)
-{
+TEST_CASE(peek) {
     Buffer buf;
 
     {
@@ -39,9 +37,8 @@ TEST_CASE(peek)
 
     EXPECT_TRUE(buf.ReadableSize() == 12);
 }
-    
-TEST_CASE(pop)
-{
+
+TEST_CASE(pop) {
     Buffer buf;
 
     {
@@ -68,8 +65,7 @@ TEST_CASE(pop)
     EXPECT_TRUE(buf.Capacity() == cap); // pop does not change capacity
 }
 
-TEST_CASE(shrink)
-{
+TEST_CASE(shrink) {
     Buffer buf;
 
     {
@@ -93,9 +89,8 @@ TEST_CASE(shrink)
     buf.Shrink();
     EXPECT_TRUE(buf.Capacity() == 0);
 }
-    
-TEST_CASE(push_pop)
-{
+
+TEST_CASE(push_pop) {
     Buffer buf;
 
     buf.PushData("hello ", 6);
@@ -105,16 +100,12 @@ TEST_CASE(push_pop)
 
     EXPECT_TRUE(ret == 5);
     EXPECT_TRUE(buf.Capacity() == Buffer::kDefaultSize);
-    
+
     buf.Shrink();
     EXPECT_TRUE(buf.Capacity() == 1);
-
-    //buf.Shrink(true);
-    //EXPECT_TRUE(buf.Capacity() == 7);
 }
 
-int main()
-{
+int main() {
     RUN_ALL_TESTS();
     return 0;
 }

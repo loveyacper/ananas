@@ -18,8 +18,7 @@
 #include "Buffer.h"
 #include "MmapFile.h"
 
-enum LogLevel
-{
+enum LogLevel {
     logINFO     = 0x01 << 0,
     logDEBUG    = 0x01 << 1,
     logWARN     = 0x01 << 2,
@@ -28,23 +27,20 @@ enum LogLevel
     logALL      = 0xFFFFFFFF,
 };
 
-enum LogDest
-{
+enum LogDest {
     logConsole  = 0x01 << 0,
     logFile     = 0x01 << 1,
     logSocket   = 0x01 << 2,
 };
 
-namespace ananas
-{
+namespace ananas {
 
-class Logger
-{
+class Logger {
 public:
     friend class LogManager;
 
     Logger();
-   ~Logger();
+    ~Logger();
 
     Logger(const Logger& ) = delete;
     void operator= (const Logger& ) = delete;
@@ -54,9 +50,11 @@ public:
     bool Init(unsigned int level = logDEBUG,
               unsigned int dest = logConsole,
               const char* pDir  = 0);
-    
+
     void Flush(LogLevel  level);
-    bool IsLevelForbid(unsigned int level) const { return  !(level & level_); };
+    bool IsLevelForbid(unsigned int level) const {
+        return  !(level & level_);
+    };
 
     Logger&  operator<<(const char* msg);
     Logger&  operator<<(const unsigned char* msg);
@@ -92,8 +90,7 @@ private:
     static thread_local char tid_[16];
     static thread_local int tidLen_;
 
-    struct BufferInfo
-    {
+    struct BufferInfo {
         std::atomic<bool> inuse_{false};
         Buffer buffer_;
     };
@@ -101,7 +98,7 @@ private:
     std::mutex mutex_;
     std::map<std::thread::id, std::unique_ptr<BufferInfo> > buffers_;
     bool shutdown_;
-    
+
     // const vars from init()
     unsigned int level_;
     std::string directory_;
@@ -109,7 +106,7 @@ private:
     std::string fileName_;
 
     internal::OMmapFile file_;
-    
+
     std::size_t _Log(const char* data, std::size_t len);
 
     bool _CheckChangeFile();
@@ -124,8 +121,7 @@ private:
 };
 
 
-class LogManager
-{
+class LogManager {
 public:
     static LogManager& Instance();
 
@@ -137,7 +133,9 @@ public:
                                       const char* dir = nullptr);
 
     void AddBusyLog(Logger* );
-    Logger* NullLog()  {  return  &nullLog_;  }
+    Logger* NullLog()  {
+        return  &nullLog_;
+    }
 
 private:
     LogManager();
@@ -159,8 +157,7 @@ private:
 };
 
 
-class LogHelper
-{
+class LogHelper {
 public:
     LogHelper(LogLevel level);
     Logger& operator=(Logger& log);
@@ -177,7 +174,7 @@ private:
 #undef USR
 
 #define LOG_DBG(x) (!(x) || (x)->IsLevelForbid(logDEBUG)) ? *ananas::LogManager::Instance().NullLog() : (ananas::LogHelper(logDEBUG)) = x->SetCurLevel(logDEBUG)
- 
+
 #define LOG_INF(x) (!(x) || (x)->IsLevelForbid(logINFO)) ? *ananas::LogManager::Instance().NullLog() : (ananas::LogHelper(logINFO)) = x->SetCurLevel(logINFO)
 
 #define LOG_WRN(x) (!(x) || (x)->IsLevelForbid(logWARN)) ? *ananas::LogManager::Instance().NullLog() : (ananas::LogHelper(logWARN)) = x->SetCurLevel(logWARN)

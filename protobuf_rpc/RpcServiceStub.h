@@ -22,10 +22,8 @@
 #include "RpcEndpoint.h"
 #include "ProtobufCoder.h"
 
-namespace google
-{
-namespace protobuf
-{
+namespace google {
+namespace protobuf {
 
 class Message;
 class Service;
@@ -33,19 +31,16 @@ class Service;
 }
 }
 
-namespace ananas
-{
+namespace ananas {
 
-namespace rpc
-{
+namespace rpc {
 
 class Request;
 class ClientChannel;
 class RpcMessage;
 
 
-class ServiceStub final
-{
+class ServiceStub final {
 public:
     explicit
     ServiceStub(google::protobuf::Service* service);
@@ -64,7 +59,7 @@ public:
 
     void OnRegister();
 private:
-    Future<ClientChannel* > _Connect(EventLoop* , const Endpoint& ep);
+    Future<ClientChannel* > _Connect(EventLoop*, const Endpoint& ep);
 
     void _OnNewConnection(Connection* );
     void _OnConnect(Connection* );
@@ -73,8 +68,8 @@ private:
     static size_t _OnMessage(Connection* conn, const char* data, size_t len);
 
     Future<std::shared_ptr<std::vector<Endpoint>>> _GetEndpoints();
-    Future<ClientChannel* > _SelectChannel(EventLoop* , Try<std::shared_ptr<std::vector<Endpoint>>>&& );
-    Future<ClientChannel* > _MakeChannel(EventLoop* , const Endpoint& );
+    Future<ClientChannel* > _SelectChannel(EventLoop*, Try<std::shared_ptr<std::vector<Endpoint>>>&& );
+    Future<ClientChannel* > _MakeChannel(EventLoop*, const Endpoint& );
     static const Endpoint& _SelectEndpoint(std::shared_ptr<std::vector<Endpoint>> );
     void _OnNewEndpointList(Try<EndpointList>&& );
 
@@ -103,8 +98,7 @@ private:
     //ananas::Time refreshTime_; // TODO refresh endpoints
 };
 
-class ClientChannel
-{
+class ClientChannel {
     friend class ServiceStub;
 public:
     ClientChannel(std::shared_ptr<Connection> conn, ServiceStub* service);
@@ -121,7 +115,7 @@ public:
 
     // encode
     void SetEncoder(Encoder );
-    
+
     // decode
     std::shared_ptr<google::protobuf::Message> OnData(const char*& data, size_t len);
     void SetDecoder(Decoder dec);
@@ -146,7 +140,7 @@ private:
 
     // pending requests
     struct RequestContext {
-        Promise<std::shared_ptr<google::protobuf::Message>> promise; 
+        Promise<std::shared_ptr<google::protobuf::Message>> promise;
         std::shared_ptr<google::protobuf::Message> response;
         ananas::Time timestamp;
     };
@@ -165,27 +159,22 @@ private:
 };
 
 template <typename T>
-std::shared_ptr<T> ClientChannel::GetContext() const
-{
+std::shared_ptr<T> ClientChannel::GetContext() const {
     return std::static_pointer_cast<T>(ctx_);
 }
 
 template <typename RSP>
 Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
-                                       const std::shared_ptr<google::protobuf::Message>& request)
-{
+const std::shared_ptr<google::protobuf::Message>& request) {
     auto sc = conn_.lock();
     if (!sc)
         return MakeExceptionFuture<Try<RSP>>(std::runtime_error("Connection lost when invoke [" +
-                                                                 method.ToString() +
-                                                                 "]"));
+                                             method.ToString() +
+                                             "]"));
 
-    if (sc->GetLoop()->IsInSameLoop())
-    {
+    if (sc->GetLoop()->IsInSameLoop()) {
         return _Invoke<RSP>(method, request);
-    }
-    else
-    {
+    } else {
         auto invoker = std::bind(&ClientChannel::_Invoke<RSP>, this, method, request);
         return sc->GetLoop()->Execute(std::move(invoker)).Unwrap();
     }
@@ -194,54 +183,47 @@ Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
 
 template <typename RSP>
 Future<Try<RSP>> ClientChannel::_Invoke(const ananas::StringView& method,
-                                        const std::shared_ptr<google::protobuf::Message>& request)
-{
+const std::shared_ptr<google::protobuf::Message>& request) {
     auto sc = conn_.lock();
     assert (sc);
     assert (sc->GetLoop()->IsInSameLoop());
 
     auto methodStr = method.ToString();
-    if (!service_->GetService()->GetDescriptor()->FindMethodByName(methodStr)) 
+    if (!service_->GetService()->GetDescriptor()->FindMethodByName(methodStr))
         return MakeExceptionFuture<Try<RSP>>(std::runtime_error("No such method [" + methodStr + "]"));
 
-    Promise<std::shared_ptr<google::protobuf::Message>> promise; 
+    Promise<std::shared_ptr<google::protobuf::Message>> promise;
     auto fut = promise.GetFuture();
 
     // encode and send request
     Buffer bytes = this->_MessageToBytesEncoder(std::move(methodStr), *request);
-    if (!sc->SendPacket(bytes))
-    {
+    if (!sc->SendPacket(bytes)) {
         return MakeExceptionFuture<Try<RSP>>(std::runtime_error("SendPacket failed!"));
-    }
-    else
-    {
+    } else {
         // save context
         RequestContext reqContext;
         reqContext.promise = std::move(promise);
         reqContext.response.reset(new RSP()); // here be dragon
 
-        // convert RpcMessage to RSP 
+        // convert RpcMessage to RSP
         RSP* rsp = (RSP* )reqContext.response.get();
         auto decodeFut = fut.Then([this, rsp](std::shared_ptr<google::protobuf::Message>&& msg) -> Try<RSP> {
-                if (decoder_.m2mDecoder_) {
-                    try {
-                        decoder_.m2mDecoder_(*msg, *rsp);
-                    }
-                    catch (const std::exception& exp) {
-                        return Try<RSP>(std::current_exception());
-                    }
-                    catch (...) {
-                        ANANAS_ERR << "Unknown exception when m2mDecode";
-                        return Try<RSP>(std::current_exception());
-                    }
+            if (decoder_.m2mDecoder_) {
+                try {
+                    decoder_.m2mDecoder_(*msg, *rsp);
+                } catch (const std::exception& exp) {
+                    return Try<RSP>(std::current_exception());
+                } catch (...) {
+                    ANANAS_ERR << "Unknown exception when m2mDecode";
+                    return Try<RSP>(std::current_exception());
                 }
-                else
-                    // msg type must be RSP
-                    *rsp = std::move(*std::static_pointer_cast<RSP>(msg));
+            } else
+                // msg type must be RSP
+                *rsp = std::move(*std::static_pointer_cast<RSP>(msg));
 
-                return std::move(*rsp);
+            return std::move(*rsp);
         });
- 
+
         pendingCalls_.insert(std::make_pair(reqIdGen_, std::move(reqContext)));
         return decodeFut;
     }

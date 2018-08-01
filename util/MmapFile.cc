@@ -10,10 +10,8 @@
 
 #include "MmapFile.h"
 
-namespace ananas
-{
-namespace internal
-{
+namespace ananas {
+namespace internal {
 
 static const size_t kDefaultSize = 1 * 1024 * 1024;
 
@@ -26,36 +24,30 @@ OMmapFile::OMmapFile() : file_(kInvalidFile),
     memory_(kInvalidAddr),
     offset_(0),
     size_(0),
-    syncPos_(0)
-{
+    syncPos_(0) {
 }
 
-OMmapFile::~OMmapFile()
-{
+OMmapFile::~OMmapFile() {
     Close();
 }
 
-void OMmapFile::_ExtendFileSize(size_t size)
-{
+void OMmapFile::_ExtendFileSize(size_t size) {
     assert(file_ != kInvalidFile);
 
     if (size > size_)
         Truncate(size);
 }
 
-bool OMmapFile::Open(const std::string& file, bool bAppend)
-{
+bool OMmapFile::Open(const std::string& file, bool bAppend) {
     return Open(file.c_str(), bAppend);
 }
 
-bool OMmapFile::Open(const char* file, bool bAppend)
-{
+bool OMmapFile::Open(const char* file, bool bAppend) {
     Close();
 
     file_ = ::open(file, O_RDWR | O_CREAT | (bAppend ? O_APPEND : 0), 0644);
 
-    if (file_ == kInvalidFile)
-    {
+    if (file_ == kInvalidFile) {
         char err[128];
         snprintf(err, sizeof err - 1, "OpenWriteOnly %s failed\n", file);
         perror(err);
@@ -63,15 +55,12 @@ bool OMmapFile::Open(const char* file, bool bAppend)
         return false;
     }
 
-    if (bAppend)
-    {
+    if (bAppend) {
         struct stat st;
         fstat(file_, &st);
         size_ = std::max<size_t>(kDefaultSize, st.st_size);
         offset_ = st.st_size;
-    }
-    else
-    {
+    } else {
         size_ = kDefaultSize;
         offset_ = 0;
     }
@@ -82,10 +71,8 @@ bool OMmapFile::Open(const char* file, bool bAppend)
     return _MapWriteOnly();
 }
 
-void  OMmapFile::Close()
-{
-    if (file_ != kInvalidFile)
-    {
+void  OMmapFile::Close() {
+    if (file_ != kInvalidFile) {
         ::munmap(memory_, size_);
         ::ftruncate(file_, offset_);
         ::close(file_);
@@ -98,8 +85,7 @@ void  OMmapFile::Close()
     }
 }
 
-bool    OMmapFile::Sync()
-{
+bool    OMmapFile::Sync() {
     if (file_ == kInvalidFile)
         return false;
 
@@ -108,14 +94,12 @@ bool    OMmapFile::Sync()
 
     ::msync(memory_ + syncPos_, offset_ - syncPos_, MS_SYNC);
     syncPos_ = offset_;
-    
+
     return true;
 }
 
-bool OMmapFile::_MapWriteOnly()
-{
-    if (size_ == 0 || file_ == kInvalidFile)
-    {
+bool OMmapFile::_MapWriteOnly() {
+    if (size_ == 0 || file_ == kInvalidFile) {
         assert (false);
         return false;
     }
@@ -126,13 +110,11 @@ bool OMmapFile::_MapWriteOnly()
     return (memory_ != kInvalidAddr);
 }
 
-void OMmapFile::Truncate(std::size_t  size)
-{
+void OMmapFile::Truncate(std::size_t  size) {
     if (size == size_)
         return;
 
-    if (memory_ > 0)
-    {
+    if (memory_ > 0) {
         //int ret = ::munmap(memory_, size_);
         //assert (ret == 0);
     }
@@ -147,14 +129,12 @@ void OMmapFile::Truncate(std::size_t  size)
     _MapWriteOnly();
 }
 
-bool OMmapFile::IsOpen() const
-{
+bool OMmapFile::IsOpen() const {
     return  file_ != kInvalidFile;
 }
 
 // consumer
-void OMmapFile::Write(const void* data, size_t len)
-{
+void OMmapFile::Write(const void* data, size_t len) {
     _AssureSpace(len);
 
     assert(memory_ > 0);
@@ -165,12 +145,10 @@ void OMmapFile::Write(const void* data, size_t len)
     assert(offset_ <= size_);
 }
 
-void OMmapFile::_AssureSpace(size_t len)
-{
+void OMmapFile::_AssureSpace(size_t len) {
     size_t newSize = size_;
 
-    while (offset_ + len > newSize)
-    {
+    while (offset_ + len > newSize) {
         if (newSize == 0)
             newSize = kDefaultSize;
         else

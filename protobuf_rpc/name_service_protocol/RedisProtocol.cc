@@ -14,62 +14,52 @@
 
 // helpers
 static
-const char* Strstr(const char* ptr, size_t nBytes, const char* pattern, size_t nBytes2)
-{
+const char* Strstr(const char* ptr, size_t nBytes, const char* pattern, size_t nBytes2) {
     if (!pattern || *pattern == 0)
         return nullptr;
-            
+
     const char* ret = std::search(ptr, ptr + nBytes, pattern, pattern + nBytes2);
     return ret == ptr + nBytes ? nullptr : ret;
 }
 
 static
-const char* SearchCRLF(const char* ptr, size_t nBytes)
-{
+const char* SearchCRLF(const char* ptr, size_t nBytes) {
     return Strstr(ptr, nBytes, CRLF, 2);
 }
 
 static
-ParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val)
-{
+ParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val) {
     if (nBytes < 3)
         return ParseResult::wait;
-    
+
     std::size_t i = 0;
     bool negtive = false;
-    if (ptr[0] == '-')
-    {
+    if (ptr[0] == '-') {
         negtive = true;
         ++ i;
-    }
-    else if (ptr[0] == '+')
-    {
+    } else if (ptr[0] == '+') {
         ++ i;
     }
-    
+
     int value = 0;
-    for (; i < nBytes; ++ i)
-    {
-        if (isdigit(ptr[i]))
-        {
+    for (; i < nBytes; ++ i) {
+        if (isdigit(ptr[i])) {
             value *= 10;
             value += ptr[i] - '0';
-        }
-        else
-        {
+        } else {
             if (ptr[i] != '\r' || (i+1 < nBytes && ptr[i+1] != '\n'))
                 return ParseResult::error;
-            
+
             if (i + 1 == nBytes)
                 return ParseResult::wait;
-            
+
             break;
         }
     }
-    
+
     if (negtive)
         value *= -1;
-    
+
     ptr += i;
     ptr += 2;
     val = value;
@@ -77,8 +67,7 @@ ParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val)
 }
 
 
-void ServerProtocol::Reset()
-{
+void ServerProtocol::Reset() {
     multi_ = -1;
     paramLen_ = -1;
     params_.clear();
@@ -86,14 +75,12 @@ void ServerProtocol::Reset()
     nParams_ = 0;
 }
 
-ParseResult ServerProtocol::ParseRequest(const char*& ptr, const char* end)
-{
-    if (multi_ == -1)
-    {
+ParseResult ServerProtocol::ParseRequest(const char*& ptr, const char* end) {
+    if (multi_ == -1) {
         const char* const start = ptr;
         auto parseRet = _ParseMulti(ptr, end, multi_);
         if (parseRet == ParseResult::error ||
-            multi_ < -1)
+                multi_ < -1)
             return ParseResult::error;
 
         if (parseRet != ParseResult::ok)
@@ -106,8 +93,7 @@ ParseResult ServerProtocol::ParseRequest(const char*& ptr, const char* end)
     return _ParseStrlist(ptr, end, params_);
 }
 
-ParseResult ServerProtocol::_ParseMulti(const char*& ptr, const char* end, int& result)
-{
+ParseResult ServerProtocol::_ParseMulti(const char*& ptr, const char* end, int& result) {
     if (end - ptr < 3)
         return ParseResult::wait;
 
@@ -119,20 +105,15 @@ ParseResult ServerProtocol::_ParseMulti(const char*& ptr, const char* end, int& 
     return GetIntUntilCRLF(ptr,  end - ptr, result);
 }
 
-ParseResult ServerProtocol::_ParseStrlist(const char*& ptr, const char* end, std::vector<std::string>& results)
-{
-    while (nParams_ < multi_)
-    {
+ParseResult ServerProtocol::_ParseStrlist(const char*& ptr, const char* end, std::vector<std::string>& results) {
+    while (nParams_ < multi_) {
         std::string res;
         auto parseRet = _ParseStr(ptr, end, res);
 
-        if (parseRet == ParseResult::ok)
-        {
+        if (parseRet == ParseResult::ok) {
             results.emplace_back(std::move(res));
             ++ nParams_;
-        }
-        else
-        {
+        } else {
             return parseRet;
         }
     }
@@ -140,14 +121,12 @@ ParseResult ServerProtocol::_ParseStrlist(const char*& ptr, const char* end, std
     return ParseResult::ok;
 }
 
-ParseResult ServerProtocol::_ParseStr(const char*& ptr, const char* end, std::string& res)
-{
-    if (paramLen_ == -1)
-    {
+ParseResult ServerProtocol::_ParseStr(const char*& ptr, const char* end, std::string& res) {
+    if (paramLen_ == -1) {
         const char* const start = ptr;
         auto parseRet = _ParseStrlen(ptr, end, paramLen_);
         if (parseRet == ParseResult::error ||
-            paramLen_ < -1)
+                paramLen_ < -1)
             return ParseResult::error;
 
         if (parseRet != ParseResult::ok)
@@ -157,19 +136,15 @@ ParseResult ServerProtocol::_ParseStr(const char*& ptr, const char* end, std::st
         params_.emplace_back(start, ptr - start);
     }
 
-    if (paramLen_ == -1)
-    {
+    if (paramLen_ == -1) {
         res.clear();
         return ParseResult::ok;
-    }
-    else
-    {
+    } else {
         return _ParseStrval(ptr, end, res);
     }
 }
 
-ParseResult ServerProtocol::_ParseStrval(const char*& ptr, const char* end, std::string& res)
-{
+ParseResult ServerProtocol::_ParseStrval(const char*& ptr, const char* end, std::string& res) {
     assert (paramLen_ >= 0);
 
     if (static_cast<int>(end - ptr) < paramLen_ + 2)
@@ -188,8 +163,7 @@ ParseResult ServerProtocol::_ParseStrval(const char*& ptr, const char* end, std:
     return ParseResult::ok;
 }
 
-ParseResult ServerProtocol::_ParseStrlen(const char*& ptr, const char* end, int& result)
-{
+ParseResult ServerProtocol::_ParseStrlen(const char*& ptr, const char* end, int& result) {
     if (end - ptr < 3)
         return ParseResult::wait;
 
@@ -206,93 +180,81 @@ ParseResult ServerProtocol::_ParseStrlen(const char*& ptr, const char* end, int&
 }
 
 // ClientProtocol
-ClientProtocol::ClientProtocol()
-{
+ClientProtocol::ClientProtocol() {
     Reset();
 }
-    
-ParseResult ClientProtocol::Parse(const char*& ptr, const char* end)
-{
+
+ParseResult ClientProtocol::Parse(const char*& ptr, const char* end) {
     assert (end - ptr >= 1);
 
     const char* data = ptr;
-    if (type_ == ResponseType::None)
-    {
-        switch (data[0])
-        {
-            case '+':
-                type_ = ResponseType::Fine;
-                break;
+    if (type_ == ResponseType::None) {
+        switch (data[0]) {
+        case '+':
+            type_ = ResponseType::Fine;
+            break;
 
-            case '-':
-                type_ = ResponseType::Error;
-                break;
+        case '-':
+            type_ = ResponseType::Error;
+            break;
 
-            case '$':
-                type_ = ResponseType::String;
-                break;
+        case '$':
+            type_ = ResponseType::String;
+            break;
 
-            case ':':
-                type_ = ResponseType::Number;
-                break;
+        case ':':
+            type_ = ResponseType::Number;
+            break;
 
-            case '*':
-                type_ = ResponseType::Multi;
-                break;
+        case '*':
+            type_ = ResponseType::Multi;
+            break;
 
-            default:
-                return ParseResult::error;
+        default:
+            return ParseResult::error;
         }
     }
 
     bool ready = false;
-    switch (type_)
-    {
-        case ResponseType::Fine:
-        case ResponseType::Error:
-        case ResponseType::Number:
-            {
-                const char* res = SearchCRLF(data + 1, end - (data + 1));
-                if (res)
-                {
-                    data = res + 2;
-                    ready = true;
-                }
-                else
-                {
-                    return ParseResult::wait;
-                }
-            }
-            break;
+    switch (type_) {
+    case ResponseType::Fine:
+    case ResponseType::Error:
+    case ResponseType::Number: {
+        const char* res = SearchCRLF(data + 1, end - (data + 1));
+        if (res) {
+            data = res + 2;
+            ready = true;
+        } else {
+            return ParseResult::wait;
+        }
+    }
+    break;
 
-        case ResponseType::String:
-            {
-                auto ret = _ParseStr(data, end);
-                if (ret == ParseResult::error)
-                    return ret;
-                else if (ret == ParseResult::ok)
-                    ready = true;
-            }
-            
-            break;
-
-        case ResponseType::Multi:
-            {
-                auto ret = _ParseMulti(data, end);
-                if (ret == ParseResult::error)
-                    return ret;
-                else if (ret == ParseResult::ok)
-                    ready = true;
-            }
-            break;
-
-        default:
-            assert (!!!"bug wrong type");
-            break;
+    case ResponseType::String: {
+        auto ret = _ParseStr(data, end);
+        if (ret == ParseResult::error)
+            return ret;
+        else if (ret == ParseResult::ok)
+            ready = true;
     }
 
-    if (ready)
-    {
+    break;
+
+    case ResponseType::Multi: {
+        auto ret = _ParseMulti(data, end);
+        if (ret == ParseResult::error)
+            return ret;
+        else if (ret == ParseResult::ok)
+            ready = true;
+    }
+    break;
+
+    default:
+        assert (!!!"bug wrong type");
+        break;
+    }
+
+    if (ready) {
         content_.append(ptr, data);
         ptr = data;
     }
@@ -300,8 +262,7 @@ ParseResult ClientProtocol::Parse(const char*& ptr, const char* end)
     return ParseResult::ok;
 }
 
-void ClientProtocol::Reset()
-{
+void ClientProtocol::Reset() {
     type_ = ResponseType::None;
     content_.clear();
     multi_ = kInvalid;
@@ -310,31 +271,26 @@ void ClientProtocol::Reset()
     params_.clear();
 }
 
-ParseResult ClientProtocol::_ParseStr(const char*& ptr, const char* end)
-{
-    if (paramLen_ == kInvalid)
-    {
+ParseResult ClientProtocol::_ParseStr(const char*& ptr, const char* end) {
+    if (paramLen_ == kInvalid) {
         auto parseRet = _ParseStrlen(ptr, end, paramLen_);
         if (parseRet == ParseResult::error ||
-            paramLen_ < -1)
+                paramLen_ < -1)
             return ParseResult::error;
 
         if (parseRet != ParseResult::ok)
             return ParseResult::wait;
     }
 
-    if (paramLen_ == -1)
-    {
+    if (paramLen_ == -1) {
         // fix bug
         paramLen_ = kInvalid;
         return ParseResult::ok;
-    }
-    else
+    } else
         return _ParseStrval(ptr, end);
 }
 
-ParseResult ClientProtocol::_ParseStrval(const char*& ptr, const char* end)
-{
+ParseResult ClientProtocol::_ParseStrval(const char*& ptr, const char* end) {
     assert (paramLen_ >= 0);
 
     if (static_cast<int>(end - ptr) < paramLen_ + 2)
@@ -351,8 +307,7 @@ ParseResult ClientProtocol::_ParseStrval(const char*& ptr, const char* end)
     return ParseResult::ok;
 }
 
-ParseResult ClientProtocol::_ParseStrlen(const char*& ptr, const char* end, int& result)
-{
+ParseResult ClientProtocol::_ParseStrlen(const char*& ptr, const char* end, int& result) {
     if (end - ptr < 3)
         return ParseResult::wait;
 
@@ -368,10 +323,8 @@ ParseResult ClientProtocol::_ParseStrlen(const char*& ptr, const char* end, int&
     return ret;
 }
 
-ParseResult ClientProtocol::_ParseMulti(const char*& ptr, const char* end)
-{
-    if (multi_ == kInvalid)
-    {
+ParseResult ClientProtocol::_ParseMulti(const char*& ptr, const char* end) {
+    if (multi_ == kInvalid) {
         if (end - ptr < 3)
             return ParseResult::wait;
 
@@ -386,8 +339,7 @@ ParseResult ClientProtocol::_ParseMulti(const char*& ptr, const char* end)
             return ParseResult::wait;
     }
 
-    while (nParams_ < multi_)
-    {
+    while (nParams_ < multi_) {
         auto ret = _ParseStr(ptr, end);
         if (ret == ParseResult::ok)
             ++ nParams_;
@@ -401,8 +353,7 @@ ParseResult ClientProtocol::_ParseMulti(const char*& ptr, const char* end)
 #if 0
 #include <iostream>
 
-int main()
-{
+int main() {
     std::string rsp = "*2\r\n$-1\r\n$-1\r\n";
     //std::string rsp = "$3\r\nabc\r\n";
     //std::string rsp = "*2\r\n$4\r\nname\r\n$4\r\nbert\r\n";
@@ -413,8 +364,7 @@ int main()
 #endif
 
     const char* start = rsp.data();
-    while (start < rsp.data() + rsp.size())
-    {
+    while (start < rsp.data() + rsp.size()) {
         //const char* start = rsp.data();
         auto ret = proto.Parse(start, start + rsp.size());
         //auto ret = proto.ParseRequest(start, rsp.data() + rsp.size());
@@ -426,7 +376,7 @@ int main()
     std::cout << "result " << proto.GetContent()  << std::endl;
     //std::cout << "result " << proto.GetRawRequest()  << std::endl;
     //for (const auto& e : proto.GetParams())
-     //   std::cout << e << std::endl;
+    //   std::cout << e << std::endl;
 }
 
 #endif

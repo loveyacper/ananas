@@ -7,11 +7,9 @@
 #include <string>
 #include <ostream>
 
-namespace ananas
-{
+namespace ananas {
 
-class StringView
-{
+class StringView {
 public:
     using value_type = char;
     using pointer = char*;
@@ -24,7 +22,7 @@ public:
 
     StringView();
     StringView(const char* );
-    explicit // be care of string's lifetime 
+    explicit // be care of string's lifetime
     StringView(const std::string& );
     StringView(const char*, size_t);
 
@@ -61,30 +59,25 @@ bool operator>(const StringView& a, const StringView& b);
 bool operator<=(const StringView& a, const StringView& b);
 bool operator>=(const StringView& a, const StringView& b);
 
-inline std::ostream& operator<< (std::ostream& os, const StringView& sv)
-{
+inline std::ostream& operator<< (std::ostream& os, const StringView& sv) {
     return os << sv.Data();
 }
 
 } // end namespace ananas
- 
-namespace std
-{
-    template<>
-    struct hash<ananas::StringView>
-    {
-        typedef ananas::StringView argument_type;
-        typedef std::size_t result_type;
-        result_type operator()(const argument_type& sv) const noexcept
-        {
-            std::size_t result = 0; 
-            for (auto ch : sv)
-            {
-                result = (result * 131) + ch;
-            }
-            return result;
+
+namespace std {
+template<>
+struct hash<ananas::StringView> {
+    typedef ananas::StringView argument_type;
+    typedef std::size_t result_type;
+    result_type operator()(const argument_type& sv) const noexcept {
+        std::size_t result = 0;
+        for (auto ch : sv) {
+            result = (result * 131) + ch;
         }
-    };
+        return result;
+    }
+};
 }
 
 #endif

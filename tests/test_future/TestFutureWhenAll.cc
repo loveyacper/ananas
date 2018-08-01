@@ -8,19 +8,16 @@
 using namespace ananas;
 
 template <typename Type>
-Type ThreadFunc()
-{
+Type ThreadFunc() {
     std::cout << "SetValue 10\n";
     return Type(10);
 }
 
-void ThreadFuncV()
-{
+void ThreadFuncV() {
     std::cout << "SetValue void\n";
 }
 
-int main(int ac, char* av[])
-{
+int main(int ac, char* av[]) {
     auto& app = Application::Instance();
     auto& loop = *app.BaseLoop();
 
@@ -30,12 +27,12 @@ int main(int ac, char* av[])
 
     auto fall = WhenAll(f1, f2);
     fall.Then([](const std::tuple<Try<int>, Try<void>>& results) {
-            std::cerr << "Then collet all!\n";
-            std::cerr << std::get<0>(results) << std::endl;
-         })
-         .OnTimeout(std::chrono::milliseconds(500), []() {
-             std::cout << "!!!FAILED: futureall is timeout!\n";
-         }, &loop);
+        std::cerr << "Then collet all!\n";
+        std::cerr << std::get<0>(results) << std::endl;
+    })
+    .OnTimeout(std::chrono::milliseconds(500), []() {
+        std::cout << "!!!FAILED: futureall is timeout!\n";
+    }, &loop);
 
     loop.ScheduleAfter(std::chrono::seconds(3), [&app]() {
         std::cerr << "GOODBYE!\n";

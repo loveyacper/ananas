@@ -13,10 +13,8 @@
 #include "ProtobufCoder.h"
 
 
-namespace google
-{
-namespace protobuf
-{
+namespace google {
+namespace protobuf {
 
 class Message;
 class Service;
@@ -24,19 +22,16 @@ class Service;
 }
 }
 
-namespace ananas
-{
+namespace ananas {
 
 class Connection;
 
-namespace rpc
-{
+namespace rpc {
 
 class Request;
 class ServerChannel;
 
-class Service final
-{
+class Service final {
 public:
     explicit
     Service(google::protobuf::Service* service);
@@ -46,13 +41,15 @@ public:
     const std::string& FullName() const;
 
     void SetEndpoint(const Endpoint& ep);
-    const Endpoint& GetEndpoint() const { return endpoint_; }
+    const Endpoint& GetEndpoint() const {
+        return endpoint_;
+    }
     bool Start();
 
     void OnNewConnection(ananas::Connection* conn);
 
     void OnRegister();
-    
+
     // if the third party protocol, this func tell ananas to invoke which func for request
     void SetMethodSelector(std::function<std::string (const google::protobuf::Message* )> );
 
@@ -76,8 +73,7 @@ private:
     std::vector<ChannelMap> channels_;
 };
 
-class ServerChannel
-{
+class ServerChannel {
     friend class Service;
 public:
     ServerChannel(ananas::Connection* conn, ananas::rpc::Service* service);
@@ -94,7 +90,7 @@ public:
     void OnError(const std::exception& err);
 private:
     void _Invoke(const std::string& methodName,
-                std::shared_ptr<google::protobuf::Message> req);
+                 std::shared_ptr<google::protobuf::Message> req);
     void _OnServDone(std::weak_ptr<ananas::Connection> wconn,
                      int id,
                      std::shared_ptr<google::protobuf::Message> response);

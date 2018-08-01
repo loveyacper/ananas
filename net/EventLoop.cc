@@ -11,96 +11,87 @@
 #include "DatagramSocket.h"
 
 #if defined(__APPLE__)
-    #include "Kqueue.h"
+#include "Kqueue.h"
 #elif defined(__gnu_linux__)
-    #include "Epoller.h"
+#include "Epoller.h"
 #else
-    #error "Only support osx and linux"
+#error "Only support osx and linux"
 #endif
 
 #include "AnanasDebug.h"
 #include "util/Util.h"
 
-namespace ananas
-{
-    
+namespace ananas {
+
 static thread_local EventLoop* g_thisLoop;
 
-EventLoop* EventLoop::GetCurrentEventLoop()
-{
+EventLoop* EventLoop::GetCurrentEventLoop() {
     return g_thisLoop;
 }
 
-void EventLoop::SetMaxOpenFd(rlim_t maxfdPlus1)
-{
+void EventLoop::SetMaxOpenFd(rlim_t maxfdPlus1) {
     if (ananas::SetMaxOpenFd(maxfdPlus1))
         s_maxOpenFdPlus1 = maxfdPlus1;
 }
 
 EventLoop::EventLoop(internal::EventLoopGroup* group) :
-    group_(group)
-{
+    group_(group) {
     assert (!g_thisLoop && "There must be only one EventLoop per thread");
     g_thisLoop = this;
 
     internal::InitDebugLog(logALL);
 
 #if defined(__APPLE__)
-    poller_.reset(new internal::Kqueue); 
+    poller_.reset(new internal::Kqueue);
 #elif defined(__gnu_linux__)
-    poller_.reset(new internal::Epoller); 
+    poller_.reset(new internal::Epoller);
 #else
-    #error "Only support mac os and linux"
+#error "Only support mac os and linux"
 #endif
 
     notifier_ = std::make_shared<internal::PipeChannel>();
     id_ = s_evId ++;
 }
 
-EventLoop::~EventLoop()
-{
+EventLoop::~EventLoop() {
 }
-    
+
 bool EventLoop::Listen(const char* ip,
                        uint16_t hostPort,
-                       NewTcpConnCallback newConnCallback)
-{
+                       NewTcpConnCallback newConnCallback) {
     SocketAddr addr;
     addr.Init(ip, hostPort);
 
     return Listen(addr, std::move(newConnCallback));
 }
-    
+
 bool EventLoop::Listen(const SocketAddr& listenAddr,
-                       NewTcpConnCallback newConnCallback)
-{
+                       NewTcpConnCallback newConnCallback) {
     using internal::Acceptor;
 
     auto s = std::make_shared<Acceptor>(this);
     s->SetNewConnCallback(std::move(newConnCallback));
     if (!s->Bind(listenAddr))
         return false;
-    
+
     return true;
 }
 
 bool EventLoop::ListenUDP(const SocketAddr& listenAddr,
                           UDPMessageCallback mcb,
-                          UDPCreateCallback ccb)
-{
+                          UDPCreateCallback ccb) {
     auto s = std::make_shared<DatagramSocket>(this);
     s->SetMessageCallback(mcb);
     s->SetCreateCallback(ccb);
     if (!s->Bind(&listenAddr))
         return false;
-    
+
     return true;
 }
 
 bool EventLoop::ListenUDP(const char* ip, uint16_t hostPort,
                           UDPMessageCallback mcb,
-                          UDPCreateCallback ccb)
-{
+                          UDPCreateCallback ccb) {
     SocketAddr addr;
     addr.Init(ip, hostPort);
 
@@ -109,14 +100,13 @@ bool EventLoop::ListenUDP(const char* ip, uint16_t hostPort,
 
 
 bool EventLoop::CreateClientUDP(UDPMessageCallback mcb,
-                                UDPCreateCallback ccb)
-{
+                                UDPCreateCallback ccb) {
     auto s = std::make_shared<DatagramSocket>(this);
     s->SetMessageCallback(mcb);
     s->SetCreateCallback(ccb);
     if (!s->Bind(nullptr))
         return false;
-    
+
     return true;
 }
 
@@ -125,8 +115,7 @@ bool EventLoop::Connect(const char* ip,
                         NewTcpConnCallback nccb,
                         TcpConnFailCallback cfcb,
                         DurationMs timeout,
-                        EventLoop* dstLoop)
-{
+                        EventLoop* dstLoop) {
     SocketAddr addr;
     addr.Init(ip, hostPort);
 
@@ -138,8 +127,7 @@ bool EventLoop::Connect(const SocketAddr& dst,
                         NewTcpConnCallback nccb,
                         TcpConnFailCallback cfcb,
                         DurationMs timeout,
-                        EventLoop* dstLoop)
-{
+                        EventLoop* dstLoop) {
     using internal::Connector;
 
     auto cli = std::make_shared<Connector>(this);
@@ -159,8 +147,7 @@ std::atomic<int> EventLoop::s_evId {0};
 
 rlim_t EventLoop::s_maxOpenFdPlus1 = ananas::GetMaxOpenFd();
 
-bool EventLoop::Register(int events, std::shared_ptr<internal::Channel> src)
-{
+bool EventLoop::Register(int events, std::shared_ptr<internal::Channel> src) {
     if (events == 0)
         return false;
 
@@ -173,11 +160,10 @@ bool EventLoop::Register(int events, std::shared_ptr<internal::Channel> src)
      * that can be opened by this process.
      * Attempts (open(2), pipe(2), dup(2), etc.)  to exceed this limit yield the error EMFILE.
      */
-    if (src->Identifier() + 1 >= static_cast<int>(s_maxOpenFdPlus1))
-    {
+    if (src->Identifier() + 1 >= static_cast<int>(s_maxOpenFdPlus1)) {
         ANANAS_ERR
-            << "Register failed! Max open fd " << s_maxOpenFdPlus1
-            << ", current fd " << src->Identifier();
+                << "Register failed! Max open fd " << s_maxOpenFdPlus1
+                << ", current fd " << src->Identifier();
 
         return false;
     }
@@ -195,48 +181,41 @@ bool EventLoop::Register(int events, std::shared_ptr<internal::Channel> src)
     return false;
 }
 
-bool EventLoop::Modify(int events, std::shared_ptr<internal::Channel> src)
-{
+bool EventLoop::Modify(int events, std::shared_ptr<internal::Channel> src) {
     assert (channelSet_.count(src->GetUniqueId()));
     return poller_->Modify(src->Identifier(), events, src.get());
 }
 
-void EventLoop::Unregister(int events, std::shared_ptr<internal::Channel> src)
-{
+void EventLoop::Unregister(int events, std::shared_ptr<internal::Channel> src) {
     const int fd = src->Identifier();
     ANANAS_INF << "Unregister socket id " << fd;
     poller_->Unregister(fd, events);
 
     size_t nTask = channelSet_.erase(src->GetUniqueId());
-    if (nTask != 1)
-    {
+    if (nTask != 1) {
         ANANAS_ERR << "Can not find socket id " << fd;
         assert (false);
     }
 }
 
-bool EventLoop::Cancel(TimerId id)
-{
+bool EventLoop::Cancel(TimerId id) {
     return timers_.Cancel(id);
 }
 
-void EventLoop::Run()
-{
+void EventLoop::Run() {
     const DurationMs kDefaultPollTime(10);
     const DurationMs kMinPollTime(1);
 
     Register(internal::eET_Read, notifier_);
 
-    while (!group_->IsStopped())
-    {
+    while (!group_->IsStopped()) {
         auto timeout = std::min(kDefaultPollTime, timers_.NearestTimer());
         timeout = std::max(kMinPollTime, timeout);
 
         Loop(timeout);
     }
-        
-    for (auto& kv : channelSet_)
-    {
+
+    for (auto& kv : channelSet_) {
         poller_->Unregister(internal::eET_Read | internal::eET_Write,
                             kv.second->Identifier());
     }
@@ -245,15 +224,12 @@ void EventLoop::Run()
     poller_.reset();
 }
 
-bool EventLoop::Loop(DurationMs timeout)
-{
-    ANANAS_DEFER
-    {
+bool EventLoop::Loop(DurationMs timeout) {
+    ANANAS_DEFER {
         timers_.Update();
 
         // do not block
-        if (fctrMutex_.try_lock())
-        {
+        if (fctrMutex_.try_lock()) {
             // Use tmp : if f add callback to functors_
             decltype(functors_) funcs;
             funcs.swap(functors_);
@@ -264,8 +240,7 @@ bool EventLoop::Loop(DurationMs timeout)
         }
     };
 
-    if (channelSet_.empty())
-    {
+    if (channelSet_.empty()) {
         std::this_thread::sleep_for(timeout);
         return false;
     }
@@ -280,29 +255,23 @@ bool EventLoop::Loop(DurationMs timeout)
     // Consider stale event, DO NOT unregister another socket in your event handler!
 
     std::vector<std::shared_ptr<internal::Channel>> sources(ready);
-    for (int i = 0; i < ready; ++ i)
-    {
+    for (int i = 0; i < ready; ++ i) {
         auto src = (internal::Channel* )fired[i].userdata;
         sources[i] = src->shared_from_this();
 
-        if (fired[i].events & internal::eET_Read) 
-        {
-            if (!src->HandleReadEvent())
-            {
+        if (fired[i].events & internal::eET_Read) {
+            if (!src->HandleReadEvent()) {
                 src->HandleErrorEvent();
             }
         }
 
-        if (fired[i].events & internal::eET_Write)
-        {
-            if (!src->HandleWriteEvent())
-            {
+        if (fired[i].events & internal::eET_Write) {
+            if (!src->HandleWriteEvent()) {
                 src->HandleErrorEvent();
             }
         }
-        
-        if (fired[i].events & internal::eET_Error)
-        {
+
+        if (fired[i].events & internal::eET_Error) {
             ANANAS_ERR << "eET_Error for " << src->Identifier();
             src->HandleErrorEvent();
         }
@@ -311,24 +280,21 @@ bool EventLoop::Loop(DurationMs timeout)
     return ready >= 0;
 }
 
-bool EventLoop::IsInSameLoop() const
-{
+bool EventLoop::IsInSameLoop() const {
     return this == g_thisLoop;
 }
-    
+
 void EventLoop::ScheduleAfter(std::chrono::milliseconds duration,
-                                  std::function<void()> f)
-{
+                              std::function<void()> f) {
     if (IsInSameLoop())
         ScheduleAfterWithRepeat<1>(duration, std::move(f));
     else
         Execute([=]() {
-                    ScheduleAfterWithRepeat<1>(duration, std::move(f));
-                });
+        ScheduleAfterWithRepeat<1>(duration, std::move(f));
+    });
 }
 
-void EventLoop::Schedule(std::function<void()> f)
-{
+void EventLoop::Schedule(std::function<void()> f) {
     Execute(std::move(f));
 }
 

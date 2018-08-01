@@ -5,22 +5,24 @@
 #include <string>
 
 
-enum class ParseResult : int8_t 
-{ 
-    ok, 
-    wait, 
+enum class ParseResult : int8_t {
+    ok,
+    wait,
     error,
 };
 
-class Protocol
-{
+class Protocol {
 public:
     void Reset();
     ParseResult ParseRequest(const char*& ptr, const char* end);
 
-    const std::vector<std::string>& GetParams() const { return params_; }
-    
-    bool IsInitialState() const { return multi_ == -1; }
+    const std::vector<std::string>& GetParams() const {
+        return params_;
+    }
+
+    bool IsInitialState() const {
+        return multi_ == -1;
+    }
 
 private:
     ParseResult _ParseMulti(const char*& ptr, const char* end, int& result);

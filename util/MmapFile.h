@@ -3,16 +3,13 @@
 
 #include <string>
 
-namespace ananas
-{
-namespace internal
-{
+namespace ananas {
+namespace internal {
 
-class OMmapFile
-{
+class OMmapFile {
 public:
     OMmapFile();
-   ~OMmapFile();
+    ~OMmapFile();
 
     bool Open(const std::string& file, bool bAppend = true);
     bool Open(const char* file, bool bAppend = true);
@@ -24,8 +21,10 @@ public:
     void Write(const void* data, std::size_t len);
     template <typename T>
     void Write(const T& t);
-    
-    std::size_t Offset() const { return offset_; }
+
+    std::size_t Offset() const {
+        return offset_;
+    }
     bool IsOpen() const;
 
 private:
@@ -42,8 +41,7 @@ private:
 
 
 template <typename T>
-inline void OMmapFile::Write(const T& t)
-{
+inline void OMmapFile::Write(const T& t) {
     this->Write(&t, sizeof t);
 }
 

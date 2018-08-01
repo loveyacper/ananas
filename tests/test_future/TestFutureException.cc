@@ -7,19 +7,16 @@
 using namespace ananas;
 
 template <typename Type>
-Type ThreadException()
-{
+Type ThreadException() {
     throw std::runtime_error("Future Exception!");
     return Type(); // never here
 }
 
-void ThreadFuncV()
-{
+void ThreadFuncV() {
     std::cout << "SetValue Void\n";
 }
 
-int main(int ac, char* av[])
-{
+int main(int ac, char* av[]) {
     auto& app = Application::Instance();
     auto& loop = *app.BaseLoop();
 
@@ -30,7 +27,7 @@ int main(int ac, char* av[])
 
     ft.Then(&loop, [&loop](Try<int>&& v) {
         assert(loop.IsInSameLoop());
-        try{
+        try {
             int value = v;
             std::cout << "1.Then got int value " << value
                       << " and return float 1.0f." << std::endl;
@@ -66,7 +63,7 @@ int main(int ac, char* av[])
     });
 
     app.Run(ac, av);
-            
+
     tpool.JoinAll();
     return 0;
 }

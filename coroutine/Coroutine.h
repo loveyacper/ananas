@@ -10,18 +10,15 @@
 #include <memory>
 #include <functional>
 
-namespace ananas
-{
-    
+namespace ananas {
+
 using AnyPointer = std::shared_ptr<void>;
 
 class Coroutine;
 using CoroutinePtr = std::shared_ptr<Coroutine>;
 
-class Coroutine
-{
-    enum class State
-    {
+class Coroutine {
+    enum class State {
         Init,
         Running,
         Finish,
@@ -31,9 +28,8 @@ public:
     // works like python decorator: convert the func to a coroutine
     template <typename F, typename... Args>
     static CoroutinePtr
-    CreateCoroutine(F&& f, Args&&... args)
-    {
-        return std::make_shared<Coroutine>(std::forward<F>(f), std::forward<Args>(args)...); 
+    CreateCoroutine(F&& f, Args&&... args) {
+        return std::make_shared<Coroutine>(std::forward<F>(f), std::forward<Args>(args)...);
     }
 
     // Below three static functions for schedule coroutine
@@ -46,25 +42,25 @@ public:
 public:
     // !!!
     // NEVER define coroutine object, please use CreateCoroutine.
-    // Coroutine constructor should be private, 
+    // Coroutine constructor should be private,
     // BUT compilers demand template constructor must be public...
     explicit
     Coroutine(std::size_t stackSize = 0);
 
     // if F return void
-    template <typename F, typename... Args, 
+    template <typename F, typename... Args,
               typename = typename std::enable_if<std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type, typename Dummy = void>
-    Coroutine(F&& f, Args&&... args) : Coroutine(kDefaultStackSize)
-    {
+    Coroutine(F&& f, Args&&... args) : Coroutine(kDefaultStackSize) {
         auto temp = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-        func_ =  [temp] () { (void)temp(); };
+        func_ =  [temp] () {
+            (void)temp();
+        };
     }
 
     // if F return non-void
-    template <typename F, typename... Args, 
-              typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type>         
-    Coroutine(F&& f, Args&&... args) : Coroutine(kDefaultStackSize)
-    {
+    template <typename F, typename... Args,
+              typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type>
+    Coroutine(F&& f, Args&&... args) : Coroutine(kDefaultStackSize) {
         using ResultType = typename std::result_of<F (Args...)>::type;
 
         auto me = this;
@@ -83,8 +79,12 @@ public:
     Coroutine(Coroutine&&) = delete;
     void operator=(Coroutine&&) = delete;
 
-    unsigned int GetID() const  { return  id_; }
-    static unsigned int GetCurrentID()  {  return current_->id_; } 
+    unsigned int GetID() const  {
+        return  id_;
+    }
+    static unsigned int GetCurrentID()  {
+        return current_->id_;
+    }
 
 private:
     AnyPointer _Send(Coroutine* crt, AnyPointer = AnyPointer(nullptr));
@@ -97,7 +97,7 @@ private:
 
     typedef ucontext HANDLE;
 
-    static const std::size_t kDefaultStackSize = 8 * 1024; 
+    static const std::size_t kDefaultStackSize = 8 * 1024;
     std::vector<char> stack_;
 
     HANDLE handle_;
@@ -105,7 +105,7 @@ private:
     AnyPointer result_;
 
     static Coroutine main_;
-    static Coroutine* current_; 
+    static Coroutine* current_;
     static unsigned int sid_;
 };
 

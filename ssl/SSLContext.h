@@ -10,26 +10,23 @@
 struct ssl_st;
 typedef struct ssl_st SSL;
 
-namespace ananas
-{
+namespace ananas {
 
 class Connection;
 
-namespace ssl
-{
+namespace ssl {
 
 void OnNewSSLConnection(const std::string& ctx, int verifyMode, bool incoming, Connection* conn);
 
-class OpenSSLContext
-{
-    friend void OnNewSSLConnection(const std::string& , int , bool , Connection* );
+class OpenSSLContext {
+    friend void OnNewSSLConnection(const std::string&, int, bool, Connection* );
 public:
     explicit
     OpenSSLContext(SSL* ssl, bool incoming_, void* exData);
     ~OpenSSLContext();
 
     bool SendData(const char* data, size_t len);
-    void SetLogicProcess(std::function<size_t (Connection* , const char*, size_t )>);
+    void SetLogicProcess(std::function<size_t (Connection*, const char*, size_t )>);
 
     bool DoHandleShake();
     void Shutdown();
@@ -55,7 +52,7 @@ private:
     bool writeWaitReadable_ {false};
     Buffer sendBuffer_;
 
-    // TODO 
+    // TODO
     // SSL_shutdown encounter SSL_ERROR_WANT_READ!
     bool shutdownWaitReadable_ {false};
 };

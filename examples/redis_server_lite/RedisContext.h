@@ -13,8 +13,7 @@ using DB = std::unordered_map<std::string, std::string>;
 
 //extern DB g_db;
 
-class RedisContext
-{
+class RedisContext {
 public:
     explicit
     RedisContext(ananas::Connection* conn);

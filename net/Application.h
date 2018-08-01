@@ -11,16 +11,13 @@
 #include "Poller.h"
 #include "ananas/util/Timer.h"
 
-namespace ananas
-{
-    
-namespace internal
-{
+namespace ananas {
+
+namespace internal {
 class EventLoopGroup;
 }
 
-class Application
-{
+class Application {
 public:
     static Application& Instance();
     ~Application();
@@ -60,7 +57,7 @@ public:
     void CreateClientUDP(UDPMessageCallback mcb,
                          UDPCreateCallback ccb);
 
-    // connector 
+    // connector
     void Connect(const SocketAddr& dst,
                  NewTcpConnCallback nccb,
                  TcpConnFailCallback cfcb,
@@ -89,15 +86,14 @@ private:
 
     std::unique_ptr<internal::EventLoopGroup> workerGroup_;
 
-    enum class State
-    {
+    enum class State {
         eS_None,
         eS_Started,
         eS_Stopped,
     };
     std::atomic<State> state_;
 
-    std::function<bool (int , char*[]) > onInit_;
+    std::function<bool (int, char*[]) > onInit_;
     std::function<void ()> onExit_;
 
     static void _DefaultBindCallback(bool succ, const SocketAddr& );

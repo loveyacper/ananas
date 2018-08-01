@@ -7,13 +7,11 @@
 #include "Typedefs.h"
 #include "Poller.h"
 
-namespace ananas
-{
+namespace ananas {
 
 class EventLoop;
 
-class DatagramSocket : public internal::Channel
-{
+class DatagramSocket : public internal::Channel {
 public:
     explicit
     DatagramSocket(EventLoop* loop);
@@ -30,12 +28,18 @@ public:
     bool HandleWriteEvent() override;
     void HandleErrorEvent() override;
 
-    bool SendPacket(const void* , size_t , const SocketAddr* = nullptr);
+    bool SendPacket(const void*, size_t, const SocketAddr* = nullptr);
 
-    const SocketAddr& PeerAddr() const { return srcAddr_; }
+    const SocketAddr& PeerAddr() const {
+        return srcAddr_;
+    }
 
-    void SetMessageCallback(UDPMessageCallback mcb) { onMessage_ = std::move(mcb); }
-    void SetCreateCallback(UDPCreateCallback ccb) { onCreate_ = std::move(ccb); }
+    void SetMessageCallback(UDPMessageCallback mcb) {
+        onMessage_ = std::move(mcb);
+    }
+    void SetCreateCallback(UDPCreateCallback ccb) {
+        onCreate_ = std::move(ccb);
+    }
 
 private:
     void _PutSendBuf(const void* data, size_t size, const SocketAddr* dst);
@@ -46,13 +50,12 @@ private:
     std::size_t maxPacketSize_;
     SocketAddr srcAddr_;
 
-    struct Package
-    {
+    struct Package {
         SocketAddr dst;
         std::string data;
     };
     std::list<Package> sendList_;
-    
+
     UDPMessageCallback onMessage_;
     UDPCreateCallback onCreate_;
 };

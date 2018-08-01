@@ -7,91 +7,79 @@
 
 #include "AnanasDebug.h"
 
-namespace ananas
-{
-namespace internal
-{
+namespace ananas {
+namespace internal {
 
-namespace Epoll
-{
-    bool ModSocket(int epfd, int socket, uint32_t events, void* ptr);
+namespace Epoll {
+bool ModSocket(int epfd, int socket, uint32_t events, void* ptr);
 
-    bool AddSocket(int epfd, int socket, uint32_t events, void* ptr)
-    {
-        if (socket < 0)
-            return false;
+bool AddSocket(int epfd, int socket, uint32_t events, void* ptr) {
+    if (socket < 0)
+        return false;
 
-        epoll_event  ev;
-        ev.data.ptr= ptr;
-        ev.events = 0;
+    epoll_event  ev;
+    ev.data.ptr= ptr;
+    ev.events = 0;
 
-        if (events & eET_Read)
-            ev.events |= EPOLLIN;
-        if (events & eET_Write)
-            ev.events |= EPOLLOUT;
+    if (events & eET_Read)
+        ev.events |= EPOLLIN;
+    if (events & eET_Write)
+        ev.events |= EPOLLOUT;
 
-        return 0 == epoll_ctl(epfd, EPOLL_CTL_ADD, socket, &ev);
-    }
+    return 0 == epoll_ctl(epfd, EPOLL_CTL_ADD, socket, &ev);
+}
 
-    bool DelSocket(int epfd, int socket)
-    {
-        if (socket < 0)
-            return false;
+bool DelSocket(int epfd, int socket) {
+    if (socket < 0)
+        return false;
 
-        epoll_event dummy;
-        return 0 == epoll_ctl(epfd, EPOLL_CTL_DEL, socket, &dummy) ;
-    }
+    epoll_event dummy;
+    return 0 == epoll_ctl(epfd, EPOLL_CTL_DEL, socket, &dummy) ;
+}
 
-    bool ModSocket(int epfd, int socket, uint32_t events, void* ptr)
-    {
-        if (socket < 0)
-            return false;
+bool ModSocket(int epfd, int socket, uint32_t events, void* ptr) {
+    if (socket < 0)
+        return false;
 
-        epoll_event  ev;
-        ev.data.ptr= ptr;
-        ev.events = 0;
+    epoll_event  ev;
+    ev.data.ptr= ptr;
+    ev.events = 0;
 
-        if (events & eET_Read)
-            ev.events |= EPOLLIN;
-        if (events & eET_Write)
-            ev.events |= EPOLLOUT;
+    if (events & eET_Read)
+        ev.events |= EPOLLIN;
+    if (events & eET_Write)
+        ev.events |= EPOLLOUT;
 
-        return 0 == epoll_ctl(epfd, EPOLL_CTL_MOD, socket, &ev);
-    }
+    return 0 == epoll_ctl(epfd, EPOLL_CTL_MOD, socket, &ev);
+}
 }
 
 
-Epoller::Epoller()
-{
+Epoller::Epoller() {
     multiplexer_ = ::epoll_create(512);
     ANANAS_DBG << "create epoll: " << multiplexer_;
 }
 
-Epoller::~Epoller()
-{
-    if (multiplexer_ != -1)  
-    {
+Epoller::~Epoller() {
+    if (multiplexer_ != -1) {
         ANANAS_DBG << "close epoll:  " << multiplexer_;
         ::close(multiplexer_);
     }
 }
 
-bool Epoller::Register(int fd, int events, void* userPtr)
-{
+bool Epoller::Register(int fd, int events, void* userPtr) {
     if (Epoll::AddSocket(multiplexer_, fd, events, userPtr))
         return true;
 
     return (errno == EEXIST) && Modify(fd, events, userPtr);
 }
-    
-bool Epoller::Unregister(int fd, int events)
-{
+
+bool Epoller::Unregister(int fd, int events) {
     return Epoll::DelSocket(multiplexer_, fd);
 }
 
-   
-bool Epoller::Modify(int fd, int events, void* userPtr)
-{
+
+bool Epoller::Modify(int fd, int events, void* userPtr) {
     if (events == 0)
         return Unregister(fd, 0);
 
@@ -102,8 +90,7 @@ bool Epoller::Modify(int fd, int events, void* userPtr)
 }
 
 
-int Epoller::Poll(size_t maxEvent, int timeoutMs)
-{
+int Epoller::Poll(size_t maxEvent, int timeoutMs) {
     if (maxEvent == 0)
         return 0;
 
@@ -118,8 +105,7 @@ int Epoller::Poll(size_t maxEvent, int timeoutMs)
     if (nFired > 0)
         events.resize(nFired);
 
-    for (int i = 0; i < nFired; ++ i)
-    {
+    for (int i = 0; i < nFired; ++ i) {
         FiredEvent& fired = events[i];
         fired.events   = 0;
         fired.userdata = events_[i].data.ptr;
@@ -142,8 +128,7 @@ int Epoller::Poll(size_t maxEvent, int timeoutMs)
 
 #else
 
-void __Dummy__()
-{
+void __Dummy__() {
 }
 
 #endif

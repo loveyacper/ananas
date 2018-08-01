@@ -5,24 +5,21 @@
 #include "Socket.h"
 #include "Typedefs.h"
 
-namespace ananas
-{
-namespace internal
-{
+namespace ananas {
+namespace internal {
 
-class Acceptor : public Channel
-{
+class Acceptor : public Channel {
 public:
     explicit
     Acceptor(EventLoop* loop);
     ~Acceptor();
-    
+
     Acceptor(const Acceptor& ) = delete;
     void operator= (const Acceptor& ) = delete;
 
     void SetNewConnCallback(NewTcpConnCallback cb);
     bool Bind(const SocketAddr& addr);
-        
+
     int Identifier() const override;
     bool HandleReadEvent() override;
     bool HandleWriteEvent() override;

@@ -9,28 +9,23 @@
 #include "AnanasDebug.h"
 #include "util/Util.h"
 
-namespace ananas
-{
+namespace ananas {
 
 Connection::Connection(EventLoop* loop) :
     loop_(loop),
     localSock_(kInvalid),
     minPacketSize_(1),
-    sendBufHighWater_(10 * 1024 * 1024)
-{
+    sendBufHighWater_(10 * 1024 * 1024) {
 }
 
-Connection::~Connection()
-{
-    if (localSock_ != kInvalid)
-    {
+Connection::~Connection() {
+    if (localSock_ != kInvalid) {
         Shutdown(ShutdownMode::eSM_Both); // Force send FIN
         CloseSocket(localSock_);
     }
 }
 
-bool Connection::Init(int fd, const SocketAddr& peer)
-{
+bool Connection::Init(int fd, const SocketAddr& peer) {
     if (fd == kInvalid)
         return false;
 
@@ -44,8 +39,7 @@ bool Connection::Init(int fd, const SocketAddr& peer)
     return true;
 }
 
-void Connection::ActiveClose()
-{
+void Connection::ActiveClose() {
     if (localSock_ == kInvalid)
         return;
 
@@ -53,17 +47,14 @@ void Connection::ActiveClose()
     loop_->Modify(internal::eET_Write, shared_from_this());
 }
 
-void Connection::Shutdown(ShutdownMode mode)
-{
-    switch (mode)
-    {
+void Connection::Shutdown(ShutdownMode mode) {
+    switch (mode) {
     case ShutdownMode::eSM_Read:
         ::shutdown(localSock_, SHUT_RD);
         break;
 
     case ShutdownMode::eSM_Write:
-        if (!sendBuf_.Empty())
-        {
+        if (!sendBuf_.Empty()) {
             ANANAS_WRN << localSock_ << " shutdown write, but still has data to send";
             sendBuf_.Clear();
         }
@@ -72,8 +63,7 @@ void Connection::Shutdown(ShutdownMode mode)
         break;
 
     case ShutdownMode::eSM_Both:
-        if (!sendBuf_.Empty())
-        {
+        if (!sendBuf_.Empty()) {
             ANANAS_WRN << localSock_ << " shutdown both, but still has data to send";
             sendBuf_.Clear();
         }
@@ -83,27 +73,22 @@ void Connection::Shutdown(ShutdownMode mode)
     }
 }
 
-void Connection::SetNodelay(bool enable)
-{
+void Connection::SetNodelay(bool enable) {
     ananas::SetNodelay(localSock_, enable);
 }
 
-int Connection::Identifier() const
-{
+int Connection::Identifier() const {
     return localSock_;
 }
 
-bool Connection::HandleReadEvent()
-{
-    if (state_ != State::eS_Connected)
-    {
+bool Connection::HandleReadEvent() {
+    if (state_ != State::eS_Connected) {
         ANANAS_ERR << localSock_ << " HandleReadEvent error " << state_;
         return false;
     }
 
     bool busy = false;
-    while (true)
-    {
+    while (true) {
         recvBuf_.AssureSpace(4 * 1024);
         char stack[128 * 1024];
 
@@ -114,8 +99,7 @@ bool Connection::HandleReadEvent()
         vecs[1].iov_len = sizeof stack;
 
         int bytes = ::readv(localSock_, vecs, 2);
-        if (kError == bytes)
-        {
+        if (kError == bytes) {
             if (EAGAIN == errno || EWOULDBLOCK == errno)
                 return true;
 
@@ -123,15 +107,11 @@ bool Connection::HandleReadEvent()
                 continue; // restart ::readv
         }
 
-        if (0 == bytes)
-        {
+        if (0 == bytes) {
             ANANAS_WRN << localSock_ << " HandleReadEvent EOF ";
-            if (sendBuf_.Empty())
-            {
+            if (sendBuf_.Empty()) {
                 state_ = State::eS_PassiveClose;
-            }
-            else
-            {
+            } else {
                 state_ = State::eS_CloseWaitWrite;
                 loop_->Modify(internal::eET_Write, shared_from_this()); // disable ReadEvent
             }
@@ -139,35 +119,27 @@ bool Connection::HandleReadEvent()
             return false;
         }
 
-        if (bytes < 0)
-        {
+        if (bytes < 0) {
             ANANAS_ERR << localSock_ << " HandleReadEvent Error";
             state_ = State::eS_Error;
             return false;
         }
 
-        if (static_cast<size_t>(bytes) <= vecs[0].iov_len) 
-        {
+        if (static_cast<size_t>(bytes) <= vecs[0].iov_len) {
             recvBuf_.Produce(static_cast<size_t>(bytes));
-        }
-        else
-        {
+        } else {
             recvBuf_.Produce(vecs[0].iov_len);
 
             auto stackBytes = static_cast<size_t>(bytes) - vecs[0].iov_len;
             recvBuf_.PushData(stack, stackBytes);
         }
 
-        while (recvBuf_.ReadableSize() >= minPacketSize_)
-        {
+        while (recvBuf_.ReadableSize() >= minPacketSize_) {
             auto bytes = onMessage_(this, recvBuf_.ReadAddr(), recvBuf_.ReadableSize());
 
-            if (bytes == 0)
-            {
+            if (bytes == 0) {
                 break;
-            }
-            else
-            {
+            } else {
                 recvBuf_.Consume(bytes);
                 busy = true;
             }
@@ -181,14 +153,12 @@ bool Connection::HandleReadEvent()
 }
 
 
-int Connection::_Send(const void* data, size_t len)
-{
+int Connection::_Send(const void* data, size_t len) {
     if (len == 0)
         return 0;
 
     int  bytes = ::send(localSock_, data, len, 0);
-    if (kError == bytes)
-    {
+    if (kError == bytes) {
         if (EAGAIN == errno || EWOULDBLOCK == errno)
             bytes = 0;
 
@@ -196,8 +166,7 @@ int Connection::_Send(const void* data, size_t len)
             bytes = 0; // later try ::send
     }
 
-    if (kError == bytes)
-    {
+    if (kError == bytes) {
         ANANAS_ERR << localSock_ << " _Send Error";
         state_ = State::eS_Error;
     }
@@ -205,18 +174,15 @@ int Connection::_Send(const void* data, size_t len)
     return bytes;
 }
 
-namespace
-{
+namespace {
 int WriteV(int sock, const std::vector<iovec>& buffers);
 void ConsumeBufferVectors(BufferVector& buffers, size_t toSkippedBytes);
 void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVector& dst);
 }
 
-bool Connection::HandleWriteEvent()
-{
+bool Connection::HandleWriteEvent() {
     if (state_ != State::eS_Connected &&
-        state_ != State::eS_CloseWaitWrite)
-    {
+            state_ != State::eS_CloseWaitWrite) {
         ANANAS_ERR << localSock_ << " HandleWriteEvent wrong state " << state_;
         return false;
     }
@@ -225,11 +191,10 @@ bool Connection::HandleWriteEvent()
 
     size_t expectSend = 0;
     std::vector<iovec> iovecs;
-    for (auto& e : sendBuf_)
-    {
+    for (auto& e : sendBuf_) {
         assert (!e.IsEmpty());
 
-        iovec ivc; 
+        iovec ivc;
         ivc.iov_base = (void*)(e.ReadAddr());
         ivc.iov_len = e.ReadableSize();
 
@@ -238,8 +203,7 @@ bool Connection::HandleWriteEvent()
     }
 
     int ret = WriteV(localSock_, iovecs);
-    if (ret == kError)
-    {
+    if (ret == kError) {
         ANANAS_ERR << localSock_ << " HandleWriteEvent ERROR ";
         state_ = State::eS_Error;
         return false;
@@ -250,16 +214,14 @@ bool Connection::HandleWriteEvent()
     size_t alreadySent = static_cast<size_t>(ret);
     ConsumeBufferVectors(sendBuf_, alreadySent);
 
-    if (alreadySent == expectSend)
-    {
+    if (alreadySent == expectSend) {
         ANANAS_DBG << localSock_ << " HandleWriteEvent complete";
         loop_->Modify(internal::eET_Read, shared_from_this());
 
         if (onWriteComplete_)
             onWriteComplete_(this);
 
-        if (state_ == State::eS_CloseWaitWrite)
-        {
+        if (state_ == State::eS_CloseWaitWrite) {
             state_ = State::eS_PassiveClose;
             return false;
         }
@@ -268,12 +230,10 @@ bool Connection::HandleWriteEvent()
     return true;
 }
 
-void  Connection::HandleErrorEvent()
-{
+void  Connection::HandleErrorEvent() {
     ANANAS_ERR << localSock_ << " HandleErrorEvent " << state_;
 
-    switch (state_)
-    {
+    switch (state_) {
     case State::eS_PassiveClose:
     case State::eS_ActiveClose:
     case State::eS_Error:
@@ -289,7 +249,7 @@ void  Connection::HandleErrorEvent()
 
     state_ = State::eS_Closed;
 
-    if (onDisconnect_) 
+    if (onDisconnect_)
         onDisconnect_(this);
 
     if (onConnFail_)
@@ -298,45 +258,39 @@ void  Connection::HandleErrorEvent()
     loop_->Unregister(internal::eET_Read | internal::eET_Write, shared_from_this());
 }
 
-bool Connection::SendPacket(const void* data, std::size_t size)
-{
+bool Connection::SendPacket(const void* data, std::size_t size) {
     assert (loop_->IsInSameLoop());
 
     if (size == 0)
         return true;
 
     if (state_ != State::eS_Connected &&
-        state_ != State::eS_CloseWaitWrite)
+            state_ != State::eS_CloseWaitWrite)
         return false;
 
     const size_t oldSendBytes = sendBuf_.TotalBytes();
-    ANANAS_DEFER
-    {
+    ANANAS_DEFER {
         size_t nowSendBytes = sendBuf_.TotalBytes();
         if (oldSendBytes < sendBufHighWater_ &&
-            nowSendBytes >= sendBufHighWater_)
-        {
+                nowSendBytes >= sendBufHighWater_) {
             if (onWriteHighWater)
                 onWriteHighWater(this, nowSendBytes);
         }
     };
 
-    if (oldSendBytes > 0)
-    {
+    if (oldSendBytes > 0) {
         sendBuf_.PushBack(Buffer(data, size));
         return true;
     }
-        
+
     auto bytes = _Send(data, size);
-    if (bytes == kError)
-    {
+    if (bytes == kError) {
         state_ = State::eS_Error;
         loop_->Modify(internal::eET_Write, shared_from_this());
         return false;
     }
 
-    if (bytes < static_cast<int>(size))
-    {
+    if (bytes < static_cast<int>(size)) {
         ANANAS_WRN << localSock_
                    << " want send "
                    << size
@@ -344,9 +298,7 @@ bool Connection::SendPacket(const void* data, std::size_t size)
                    << bytes;
         sendBuf_.PushBack(Buffer((char*)data + bytes, size - static_cast<std::size_t>(bytes)));
         loop_->Modify(internal::eET_Read | internal::eET_Write, shared_from_this());
-    }
-    else
-    {
+    } else {
         if (onWriteComplete_)
             onWriteComplete_(this);
     }
@@ -354,33 +306,27 @@ bool Connection::SendPacket(const void* data, std::size_t size)
     return true;
 }
 
-bool Connection::SendPacket(const std::string& data)
-{
+bool Connection::SendPacket(const std::string& data) {
     return SendPacket(data.data(), data.size());
 }
 
-bool Connection::SendPacket(const Buffer& data)
-{
+bool Connection::SendPacket(const Buffer& data) {
     return SendPacket(const_cast<Buffer&>(data).ReadAddr(), data.ReadableSize());
 }
 
 // iovec for writev
-namespace
-{
+namespace {
 
-int WriteV(int sock, const std::vector<iovec>& buffers)
-{
+int WriteV(int sock, const std::vector<iovec>& buffers) {
     const int kIOVecCount = 64; // be care of IOV_MAX
 
     size_t sentVecs = 0;
     size_t sentBytes = 0;
-    while (sentVecs < buffers.size())
-    {
+    while (sentVecs < buffers.size()) {
         const int vc = std::min<int>(buffers.size() - sentVecs, kIOVecCount);
 
         int expectBytes = 0;
-        for (size_t i = sentVecs; i < sentVecs + vc; ++ i)
-        {
+        for (size_t i = sentVecs; i < sentVecs + vc; ++ i) {
             expectBytes += static_cast<int>(buffers[i].iov_len);
         }
 
@@ -388,8 +334,7 @@ int WriteV(int sock, const std::vector<iovec>& buffers)
         int bytes = static_cast<int>(::writev(sock, &buffers[sentVecs], vc));
         assert (bytes != 0);
 
-        if (kError == bytes)
-        {
+        if (kError == bytes) {
             assert (errno != EINVAL);
 
             if (EAGAIN == errno || EWOULDBLOCK == errno)
@@ -399,9 +344,7 @@ int WriteV(int sock, const std::vector<iovec>& buffers)
                 continue; // retry
 
             return kError;  // can not send any more
-        }
-        else
-        {
+        } else {
             assert (bytes > 0);
             sentBytes += bytes;
             if (bytes == expectBytes)
@@ -414,22 +357,16 @@ int WriteV(int sock, const std::vector<iovec>& buffers)
     return sentBytes;
 }
 
-void ConsumeBufferVectors(BufferVector& buffers, size_t toSkippedBytes)
-{
+void ConsumeBufferVectors(BufferVector& buffers, size_t toSkippedBytes) {
     size_t skippedVecs = 0;
-    for (auto& e : buffers)
-    {
+    for (auto& e : buffers) {
         assert (e.ReadableSize() > 0);
 
-        if (toSkippedBytes >= e.ReadableSize())
-        {
+        if (toSkippedBytes >= e.ReadableSize()) {
             toSkippedBytes -= e.ReadableSize();
             ++ skippedVecs;
-        }
-        else
-        {
-            if (toSkippedBytes > 0)
-            {
+        } else {
+            if (toSkippedBytes > 0) {
                 e.Consume(toSkippedBytes);
                 buffers.totalBytes -= toSkippedBytes;
             }
@@ -442,18 +379,13 @@ void ConsumeBufferVectors(BufferVector& buffers, size_t toSkippedBytes)
         buffers.PopFront();
 }
 
-void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVector& dst)
-{
-    for (auto e : buffers)
-    {
-        if (skipped >= e.iov_len)
-        {
+void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVector& dst) {
+    for (auto e : buffers) {
+        if (skipped >= e.iov_len) {
             skipped -= e.iov_len;
-        }
-        else
-        {
+        } else {
             dst.PushBack(Buffer((char*)e.iov_base + skipped, e.iov_len - skipped));
-                
+
             if (skipped != 0)
                 skipped = 0;
         }
@@ -462,42 +394,35 @@ void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVect
 
 } // end namespace
 
-bool Connection::SendPacket(const BufferVector& data)
-{
+bool Connection::SendPacket(const BufferVector& data) {
     if (state_ != State::eS_Connected &&
-        state_ != State::eS_CloseWaitWrite)
+            state_ != State::eS_CloseWaitWrite)
         return false;
 
     SliceVector s;
-    for (const auto& d : data)
-    {
+    for (const auto& d : data) {
         s.PushBack(const_cast<Buffer&>(d).ReadAddr(), d.ReadableSize());
     }
 
     return SendPacket(s);
 }
 
-bool Connection::SendPacket(const SliceVector& slices)
-{
+bool Connection::SendPacket(const SliceVector& slices) {
     if (slices.Empty())
         return true;
 
     const size_t oldSendBytes = sendBuf_.TotalBytes();
-    ANANAS_DEFER
-    {
+    ANANAS_DEFER {
         size_t nowSendBytes = sendBuf_.TotalBytes();
         if (oldSendBytes < sendBufHighWater_ &&
-            nowSendBytes >= sendBufHighWater_)
-        {
+                nowSendBytes >= sendBufHighWater_) {
             if (onWriteHighWater)
                 onWriteHighWater(this, nowSendBytes);
         }
     };
 
-    if (oldSendBytes > 0)
-    {
-        for (const auto& e : slices)
-        {
+    if (oldSendBytes > 0) {
+        for (const auto& e : slices) {
             sendBuf_.PushBack(Buffer(e.data, e.len));
         }
 
@@ -506,12 +431,11 @@ bool Connection::SendPacket(const SliceVector& slices)
 
     size_t expectSend = 0;
     std::vector<iovec> iovecs;
-    for (const auto& e : slices)
-    {
+    for (const auto& e : slices) {
         if (e.len == 0)
             continue;
 
-        iovec ivc; 
+        iovec ivc;
         ivc.iov_base = const_cast<void*>(e.data);
         ivc.iov_len = e.len;
 
@@ -520,8 +444,7 @@ bool Connection::SendPacket(const SliceVector& slices)
     }
 
     int ret = WriteV(localSock_, iovecs);
-    if (ret == kError)
-    {
+    if (ret == kError) {
         state_ = State::eS_Error;
         loop_->Modify(internal::eET_Write, shared_from_this());
         return false;
@@ -530,13 +453,10 @@ bool Connection::SendPacket(const SliceVector& slices)
     assert (ret >= 0);
 
     size_t alreadySent = static_cast<size_t>(ret);
-    if (alreadySent < expectSend)
-    {
+    if (alreadySent < expectSend) {
         CollectBuffer(iovecs, alreadySent, sendBuf_);
         loop_->Modify(internal::eET_Read | internal::eET_Write, shared_from_this());
-    }
-    else
-    {
+    } else {
         if (onWriteComplete_)
             onWriteComplete_(this);
     }
@@ -544,23 +464,19 @@ bool Connection::SendPacket(const SliceVector& slices)
     return true;
 }
 
-void Connection::SetOnConnect(std::function<void (Connection* )> cb)
-{
+void Connection::SetOnConnect(std::function<void (Connection* )> cb) {
     onConnect_ = std::move(cb);
 }
 
-void Connection::SetOnDisconnect(std::function<void (Connection* )> cb)
-{
+void Connection::SetOnDisconnect(std::function<void (Connection* )> cb) {
     onDisconnect_ = std::move(cb);
 }
 
-void Connection::SetOnMessage(TcpMessageCallback cb)
-{
+void Connection::SetOnMessage(TcpMessageCallback cb) {
     onMessage_ = std::move(cb);
 }
 
-void Connection::_OnConnect()
-{
+void Connection::_OnConnect() {
     if (state_ != State::eS_Connected)
         return;
 
@@ -568,38 +484,31 @@ void Connection::_OnConnect()
         onConnect_(this);
 }
 
-void Connection::SetFailCallback(TcpConnFailCallback cb)
-{
+void Connection::SetFailCallback(TcpConnFailCallback cb) {
     onConnFail_ = std::move(cb);
 }
 
-void Connection::SetOnWriteComplete(TcpWriteCompleteCallback wccb)
-{
+void Connection::SetOnWriteComplete(TcpWriteCompleteCallback wccb) {
     onWriteComplete_ = std::move(wccb);
 }
 
-void Connection::SetMinPacketSize(size_t s)
-{
+void Connection::SetMinPacketSize(size_t s) {
     minPacketSize_ = s;
 }
 
-void Connection::SetWriteHighWater(size_t s)
-{
+void Connection::SetWriteHighWater(size_t s) {
     sendBufHighWater_ = s;
 }
 
-void Connection::SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb)
-{
+void Connection::SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb) {
     onWriteHighWater = std::move(whwcb);
 }
 
-void Connection::SetUserData(std::shared_ptr<void> user)
-{
+void Connection::SetUserData(std::shared_ptr<void> user) {
     userData_ = std::move(user);
 }
 
-size_t Connection::GetMinPacketSize() const
-{
+size_t Connection::GetMinPacketSize() const {
     return minPacketSize_;
 }
 

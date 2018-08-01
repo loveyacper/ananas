@@ -9,11 +9,9 @@
 #include <iostream>
 #endif
 
-namespace ananas
-{
+namespace ananas {
 
-class ConfigParser
-{
+class ConfigParser {
 public:
     bool Load(const char* FileName);
 
@@ -21,11 +19,9 @@ public:
     T GetData(const char* key, const T& default_ = T()) const;
 
 #ifdef CONFIG_DEBUG
-    void Print()
-    {
+    void Print() {
         std::cout << "//////////////////"<< std::endl;
-        for (const auto& kv : data_)
-        {
+        for (const auto& kv : data_) {
             std::cout << kv.first << ":" << kv.second << "\n";
         }
     }
@@ -33,7 +29,7 @@ public:
 
 private:
     typedef std::map<std::string, std::string> Data;
-    
+
     Data data_;
 
     template <typename T>
@@ -42,8 +38,7 @@ private:
 
 
 template <typename T>
-inline T ConfigParser::_ToType(const std::string& data) const
-{
+inline T ConfigParser::_ToType(const std::string& data) const {
     T t;
     std::istringstream os(data);
     os >> t;
@@ -51,21 +46,18 @@ inline T ConfigParser::_ToType(const std::string& data) const
 }
 
 template <>
-inline const char* ConfigParser::_ToType<const char* >(const std::string& data) const
-{
+inline const char* ConfigParser::_ToType<const char* >(const std::string& data) const {
     return data.c_str();
 }
 
 template <>
-inline std::string ConfigParser::_ToType<std::string>(const std::string& data) const
-{
+inline std::string ConfigParser::_ToType<std::string>(const std::string& data) const {
     return data;
 }
 
 
 template <typename T>
-inline T ConfigParser::GetData(const char* key, const T& default_) const
-{
+inline T ConfigParser::GetData(const char* key, const T& default_) const {
     auto it = data_.find(key);
     if (it == data_.end())
         return default_;

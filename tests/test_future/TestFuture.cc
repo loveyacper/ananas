@@ -7,20 +7,17 @@
 using namespace ananas;
 
 template <typename Type>
-Type ThreadFunc()
-{
+Type ThreadFunc() {
     std::cout << "SetValue 10\n";
     Type v = 10;
     return v;
 }
 
-void ThreadFuncV()
-{
+void ThreadFuncV() {
     std::cout << "SetValue Void\n";
 }
 
-int main(int ac, char* av[])
-{
+int main(int ac, char* av[]) {
     std::cout << "main id " << std::this_thread::get_id() << std::endl;
     auto& app = Application::Instance();
     auto& loop = *app.BaseLoop();
@@ -52,12 +49,12 @@ int main(int ac, char* av[])
     std::cout << "BEGIN LOOP" << std::endl;
 
     loop.ScheduleAfterWithRepeat<ananas::kForever>(std::chrono::seconds(1), []() {
-            printf("every 1 second\n");
-            });
+        printf("every 1 second\n");
+    });
 
     app.Run(ac, av);
     tpool.JoinAll();
-            
+
     return 0;
 }
 

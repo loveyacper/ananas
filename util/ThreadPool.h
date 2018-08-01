@@ -9,18 +9,16 @@
 #include <condition_variable>
 #include "ananas/future/Future.h"
 
-namespace ananas
-{
+namespace ananas {
 
-class ThreadPool final
-{
+class ThreadPool final {
 public:
     ThreadPool();
     ~ThreadPool();
-    
+
     ThreadPool(const ThreadPool& ) = delete;
     void operator=(const ThreadPool& ) = delete;
-    
+
     // F return non-void
     template <typename F, typename... Args,
               typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type, typename Dummy = void>
@@ -30,31 +28,31 @@ public:
     template <typename F, typename... Args,
               typename = typename std::enable_if<std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type>
     auto Execute(F&& f, Args&&... args) -> Future<void>;
-    
+
     void JoinAll();
     void SetMaxIdleThreads(unsigned int );
     void SetMaxThreads(unsigned int );
-    
+
 private:
     void _SpawnWorker();
     void _WorkerRoutine();
     void _MonitorRoutine();
-    
+
     std::thread monitor_;
     std::atomic<unsigned> maxThreads_;
     std::atomic<unsigned> currentThreads_;
     std::atomic<unsigned> maxIdleThreads_;
     std::atomic<unsigned> pendingStopSignal_;
-    
+
     static thread_local bool working_;
     std::deque<std::thread> workers_;
-    
+
     std::mutex mutex_;
     std::condition_variable cond_;
     unsigned waiters_;
     bool shutdown_;
     std::deque<std::function<void ()> > tasks_;
-    
+
     static const int kMaxThreads = 1024;
     static std::thread::id s_mainThread;
 };
@@ -62,10 +60,9 @@ private:
 
 // if F return something
 template <typename F, typename... Args, typename, typename >
-auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type>
-{
+auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type> {
     using resultType = typename std::result_of<F (Args...)>::type;
-    
+
     std::unique_lock<std::mutex> guard(mutex_);
     if (shutdown_)
         return MakeReadyFuture<resultType>(resultType());
@@ -77,8 +74,7 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_o
     auto task = [t = std::move(innerTask), promise = std::move(promise)]() mutable {
         try {
             promise.SetValue(Try<resultType>(t()));
-        }
-        catch(...) {
+        } catch(...) {
             promise.SetException(std::current_exception());
         }
     };
@@ -89,17 +85,16 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_o
 
     guard.unlock();
     cond_.notify_one();
-    
+
     return future;
 }
 
 // F return void
 template <typename F, typename... Args, typename >
-auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void>
-{
+auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void> {
     using resultType = typename std::result_of<F (Args...)>::type;
     static_assert(std::is_void<resultType>::value, "must be void");
-    
+
     std::unique_lock<std::mutex> guard(mutex_);
     if (shutdown_)
         return MakeReadyFuture();
@@ -112,8 +107,7 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void>
         try {
             t();
             promise.SetValue();
-        }
-        catch(...) {
+        } catch(...) {
             promise.SetException(std::current_exception());
         }
     };
@@ -121,10 +115,10 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void>
     tasks_.emplace_back(std::move(task));
     if (waiters_ == 0 && currentThreads_ < maxThreads_)
         _SpawnWorker();
-    
+
     guard.unlock();
     cond_.notify_one();
-    
+
     return future;
 }
 

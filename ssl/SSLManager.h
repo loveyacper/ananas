@@ -10,14 +10,11 @@ typedef struct ssl_ctx_st SSL_CTX;
 struct ssl_method_st;
 typedef struct ssl_method_st SSL_METHOD;
 
-namespace ananas
-{
+namespace ananas {
 
-namespace ssl
-{
+namespace ssl {
 
-class SSLManager
-{
+class SSLManager {
 public:
     static SSLManager& Instance();
     static void GlobalInit();
@@ -25,8 +22,8 @@ public:
     ~SSLManager();
 
     bool AddCtx(const std::string& name,
-                const std::string& cafile, 
-                const std::string& certfile, 
+                const std::string& cafile,
+                const std::string& certfile,
                 const std::string& keyfile);
 
     SSL_CTX* GetCtx(const std::string& name) const;

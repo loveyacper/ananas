@@ -13,19 +13,16 @@
 #include "ananas/util/StringView.h"
 #include "ananas/future/Future.h"
 
-namespace ananas
-{
+namespace ananas {
 
 class Application;
 
-namespace rpc
-{
+namespace rpc {
 
 class Service;
 class ServiceStub;
 
-class Server
-{
+class Server {
 public:
     Server();
     static Server& Instance();
@@ -74,8 +71,7 @@ private:
 
 #define RPC_SERVER ::ananas::rpc::Server::Instance()
 
-namespace
-{
+namespace {
 
 // internal use
 template <typename RSP>
@@ -95,8 +91,7 @@ template <typename RSP>
 Future<ananas::Try<RSP>> Call(const ananas::StringView& service,
                               const ananas::StringView& method,
                               const std::shared_ptr<::google::protobuf::Message>& reqCopy,
-                              const Endpoint& ep = Endpoint::default_instance())
-{
+const Endpoint& ep = Endpoint::default_instance()) {
     // 1. find service stub
     auto stub = RPC_SERVER.GetServiceStub(service);
     if (!stub)
@@ -109,8 +104,7 @@ template <typename RSP>
 Future<ananas::Try<RSP>> Call(const ananas::StringView& service,
                               const ananas::StringView& method,
                               const ::google::protobuf::Message& req,
-                              const Endpoint& ep = Endpoint::default_instance())
-{
+const Endpoint& ep = Endpoint::default_instance()) {
     // 1. find service stub
     auto stub = RPC_SERVER.GetServiceStub(service);
     if (!stub)
@@ -123,28 +117,26 @@ Future<ananas::Try<RSP>> Call(const ananas::StringView& service,
     return _InnerCall<RSP>(stub, method, reqCopy, ep);
 }
 
-namespace
-{
+namespace {
 
 // internal use
 template <typename RSP>
 Future<ananas::Try<RSP>> _InnerCall(ananas::rpc::ServiceStub* stub,
                                     const ananas::StringView& method,
                                     const std::shared_ptr<::google::protobuf::Message>& reqCopy,
-                                    const Endpoint& ep)
-{
+const Endpoint& ep) {
     // select one channel and invoke method via it
     auto channelFuture = stub->GetChannel(ep);
 
     // The channelFuture need not to set timeout, because the TCP connect already set timeout
     return channelFuture.Then([method, reqCopy](ananas::Try<ClientChannel*>&& chan) {
-                              try {
-                                  ClientChannel* channel = chan.Value();
-                                  return channel->Invoke<RSP>(method, reqCopy);
-                              } catch(...) {
-                                  return MakeExceptionFuture<ananas::Try<RSP>>(std::current_exception());
-                              }
-                          });
+        try {
+            ClientChannel* channel = chan.Value();
+            return channel->Invoke<RSP>(method, reqCopy);
+        } catch(...) {
+            return MakeExceptionFuture<ananas::Try<RSP>>(std::current_exception());
+        }
+    });
 }
 
 } // end namespace

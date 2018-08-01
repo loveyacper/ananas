@@ -7,16 +7,13 @@
 #include <vector>
 #include "Poller.h"
 
-namespace ananas
-{
-namespace internal
-{
+namespace ananas {
+namespace internal {
 
-class Epoller : public Poller
-{
+class Epoller : public Poller {
 public:
     Epoller();
-   ~Epoller();
+    ~Epoller();
 
     Epoller(const Epoller& ) = delete;
     void operator= (const Epoller& ) = delete;

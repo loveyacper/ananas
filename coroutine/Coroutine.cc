@@ -3,8 +3,7 @@
 #include <string>
 #include "Coroutine.h"
 
-namespace ananas
-{
+namespace ananas {
 
 unsigned int Coroutine::sid_ = 0;
 Coroutine Coroutine::main_;
@@ -13,10 +12,8 @@ Coroutine* Coroutine::current_ = nullptr;
 Coroutine::Coroutine(std::size_t size) :
     id_( ++ sid_),
     state_(State::Init),
-    stack_(size > kDefaultStackSize ? size : kDefaultStackSize)
-{
-    if (this == &main_)
-    {
+    stack_(size > kDefaultStackSize ? size : kDefaultStackSize) {
+    if (this == &main_) {
         std::vector<char>().swap(stack_);
         return;
     }
@@ -34,12 +31,10 @@ Coroutine::Coroutine(std::size_t size) :
     ::makecontext(&handle_, reinterpret_cast<void (*)(void)>(&Coroutine::_Run), 1, this);
 }
 
-Coroutine::~Coroutine()
-{
+Coroutine::~Coroutine() {
 }
 
-AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
-{
+AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param) {
     assert (crt);
 
     assert(this == current_);
@@ -47,8 +42,7 @@ AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
 
     current_ = crt;
 
-    if (param)
-    {
+    if (param) {
         // just behave like python's generator
         if (crt->state_ == State::Init && crt != &Coroutine::main_)
             throw std::runtime_error("Can't send non-void value to a just-created coroutine");
@@ -58,8 +52,7 @@ AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
     }
 
     int ret = ::swapcontext(&handle_, &crt->handle_);
-    if (ret != 0)
-    {
+    if (ret != 0) {
         perror("FATAL ERROR: swapcontext");
         throw std::runtime_error("FATAL ERROR: swapcontext failed");
     }
@@ -67,13 +60,11 @@ AnyPointer Coroutine::_Send(Coroutine* crt, AnyPointer param)
     return std::move(crt->yieldValue_); // only return once
 }
 
-AnyPointer Coroutine::_Yield(const AnyPointer& param)
-{
+AnyPointer Coroutine::_Yield(const AnyPointer& param) {
     return _Send(&main_, param);
 }
 
-void Coroutine::_Run(Coroutine* crt)
-{
+void Coroutine::_Run(Coroutine* crt) {
     assert (&Coroutine::main_ != crt);
     assert (Coroutine::current_ == crt);
 
@@ -86,29 +77,24 @@ void Coroutine::_Run(Coroutine* crt)
     crt->_Yield(crt->result_);
 }
 
-AnyPointer Coroutine::Send(const CoroutinePtr& crt, AnyPointer param)
-{
-    if (crt->state_ == Coroutine::State::Finish)
-    {
+AnyPointer Coroutine::Send(const CoroutinePtr& crt, AnyPointer param) {
+    if (crt->state_ == Coroutine::State::Finish) {
         throw std::runtime_error("Send to a finished coroutine.");
         return AnyPointer();
     }
 
-    if (!Coroutine::current_)
-    {
+    if (!Coroutine::current_) {
         Coroutine::current_ = &Coroutine::main_;
     }
 
     return Coroutine::current_->_Send(crt.get(), param);
 }
 
-AnyPointer Coroutine::Yield(const AnyPointer& param)
-{
+AnyPointer Coroutine::Yield(const AnyPointer& param) {
     return Coroutine::current_->_Yield(param);
 }
 
-AnyPointer Coroutine::Next(const CoroutinePtr& crt)
-{
+AnyPointer Coroutine::Next(const CoroutinePtr& crt) {
     return Coroutine::Send(crt);
 }
 

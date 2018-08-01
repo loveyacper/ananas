@@ -13,8 +13,7 @@
 const char* Strstr(const char* ptr, size_t nBytes, const char* pattern, size_t nBytes2);
 const char* SearchCRLF(const char* ptr, size_t nBytes);
 
-enum ResponseType
-{
+enum ResponseType {
     None,
     Fine,
     Error,
@@ -22,25 +21,22 @@ enum ResponseType
 };
 
 
-// Build redis request from multiple strings, use inline protocol 
+// Build redis request from multiple strings, use inline protocol
 template <typename... Args>
 std::string BuildRedisRequest(Args&& ...);
 
 template <typename S>
-std::string BuildRedisRequest(S&& s)
-{
+std::string BuildRedisRequest(S&& s) {
     return std::string(std::forward<S>(s)) + "\r\n";
 }
 
 template <typename H, typename... T>
-std::string BuildRedisRequest(H&& head, T&&... tails)
-{
+std::string BuildRedisRequest(H&& head, T&&... tails) {
     std::string h(std::forward<H>(head));
     return h + " " + BuildRedisRequest(std::forward<T>(tails)...);
 }
 
-class RedisContext
-{
+class RedisContext {
 public:
     explicit
     RedisContext(ananas::Connection* conn);
@@ -57,8 +53,7 @@ public:
 private:
     ananas::Connection* hostConn_;
 
-    struct Request
-    {
+    struct Request {
         std::vector<std::string> request;
         ananas::Promise<std::pair<ResponseType, std::string> > promise;
 

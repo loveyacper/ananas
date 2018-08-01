@@ -7,16 +7,13 @@
 #include <sys/event.h>
 #include "Poller.h"
 
-namespace ananas
-{
-namespace internal
-{
+namespace ananas {
+namespace internal {
 
-class Kqueue : public Poller
-{
+class Kqueue : public Poller {
 public:
     Kqueue();
-   ~Kqueue();
+    ~Kqueue();
 
     bool Register(int fd, int events, void* userPtr) override;
     bool Modify(int fd, int events, void* userPtr) override;
@@ -25,7 +22,7 @@ public:
     int Poll(std::size_t maxEvent, int timeoutMs) override;
 
 private:
-    std::vector<struct kevent> events_;    
+    std::vector<struct kevent> events_;
 };
 
 } // end namespace internal

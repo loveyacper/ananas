@@ -6,21 +6,17 @@
 #include "Typedefs.h"
 #include "ananas/util/Timer.h"
 
-namespace ananas
-{
-namespace internal
-{
+namespace ananas {
+namespace internal {
 
-enum class ConnectState
-{
+enum class ConnectState {
     none,
     connecting,
     connected,
     failed,
 };
 
-class Connector : public Channel
-{
+class Connector : public Channel {
 public:
     explicit
     Connector(EventLoop* loop);
@@ -38,7 +34,9 @@ public:
     bool HandleWriteEvent() override;
     void HandleErrorEvent() override;
 
-    ConnectState State() const { return state_; }
+    ConnectState State() const {
+        return state_;
+    }
 
 private:
     void _OnSuccess();

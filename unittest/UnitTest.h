@@ -5,20 +5,23 @@
 #include <sstream>
 #include <vector>
 
-class  UnitTestBase
-{
+class  UnitTestBase {
 public:
     friend class MsgHelper;
 
     UnitTestBase();
     virtual ~UnitTestBase() {}
     // stack only, no need virtual destructor, but the warning...
-    
-    const std::string& GetName() const { return name_; }
-    
+
+    const std::string& GetName() const {
+        return name_;
+    }
+
     virtual void Run() = 0;
 
-    bool  IsFine() const { return errors_.empty(); }
+    bool  IsFine() const {
+        return errors_.empty();
+    }
     void  Print() const;
 
     template <typename T>
@@ -30,13 +33,13 @@ protected:
 
 private:
     void FlushError();
-    
+
     bool pass_;
     bool abort_;
 
     std::string expr_;
     std::vector<std::string> errors_;
-    
+
 private:
     UnitTestBase(const UnitTestBase& ) = delete;
     UnitTestBase& operator= (const UnitTestBase& ) = delete;
@@ -45,10 +48,8 @@ private:
 };
 
 template <typename T>
-inline UnitTestBase& UnitTestBase::operator<< (const T&  t)
-{
-    if (!pass_)
-    {
+inline UnitTestBase& UnitTestBase::operator<< (const T&  t) {
+    if (!pass_) {
         std::ostringstream  str;
         str << t;
         expr_ += str.str();
@@ -57,11 +58,9 @@ inline UnitTestBase& UnitTestBase::operator<< (const T&  t)
     return *this;
 }
 
-class MsgHelper 
-{
+class MsgHelper {
 public:
-    void operator=(UnitTestBase& test)
-    {
+    void operator=(UnitTestBase& test) {
         test.FlushError();
     }
 };
@@ -94,8 +93,7 @@ public:
 
 
 
-class UnitTestManager
-{
+class UnitTestManager {
 public:
     static UnitTestManager& Instance();
 
@@ -104,7 +102,7 @@ public:
     void Run();
 private:
     UnitTestManager() {}
-    
+
     std::vector<UnitTestBase* > tests_;
 };
 

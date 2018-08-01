@@ -1,37 +1,31 @@
 #include <cstring>
 #include "TimeUtil.h"
 
-namespace ananas
-{
+namespace ananas {
 
-Time::Time() : valid_(false)
-{
+Time::Time() : valid_(false) {
     this->Now();
 }
 
-int64_t Time::MilliSeconds() const
-{
+int64_t Time::MilliSeconds() const {
     return std::chrono::duration_cast<std::chrono::milliseconds>(now_.time_since_epoch()).count();
 }
 
-int64_t Time::MicroSeconds() const
-{
+int64_t Time::MicroSeconds() const {
     return std::chrono::duration_cast<std::chrono::microseconds>(now_.time_since_epoch()).count();
 }
 
-void Time::Now()
-{
+void Time::Now() {
     now_ = std::chrono::system_clock::now();
     valid_ = false;
 }
 
-void Time::_UpdateTm()  const
-{
+void Time::_UpdateTm()  const {
     // lazy compute
-    if (valid_)  
+    if (valid_)
         return;
 
-    valid_ = true; 
+    valid_ = true;
     const time_t now(MilliSeconds() / 1000UL);
     ::localtime_r(&now, &tm_);
 }
@@ -52,22 +46,19 @@ const char* Time::YEAR[] = {
 
 char Time::NUMBER[60][2] = {""};
 
-void Time::Init() 
-{
-    for (size_t i = 0; i < sizeof NUMBER / sizeof NUMBER[0]; ++ i)
-    {
-        char tmp[3]; 
+void Time::Init() {
+    for (size_t i = 0; i < sizeof NUMBER / sizeof NUMBER[0]; ++ i) {
+        char tmp[3];
         snprintf(tmp, 3, "%02d", static_cast<int>(i));
         memcpy(NUMBER[i], tmp, 2);
     }
 }
 
-std::size_t Time::FormatTime(char* buf) const
-{
+std::size_t Time::FormatTime(char* buf) const {
     std::call_once(init_, &Time::Init);
 
     _UpdateTm();
-    
+
     memcpy(buf, YEAR[tm_.tm_year + 1900 - 2015], 4);
     buf[4] = '-';
     memcpy(buf + 5, NUMBER[tm_.tm_mon + 1], 2);
@@ -82,7 +73,7 @@ std::size_t Time::FormatTime(char* buf) const
     buf[19] = '.';
     auto msec = MicroSeconds();
     snprintf(buf + 20, 8, "%06d]", static_cast<int>(msec % 1000000));
-    
+
     return 27;
 }
 

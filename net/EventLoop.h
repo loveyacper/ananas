@@ -13,20 +13,17 @@
 #include "ananas/util/Scheduler.h"
 #include "ananas/future/Future.h"
 
-namespace ananas
-{
+namespace ananas {
 
 struct SocketAddr;
 
-namespace internal
-{
+namespace internal {
 class Connector;
 class EventLoopGroup;
 //class PipeChannel;
 }
 
-class EventLoop : public Scheduler
-{
+class EventLoop : public Scheduler {
 public:
     explicit
     EventLoop(internal::EventLoopGroup* group);
@@ -53,7 +50,7 @@ public:
                          UDPCreateCallback ccb);
 
 
-    // connector 
+    // connector
     bool Connect(const SocketAddr& dst,
                  NewTcpConnCallback nccb,
                  TcpConnFailCallback cfcb,
@@ -95,11 +92,17 @@ public:
     bool Modify(int events, std::shared_ptr<internal::Channel> src);
     void Unregister(int events, std::shared_ptr<internal::Channel> src);
 
-    std::size_t Size() const { return channelSet_.size(); }
+    std::size_t Size() const {
+        return channelSet_.size();
+    }
     bool IsInSameLoop() const;
-    internal::EventLoopGroup* Parent() const { return group_; }
+    internal::EventLoopGroup* Parent() const {
+        return group_;
+    }
 
-    int Id() const { return id_; }
+    int Id() const {
+        return id_;
+    }
 
     static EventLoop* GetCurrentEventLoop();
 
@@ -115,7 +118,7 @@ private:
 
     // channelSet_ must be destructed before timers_
     std::map<unsigned int, std::shared_ptr<internal::Channel> > channelSet_;
-        
+
     std::mutex fctrMutex_;
     std::vector<std::function<void ()> > functors_;
 
@@ -130,48 +133,41 @@ private:
 
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
-TimerId EventLoop::ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args)
-{
+TimerId EventLoop::ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args) {
     // not thread-safe for now, consider use future.
     assert (IsInSameLoop());
     return timers_.ScheduleAtWithRepeat<RepeatCount>(triggerTime,
-                                                     period,
-                                                     std::forward<F>(f),
-                                                     std::forward<Args>(args)...);
+            period,
+            std::forward<F>(f),
+            std::forward<Args>(args)...);
 }
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
-TimerId EventLoop::ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args)
-{
+TimerId EventLoop::ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args) {
     // not thread-safe for now, consider use future.
     assert (IsInSameLoop());
     return timers_.ScheduleAfterWithRepeat<RepeatCount>(period,
-                                                        std::forward<F>(f),
-                                                        std::forward<Args>(args)...);
+            std::forward<F>(f),
+            std::forward<Args>(args)...);
 }
 
 // if F return something not void and Future
 // or if F return Future
 template <typename F, typename... Args, typename, typename >
-auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type>
-{
+auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type> {
     using resultType = typename std::result_of<F (Args...)>::type;
 
     Promise<resultType> promise;
     auto future = promise.GetFuture();
 
-    if (IsInSameLoop())
-    {
+    if (IsInSameLoop()) {
         promise.SetValue(std::forward<F>(f)(std::forward<Args>(args)...));
-    }
-    else
-    {
+    } else {
         auto innerTask = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
         auto func = [t = std::move(innerTask), promise = std::move(promise)]() mutable {
             try {
                 promise.SetValue(Try<resultType>(t()));
-            }
-            catch(...) {
+            } catch(...) {
                 promise.SetException(std::current_exception());
             }
         };
@@ -189,28 +185,23 @@ auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of
 
 // F return void
 template <typename F, typename... Args, typename >
-auto EventLoop::Execute(F&& f, Args&&... args) -> Future<void>
-{
+auto EventLoop::Execute(F&& f, Args&&... args) -> Future<void> {
     using resultType = typename std::result_of<F (Args...)>::type;
     static_assert(std::is_void<resultType>::value, "must be void");
 
     Promise<void> promise;
     auto future = promise.GetFuture();
 
-    if (IsInSameLoop())
-    {
+    if (IsInSameLoop()) {
         std::forward<F>(f)(std::forward<Args>(args)...);
         promise.SetValue();
-    }
-    else
-    {
+    } else {
         auto innerTask = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
         auto func = [t = std::move(innerTask), promise = std::move(promise)]() mutable {
             try {
                 t();
                 promise.SetValue();
-            }
-            catch(...) {
+            } catch(...) {
                 promise.SetException(std::current_exception());
             }
         };

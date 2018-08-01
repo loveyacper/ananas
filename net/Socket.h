@@ -9,58 +9,47 @@
 #include <memory>
 #include <functional>
 
-namespace ananas
-{
+namespace ananas {
 
 std::string ConvertIp(const char* ip);
 
-struct SocketAddr
-{
+struct SocketAddr {
     static const uint16_t kInvalidPort = -1;
 
-    SocketAddr()
-    {
+    SocketAddr() {
         Clear();
     }
-    
-    SocketAddr(const sockaddr_in& addr)
-    {
+
+    SocketAddr(const sockaddr_in& addr) {
         Init(addr);
     }
 
-    SocketAddr(uint32_t netip, uint16_t netport)
-    {
+    SocketAddr(uint32_t netip, uint16_t netport) {
         Init(netip, netport);
     }
 
-    SocketAddr(const char* ip, uint16_t hostport)
-    {
+    SocketAddr(const char* ip, uint16_t hostport) {
         Init(ip, hostport);
     }
-    SocketAddr(const std::string& ip, uint16_t hostport)
-    {
+    SocketAddr(const std::string& ip, uint16_t hostport) {
         Init(ip.data(), hostport);
     }
 
-    SocketAddr(const std::string& ipport)
-    {
+    SocketAddr(const std::string& ipport) {
         Init(ipport);
     }
 
-    void Init(const sockaddr_in& addr)
-    {
+    void Init(const sockaddr_in& addr) {
         memcpy(&addr_, &addr, sizeof(addr));
     }
 
-    void Init(uint32_t netip, uint16_t netport)
-    {
-        addr_.sin_family = AF_INET;       
-        addr_.sin_addr.s_addr = netip;       
+    void Init(uint32_t netip, uint16_t netport) {
+        addr_.sin_family = AF_INET;
+        addr_.sin_addr.s_addr = netip;
         addr_.sin_port   = netport;
     }
 
-    void Init(const char* ip, uint16_t hostport)
-    {
+    void Init(const char* ip, uint16_t hostport) {
         std::string sip = ConvertIp(ip);
         addr_.sin_family = AF_INET;
         addr_.sin_addr.s_addr = ::inet_addr(sip.data());
@@ -68,8 +57,7 @@ struct SocketAddr
     }
 
     // ip port format:  127.0.0.1:6379
-    void Init(const std::string& ipport)
-    {
+    void Init(const std::string& ipport) {
         std::string::size_type p = ipport.find_first_of(':');
         std::string ip = ipport.substr(0, p);
         std::string port = ipport.substr(p + 1);
@@ -77,45 +65,43 @@ struct SocketAddr
         Init(ip.c_str(), static_cast<uint16_t>(std::stoi(port)));
     }
 
-    const sockaddr_in& GetAddr() const
-    {
+    const sockaddr_in& GetAddr() const {
         return addr_;
     }
 
-    std::string GetIP() const
-    {
+    std::string GetIP() const {
         char tmp[32];
         const char* res = inet_ntop(AF_INET, &addr_.sin_addr,
                                     tmp, (socklen_t)(sizeof tmp));
         return std::string(res);
     }
 
-    uint16_t GetPort() const
-    {
+    uint16_t GetPort() const {
         return ntohs(addr_.sin_port);
     }
 
-    std::string ToString() const
-    {
+    std::string ToString() const {
         char tmp[32];
         const char* res = inet_ntop(AF_INET, &addr_.sin_addr, tmp, (socklen_t)(sizeof tmp));
 
         return std::string(res) + ":" + std::to_string(ntohs(addr_.sin_port));
     }
 
-    bool IsValid() const { return addr_.sin_family != 0; }
+    bool IsValid() const {
+        return addr_.sin_family != 0;
+    }
 
-    void Clear() { memset(&addr_, 0, sizeof addr_); }
+    void Clear() {
+        memset(&addr_, 0, sizeof addr_);
+    }
 
-    inline friend bool operator== (const SocketAddr& a, const SocketAddr& b)
-    {
+    inline friend bool operator== (const SocketAddr& a, const SocketAddr& b) {
         return a.addr_.sin_family      ==  b.addr_.sin_family &&
                a.addr_.sin_addr.s_addr ==  b.addr_.sin_addr.s_addr &&
                a.addr_.sin_port        ==  b.addr_.sin_port ;
     }
-    
-    inline friend bool operator!= (const SocketAddr& a, const SocketAddr& b)
-    {
+
+    inline friend bool operator!= (const SocketAddr& a, const SocketAddr& b) {
         return !(a == b);
     }
 
@@ -149,22 +135,19 @@ bool SetMaxOpenFd(rlim_t maxfdPlus1);
 } // end namespace ananas
 
 
-namespace std
-{
-    template<>
-    struct hash<ananas::SocketAddr>
-    {
-        typedef ananas::SocketAddr argument_type;
-        typedef std::size_t result_type;
-        result_type operator()(const argument_type& s) const noexcept
-        {
-            result_type h1 = std::hash<short>{}(s.GetAddr().sin_family);
-            result_type h2 = std::hash<unsigned short>{}(s.GetAddr().sin_port);
-            result_type h3 = std::hash<unsigned int>{}(s.GetAddr().sin_addr.s_addr);
-            result_type tmp = h1 ^ (h2 << 1);
-            return h3 ^ (tmp << 1);
-        }
-    };
+namespace std {
+template<>
+struct hash<ananas::SocketAddr> {
+    typedef ananas::SocketAddr argument_type;
+    typedef std::size_t result_type;
+    result_type operator()(const argument_type& s) const noexcept {
+        result_type h1 = std::hash<short> {}(s.GetAddr().sin_family);
+        result_type h2 = std::hash<unsigned short> {}(s.GetAddr().sin_port);
+        result_type h3 = std::hash<unsigned int> {}(s.GetAddr().sin_addr.s_addr);
+        result_type tmp = h1 ^ (h2 << 1);
+        return h3 ^ (tmp << 1);
+    }
+};
 }
 
 #endif
