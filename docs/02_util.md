@@ -4,7 +4,7 @@
 
   顾名思义，util是工具库，属于最基础的设施。主要包含了线程池、日志、定时器等功能。
 
-## 1. ANANAS_DEFER
+## ANANAS_DEFER
 
   接触过golang的朋友应该都使用过defer。尽管C++没有直接提供defer，由于强大的RAII和lambda，我只用了几十行代码就完美实现了DEFER。
 
@@ -103,6 +103,34 @@
   委托的一个典型应用场景是在观察者模式中，subject使用委托管理observer的注册函数。当有事件发生，直接投递给委托执行。
   Delegate有一点使用注意项：参数不要使用rvalue reference。因为委托是函数的集合，除了第一个函数，后续函数将得到空的参数输入。所以一般来说，函数签名接受的是参数的const reference。
 
+
+## ThreadPool
+* ananas线程池
+
+  利用了变长模板参数，对投递的任务函数签名没有任何限制，不像传统的线程实现必须接受
+  void func(void\* ）的签名。同时结合Future，可以方便的注册回调，前面已经叙述过。ananas线程池可以设置最大线程
+  数量和最小线程数量。在任务比较多的时候，线程数会增加，但不会超过你设置的线程池大小；在任务比较少的时候，ananas
+  会自动回收多余的线程
+
+  ```cpp
+  int getMoney(const std::string& name);
+  std::string getInfo(int year, const std::string& city);
+
+  ananas::ThreadPool pool;
+
+  pool.Execute(getMoney, "mahuateng")
+      .Then([](int money) {
+          cout << "mahuateng has money " << money << endl;
+      });
+
+  pool.Execute(getInfo, 2017, "shanghai")
+      .Then([](const std::string& info) {
+          cout << info << endl;
+      });
+
+  // 在某个线程内睡眠10秒
+  pool.Execute([] (int n) { sleep(n); },  10);
+  ```
 
 * 还没写完，抽时间再写
 
