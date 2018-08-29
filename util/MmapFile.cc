@@ -105,19 +105,12 @@ bool OMmapFile::_MapWriteOnly() {
     }
 
     memory_ = (char*)::mmap(0, size_, PROT_WRITE, MAP_SHARED, file_, 0);
-
-    assert (memory_ > 0);
     return (memory_ != kInvalidAddr);
 }
 
 void OMmapFile::Truncate(std::size_t  size) {
     if (size == size_)
         return;
-
-    if (memory_ > 0) {
-        //int ret = ::munmap(memory_, size_);
-        //assert (ret == 0);
-    }
 
     size_ = size;
     int ret = ::ftruncate(file_, size_);
@@ -137,7 +130,6 @@ bool OMmapFile::IsOpen() const {
 void OMmapFile::Write(const void* data, size_t len) {
     _AssureSpace(len);
 
-    assert(memory_ > 0);
     assert (offset_ + len <= size_);
 
     ::memcpy(memory_ + offset_, data, len);
