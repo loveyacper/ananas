@@ -13,23 +13,8 @@ RedisContext::RedisContext(ananas::Connection* conn) :
     hostConn_(conn) {
 }
 
-ananas::PacketLen_t RedisContext::OnRecvAll(ananas::Connection* conn, const char* data, ananas::PacketLen_t len) {
-    ananas::PacketLen_t total = 0;
-    ananas::Buffer reply;
 
-    while (total < len) {
-        auto processed = this->_OnRecv(conn, data + total, len - total, &reply);
-        if (processed == 0)
-            break;
-
-        total += processed;
-    }
-
-    hostConn_->SendPacket(reply.ReadAddr(), reply.ReadableSize());
-    return total;
-}
-
-ananas::PacketLen_t RedisContext::_OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len, ananas::Buffer* replyBuf) {
+ananas::PacketLen_t RedisContext::OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len) {
     const char* const end = data + len;
     const char* ptr = data;
 
@@ -75,7 +60,7 @@ ananas::PacketLen_t RedisContext::_OnRecv(ananas::Connection* conn, const char* 
     }
 
     proto_.Reset();
-    replyBuf->PushData(reply, replyBytes);
+    hostConn_->SendPacket(reply, replyBytes);
     return static_cast<ananas::PacketLen_t>(ptr - data);
 }
 

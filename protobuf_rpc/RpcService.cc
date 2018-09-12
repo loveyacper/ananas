@@ -50,6 +50,7 @@ const std::string& Service::FullName() const {
 void Service::OnNewConnection(ananas::Connection* conn) {
     auto channel = std::make_shared<ServerChannel>(conn, this);
     conn->SetUserData(channel);
+    conn->SetBatchSend(true);
 
     assert (conn->GetLoop()->Id() < static_cast<int>(channels_.size()));
 
@@ -82,32 +83,49 @@ size_t Service::_OnMessage(ananas::Connection* conn, const char* data, size_t le
 
     auto channel = conn->GetUserData<ServerChannel>();
 
-    // TODO process message like redis
     try {
-        // 如果是二进制消息，这里进行包的完整性分析，如果是完整的包，将得到了一个RpcMessage,还需要进一步解包
-        // 如果是文本消息，包的完整性分析和解包是一步完成的，直接得到Message，无须再解包
         const char* const thisStart = data;
         auto msg = channel->OnData(data, len - offset);
         if (msg) {
             offset += (data - thisStart);
             try {
                 channel->OnMessage(std::move(msg));
-            } catch (const std::logic_error& recovableErr) {
-                channel->OnError(recovableErr);
-                return data - start;
-            } catch (const std::runtime_error& unrecovableErr) {
-                channel->OnError(unrecovableErr);
-                conn->ActiveClose();
-                return data - start;
+            } catch (const std::system_error& e) {
+                auto code = e.code();
+                assert (code.category() == AnanasCategory());
+                channel->OnError(e, code.value());
+                switch (code.value()) {
+                    case static_cast<int>(ErrorCode::NoSuchService):
+                    case static_cast<int>(ErrorCode::NoSuchMethod):
+                    case static_cast<int>(ErrorCode::EmptyRequest):
+                    case static_cast<int>(ErrorCode::ThrowInMethod):
+                        ANANAS_WRN << "RecovableException " << code.message();
+                        return data - start;
+
+                    case static_cast<int>(ErrorCode::DecodeFail):
+                    case static_cast<int>(ErrorCode::MethodUndetermined):
+                        ANANAS_ERR << "FatalException " << code.message();
+                        conn->ActiveClose();
+                        return data - start;
+
+                    default:
+                        ANANAS_ERR << "Unknown Exception " << code.message();
+                        conn->ActiveClose();
+                        return data - start;
+                }
             } catch (...) {
                 ANANAS_ERR << "OnMessage: Unknown error";
                 conn->ActiveClose();
                 return data - start;
             }
         }
-    } catch (const std::exception& e) {
+    } catch (const std::system_error& e) {
         // Often because evil message
         ANANAS_ERR << "Some exception OnData " << e.what();
+        conn->ActiveClose();
+        return 0;
+    } catch (const std::exception& e) {
+        ANANAS_ERR << "Unknown exception OnData " << e.what();
         conn->ActiveClose();
         return 0;
     }
@@ -158,17 +176,21 @@ bool ServerChannel::OnMessage(std::shared_ptr<google::protobuf::Message> req) {
             currentId_ = frame->request().id();
             method = frame->request().method_name();
 
-            if (frame->request().service_name() !=
-                    service_->FullName())
-                throw NoServiceException("Not find service [" + frame->request().service_name() + "]");
-        } else
-            throw NoRequestException();
+            if (frame->request().service_name() != service_->FullName())
+                throw Exception(ErrorCode::NoSuchService,
+                                frame->request().service_name() + \
+                                " got, but expect [" + \
+                                Service()->FullName() + "]");
+        } else {
+            throw Exception(ErrorCode::EmptyRequest,
+                            "Service  [" + Service()->FullName() + \
+                            "] expect request from " + Connection()->Peer().ToString());
+        }
     } else {
         currentId_ = -1;
         if (!service_->methodSelector_) {
-            // error, need methodSelector_
             ANANAS_ERR << "How to get method name from message? You forget to set methodSelector";
-            throw MethodUndeterminedException("methodSelector not set for [" + service_->FullName() + "]");
+            throw Exception(ErrorCode::MethodUndetermined, "methodSelector not set for [" + service_->FullName() + "]");
         } else {
             method = service_->methodSelector_(req.get());
             //ANANAS_DBG << "Debug: get method [" << method.data() << "] from message";
@@ -184,7 +206,7 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<googl
     auto method = googServ->GetDescriptor()->FindMethodByName(methodName);
     if (!method) {
         ANANAS_ERR << "_Invoke: No such method " << methodName;
-        throw MethodUndeterminedException("Not find method [" + methodName + "]");
+        throw Exception(ErrorCode::NoSuchMethod, "Not find method [" + methodName + "]");
     }
 
     if (decoder_.m2mDecoder_) {
@@ -205,8 +227,23 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<googl
     std::shared_ptr<google::protobuf::Message> response(googServ->GetResponsePrototype(method).New());
 
     std::weak_ptr<ananas::Connection> wconn(std::static_pointer_cast<ananas::Connection>(conn_->shared_from_this()));
-    googServ->CallMethod(method, nullptr, req.get(), response.get(),
-                         new ananas::rpc::Closure(&ServerChannel::_OnServDone, this, wconn, currentId_, response));
+    auto done = new ananas::rpc::Closure(&ServerChannel::_OnServDone, this, wconn, currentId_, response);
+    bool hasException = false;
+
+    ANANAS_DEFER {
+        if (hasException)
+            delete done;
+
+        // !!! Because done can be async, we can't execute done on behalf of user
+    };
+
+    try {
+        googServ->CallMethod(method, nullptr, req.get(), response.get(), done);
+    } catch (...) {
+        hasException = true;
+        // U should never throw exception in rpc call!
+        throw Exception(ErrorCode::ThrowInMethod, methodName);
+    }
 }
 
 void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
@@ -231,11 +268,13 @@ void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
 }
 
 
-void ServerChannel::OnError(const std::exception& err) {
+void ServerChannel::OnError(const std::exception& err, int code) {
     RpcMessage frame;
-    Response& rsp = *frame.mutable_response();
-    if (currentId_ != -1) rsp.set_id(currentId_);
-    rsp.mutable_error()->set_msg(err.what());
+    Response* rsp = frame.mutable_response();
+    if (currentId_ != -1) rsp->set_id(currentId_);
+    rsp->mutable_error()->set_msg(err.what());
+    rsp->mutable_error()->set_errnum(code);
+
     bool succ = encoder_.m2fEncoder_(nullptr, frame);
     assert (succ);
 
@@ -243,7 +282,7 @@ void ServerChannel::OnError(const std::exception& err) {
         ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
         conn_->SendPacket(bytes);
     } else {
-        const auto& bytes = rsp.serialized_response();
+        const auto& bytes = rsp->serialized_response();
         conn_->SendPacket(bytes);
     }
 }

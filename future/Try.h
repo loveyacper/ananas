@@ -344,9 +344,9 @@ WrapWithTry(F&& f, Args&&... args) {
 // Wrap return value of function Type f(void) by Try<Type>
 template <typename F>
 typename std::enable_if<
-!std::is_same<typename std::result_of<F ()>::type, void>::value,
-typename TryWrapper<typename std::result_of<F ()>::type >::Type > ::type
-WrapWithTry(F&& f, Try<void>&& arg) {
+    !std::is_same<typename std::result_of<F ()>::type, void>::value,
+    typename TryWrapper<typename std::result_of<F ()>::type >::Type >::type
+    WrapWithTry(F&& f, Try<void>&& arg) {
     using Type = typename std::result_of<F()>::type;
 
     try {
@@ -359,9 +359,9 @@ WrapWithTry(F&& f, Try<void>&& arg) {
 // Wrap return value of function void f(void) by Try<void>
 template <typename F>
 typename std::enable_if <
-std::is_same<typename std::result_of<F ()>::type, void>::value,
-    Try<typename std::result_of<F ()>::type >> ::type
-WrapWithTry(F&& f, Try<void>&& arg) {
+    std::is_same<typename std::result_of<F ()>::type, void>::value,
+    Try<typename std::result_of<F ()>::type >>::type
+    WrapWithTry(F&& f, Try<void>&& arg) {
     try {
         std::forward<F>(f)();
         return Try<void>();

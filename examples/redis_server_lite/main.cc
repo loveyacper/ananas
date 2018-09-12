@@ -16,8 +16,9 @@ void OnNewConnection(ananas::Connection* conn) {
 
     auto ctx = std::make_shared<RedisContext>(conn);
 
+    conn->SetBatchSend(true);
     conn->SetOnConnect(std::bind(&OnConnect, ctx, std::placeholders::_1));
-    conn->SetOnMessage(std::bind(&RedisContext::OnRecvAll, ctx, std::placeholders::_1,
+    conn->SetOnMessage(std::bind(&RedisContext::OnRecv, ctx, std::placeholders::_1,
                                  std::placeholders::_2,
                                  std::placeholders::_3));
 }

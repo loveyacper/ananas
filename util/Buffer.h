@@ -80,6 +80,8 @@ private:
 
 
 struct BufferVector {
+    static constexpr int kMinSize = 1024;
+
     typedef std::list<Buffer> BufferContainer;
 
     typedef BufferContainer::const_iterator const_iterator;
@@ -92,7 +94,7 @@ struct BufferVector {
     }
 
     BufferVector(Buffer&& first) {
-        PushBack(std::move(first));
+        Push(std::move(first));
     }
 
     bool Empty() const {
@@ -108,22 +110,27 @@ struct BufferVector {
         totalBytes = 0;
     }
 
-    void PushBack(Buffer&& buf) {
+    void Push(Buffer&& buf) {
         totalBytes += buf.ReadableSize();
-        buffers.push_back(std::move(buf));
+        if (_ShouldMerge()) {
+            auto& last = buffers.back();
+            last.PushData(buf.ReadAddr(), buf.ReadableSize());
+        } else {
+            buffers.push_back(std::move(buf));
+        }
     }
 
-    void PushFront(Buffer&& buf) {
-        totalBytes += buf.ReadableSize();
-        buffers.push_front(std::move(buf));
+    void Push(const void* data, size_t size) {
+        totalBytes += size;
+        if (_ShouldMerge()) {
+            auto& last = buffers.back();
+            last.PushData(data, size);
+        } else {
+            buffers.push_back(Buffer(data, size));
+        }
     }
 
-    void PopBack() {
-        totalBytes -= buffers.back().ReadableSize();
-        buffers.pop_back();
-    }
-
-    void PopFront() {
+    void Pop() {
         totalBytes -= buffers.front().ReadableSize();
         buffers.pop_front();
     }
@@ -149,9 +156,18 @@ struct BufferVector {
         return buffers.cend();
     }
 
-
     BufferContainer buffers;
     size_t totalBytes {0};
+
+private:
+    bool _ShouldMerge() const {
+        if (buffers.empty()) {
+            return false;
+        } else {
+            const auto& last = buffers.back();
+            return last.ReadableSize() < kMinSize;
+        }
+    }
 };
 
 struct Slice {

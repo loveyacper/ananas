@@ -20,7 +20,8 @@ bool RedisClientContext::M2FEncode(const google::protobuf::Message* msg, ananas:
     auto request = frame.mutable_request();
     std::string* result = request->mutable_serialized_request();
     auto req = dynamic_cast<const ananas::rpc::ServiceName*>(msg);
-    if (req) { // GetEndpoints()
+    if (req) {
+        // GetEndpoints
         *result = "hgetall " + req->name();
         operates_.push(Oper::GET_ENDPOINTS);
     } else {
@@ -82,7 +83,7 @@ void OnCreateRedisChannel(ananas::rpc::ClientChannel* chan) {
     auto ctx = std::make_shared<RedisClientContext>();
     chan->SetContext(ctx);
 
-    ananas::rpc::Encoder encoder(&ananas::rpc::PbToFrameRequestEncoder);
+    ananas::rpc::Encoder encoder;
     encoder.SetMessageToFrameEncoder(std::bind(&RedisClientContext::M2FEncode,
                                      ctx.get(),
                                      std::placeholders::_1,

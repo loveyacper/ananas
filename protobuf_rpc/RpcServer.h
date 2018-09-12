@@ -10,6 +10,7 @@
 
 #include "RpcEndpoint.h"
 #include "RpcServiceStub.h"
+#include "RpcException.h"
 #include "ananas/util/StringView.h"
 #include "ananas/future/Future.h"
 
@@ -95,7 +96,7 @@ const Endpoint& ep = Endpoint::default_instance()) {
     // 1. find service stub
     auto stub = RPC_SERVER.GetServiceStub(service);
     if (!stub)
-        return MakeExceptionFuture<ananas::Try<RSP>>(std::runtime_error("No such service [" + service.ToString() + "]"));
+        return MakeExceptionFuture<ananas::Try<RSP>>(Exception(ErrorCode::NoSuchService, service.ToString()));
 
     return _InnerCall<RSP>(stub, method, reqCopy, ep);
 }
@@ -108,7 +109,7 @@ const Endpoint& ep = Endpoint::default_instance()) {
     // 1. find service stub
     auto stub = RPC_SERVER.GetServiceStub(service);
     if (!stub)
-        return MakeExceptionFuture<ananas::Try<RSP>>(std::runtime_error("No such service [" + service.ToString() + "]"));
+        return MakeExceptionFuture<ananas::Try<RSP>>(Exception(ErrorCode::NoSuchService, service.ToString()));
 
     // deep copy because GetChannel is async
     std::shared_ptr<::google::protobuf::Message> reqCopy(req.New());

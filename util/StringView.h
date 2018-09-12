@@ -25,6 +25,7 @@ public:
     explicit // be care of string's lifetime
     StringView(const std::string& );
     StringView(const char*, size_t);
+    StringView(const StringView& ) = default;
 
     const_reference operator[](size_t index) const;
 

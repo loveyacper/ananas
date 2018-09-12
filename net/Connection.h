@@ -56,6 +56,8 @@ public:
     bool SendPacket(const BufferVector& datum);
     bool SendPacket(const SliceVector& slice);
 
+    void SetBatchSend(bool batch);
+
     void SetOnConnect(std::function<void (Connection* )> cb);
     void SetOnDisconnect(std::function<void (Connection* )> cb);
     void SetOnMessage(TcpMessageCallback cb);
@@ -97,6 +99,17 @@ private:
 
     Buffer recvBuf_;
     BufferVector sendBuf_;
+
+    // When processing read event, pipeline requests made us handle many
+    // requests at one time. If each response is ::send to network directyly,
+    // there will be many small packets, lead to poor performance.
+    // So if you call SetBatchSend(true), ananas will collect the small packets
+    // together, after processing read events, they'll be send all at once.
+    // The default value is true. But if your server process only one request at
+    // one time, you should call SetBatchSend(false)
+    bool processingRead_{false};
+    bool batchSend_{true};
+    Buffer batchSendBuf_;
 
     SocketAddr peer_;
 

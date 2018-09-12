@@ -20,6 +20,7 @@
 #include "ananas/future/Future.h"
 
 #include "RpcEndpoint.h"
+#include "RpcException.h"
 #include "ProtobufCoder.h"
 
 namespace google {
@@ -165,12 +166,13 @@ std::shared_ptr<T> ClientChannel::GetContext() const {
 
 template <typename RSP>
 Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
-const std::shared_ptr<google::protobuf::Message>& request) {
+                                       const std::shared_ptr<google::protobuf::Message>& request) {
     auto sc = conn_.lock();
-    if (!sc)
-        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("Connection lost when invoke [" +
-                                             method.ToString() +
-                                             "]"));
+    if (!sc) {
+        using namespace std;
+        string err = "Connection lost: method [" + method.ToString() + "], service [" + service_->FullName() + "]";
+        return MakeExceptionFuture<Try<RSP>>(Exception(ErrorCode::ConnectionLost, err));
+    }
 
     if (sc->GetLoop()->IsInSameLoop()) {
         return _Invoke<RSP>(method, request);
@@ -189,8 +191,10 @@ const std::shared_ptr<google::protobuf::Message>& request) {
     assert (sc->GetLoop()->IsInSameLoop());
 
     auto methodStr = method.ToString();
-    if (!service_->GetService()->GetDescriptor()->FindMethodByName(methodStr))
-        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("No such method [" + methodStr + "]"));
+    if (!service_->GetService()->GetDescriptor()->FindMethodByName(methodStr)) {
+        std::string err = "method [" + methodStr + "], service [" + service_->FullName() + "]";
+        return MakeExceptionFuture<Try<RSP>>(Exception(ErrorCode::NoSuchMethod, err));
+    }
 
     Promise<std::shared_ptr<google::protobuf::Message>> promise;
     auto fut = promise.GetFuture();
@@ -198,7 +202,9 @@ const std::shared_ptr<google::protobuf::Message>& request) {
     // encode and send request
     Buffer bytes = this->_MessageToBytesEncoder(std::move(methodStr), *request);
     if (!sc->SendPacket(bytes)) {
-        return MakeExceptionFuture<Try<RSP>>(std::runtime_error("SendPacket failed!"));
+        using namespace std;
+        string err = "SendPacket failed: method [" + method.ToString() + "], service [" + service_->FullName() + "]";
+        return MakeExceptionFuture<Try<RSP>>(Exception(ErrorCode::ConnectionReset, err));
     } else {
         // save context
         RequestContext reqContext;

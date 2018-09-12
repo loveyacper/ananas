@@ -97,7 +97,7 @@ Future<ClientChannel* > ServiceStub::_MakeChannel(EventLoop* loop, const Endpoin
     assert (loop->IsInSameLoop());
 
     if (!IsValidEndpoint(ep))
-        return MakeExceptionFuture<ClientChannel*>(std::runtime_error("No available endpoint"));
+        return MakeExceptionFuture<ClientChannel*>(Exception(ErrorCode::NoAvailableEndpoint, FullName()));
 
     const auto& channels = channels_[loop->Id()];
 
@@ -147,7 +147,7 @@ void ServiceStub::_OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr&
     auto req = pendingConns.find(peer);
     if (req != pendingConns.end()) {
         for (auto& prom : req->second)
-            prom.SetException(std::make_exception_ptr(std::runtime_error("Failed connect to " + peer.ToString())));
+            prom.SetException(std::make_exception_ptr(Exception(ErrorCode::ConnectRefused, peer.ToString())));
 
         pendingConns.erase(req);
     }
@@ -177,6 +177,7 @@ void ServiceStub::_OnNewConnection(ananas::Connection* conn) {
     if (onCreateChannel_)
         onCreateChannel_(channel.get());
 
+    conn->SetBatchSend(true);
     conn->SetOnConnect(std::bind(&ServiceStub::_OnConnect, this, std::placeholders::_1));
     conn->SetOnDisconnect(std::bind(&ServiceStub::_OnDisconnect, this, std::placeholders::_1));
     conn->SetOnMessage(&ServiceStub::_OnMessage);
@@ -248,10 +249,9 @@ Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints() {
             .OnTimeout(std::chrono::seconds(3), [this]() {
                 std::unique_lock<std::mutex> guard(endpointsMutex_);
                 for (auto& promise : pendingEndpoints_) {
-                    promise.SetException(std::make_exception_ptr(std::runtime_error("GetEndpoints timeout")));
+                    promise.SetException(std::make_exception_ptr(Exception(ErrorCode::Timeout, "GetEndpoints")));
                 }
                 pendingEndpoints_.clear();
-                pendingEndpoints_.shrink_to_fit();
             },
             scheduler);
         }
@@ -280,7 +280,6 @@ void ServiceStub::_OnNewEndpointList(Try<EndpointList>&& endpoints) {
             promise.SetValue(newEndpoints);
         }
         pendingEndpoints_.clear();
-        pendingEndpoints_.shrink_to_fit();
     } catch (const std::exception& e) {
         // Do not clear cache if exception from name server
         ANANAS_ERR << "GetEndpoints exception:" << e.what();
@@ -290,7 +289,6 @@ void ServiceStub::_OnNewEndpointList(Try<EndpointList>&& endpoints) {
             promise.SetValue(endpoints);
         }
         pendingEndpoints_.clear();
-        pendingEndpoints_.shrink_to_fit();
     }
 }
 
@@ -311,7 +309,6 @@ size_t ServiceStub::_OnMessage(ananas::Connection* conn, const char* data, size_
     size_t offset = 0;
 
     auto channel = conn->GetUserData<ClientChannel>();
-    // TODO process message like redis
     try {
         auto msg = channel->OnData(data, len - offset);
         if (msg) {

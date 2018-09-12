@@ -49,7 +49,7 @@ void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response) {
             Call<test::EchoResponse>("ananas.rpc.test.TestService",
                                      "AppendDots",
                                      req)
-            .Then(OnResponse);
+                                    .Then(OnResponse);
         }
 
         if (nowCount % 50000 == 0) {
@@ -57,8 +57,13 @@ void OnResponse(ananas::Try<ananas::rpc::test::EchoResponse>&& response) {
             USR(logger) << "OnResponse avg " << (nowCount * 0.1f / (end - start)) << " W/s";
         }
 
+    } catch (const std::system_error& exp) {
+        assert (exp.code().category() == ananas::rpc::AnanasCategory());
+
+        int errcode = exp.code().value();
+        USR(logger) << "Ananas Exception " << exp.what() << ", err " << errcode;
     } catch(const std::exception& exp) {
-        USR(logger) << "OnResponse exception " << exp.what();
+        USR(logger) << "OnResponse unknown exception " << exp.what();
     }
 }
 
@@ -82,7 +87,7 @@ int main(int ac, char* av[]) {
     auto teststub = new ServiceStub(new test::TestService_Stub(nullptr));
     teststub->SetOnCreateChannel(OnCreateChannel);
 
-    const int threads = 8;
+    const int threads = 4;
     // init server
     Server server;
     server.SetNumOfWorker(config.GetData<int>("threads", threads));
@@ -100,7 +105,7 @@ int main(int ac, char* av[]) {
             Call<test::EchoResponse>("ananas.rpc.test.TestService",
                                      "AppendDots",
                                      req)
-            .Then(OnResponse);
+                                    .Then(OnResponse);
         }
     };
 

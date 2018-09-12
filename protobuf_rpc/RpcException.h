@@ -2,39 +2,48 @@
 #define BERT_RPCEXCEPTION_H
 
 #include <string>
-#include <stdexcept>
+#include <system_error>
 
 namespace ananas {
 
 namespace rpc {
 
-class NoServiceException : public std::logic_error {
-public:
-    NoServiceException(const std::string& e = "") :
-        std::logic_error(e) {
-    }
+enum class ErrorCode {
+    None,   
+
+    // both
+    NoSuchService,
+    NoSuchMethod,
+    ConnectionLost,
+    ConnectionReset,
+    DecodeFail,
+    EncodeFail,
+    Timeout,
+
+    // server-side
+    EmptyRequest,
+    MethodUndetermined,
+    ThrowInMethod,
+
+    // client-side
+    NoAvailableEndpoint,
+    ConnectRefused,
 };
 
-class NoMethodException : public std::logic_error {
+class AnanasErrorCategory : public std::error_category {
 public:
-    NoMethodException(const std::string& e = "") :
-        std::logic_error(e) {
-    }
+    constexpr AnanasErrorCategory();
+
+    AnanasErrorCategory(const AnanasErrorCategory& ) = delete;
+    AnanasErrorCategory& operator=(const AnanasErrorCategory& ) = delete;
+
+    const char* name() const noexcept override;
+    std::string message(int ec) const override;
 };
 
-class NoRequestException : public std::invalid_argument {
-public:
-    NoRequestException(const std::string& e = "") :
-        std::invalid_argument(e) {
-    }
-};
-
-class MethodUndeterminedException : public std::runtime_error {
-public:
-    MethodUndeterminedException(const std::string& e) :
-        std::runtime_error(e) {
-    }
-};
+// For ananas internal error handle
+const std::error_category& AnanasCategory() noexcept;
+std::system_error Exception(ErrorCode e, const std::string& msg = "");
 
 } // end namespace rpc
 

@@ -22,23 +22,14 @@ namespace rpc {
 class RpcMessage;
 
 enum class DecodeState {
-    eS_None,
-    eS_Waiting,
-    eS_Error,
-    eS_Ok,
+    None,
+    Waiting,
+    Error,
+    Ok,
 };
 
 
 extern const int kPbHeaderLen;
-
-class DecodeErrorException : public std::exception {
-public:
-    DecodeErrorException(const char* w);
-    DecodeErrorException(const std::string& w);
-    const char* what() const noexcept override;
-private:
-    std::string what_;
-};
 
 // decoder
 // use shared because Try<T>'s T must be copable
@@ -78,6 +69,7 @@ private:
 
 struct Encoder {
 public:
+    Encoder();
     Encoder(MessageToFrameEncoder enc);
     void Clear();
     void SetMessageToFrameEncoder(MessageToFrameEncoder m2f);

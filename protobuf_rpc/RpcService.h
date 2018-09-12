@@ -44,15 +44,13 @@ public:
     const Endpoint& GetEndpoint() const {
         return endpoint_;
     }
+
     bool Start();
-
-    void OnNewConnection(ananas::Connection* conn);
-
+    void OnNewConnection(Connection* conn);
     void OnRegister();
 
-    // if the third party protocol, this func tell ananas to invoke which func for request
+    // if the third party protocol, this func tell ananas to invoke which method
     void SetMethodSelector(std::function<std::string (const google::protobuf::Message* )> );
-
     void SetOnCreateChannel(std::function<void (ServerChannel* )> );
 
 private:
@@ -68,7 +66,7 @@ private:
     std::function<void (ServerChannel* )> onCreateChannel_;
     std::function<std::string (const google::protobuf::Message* )> methodSelector_;
 
-    // each service has many connections, each loop has its own map, avoid mutex
+    // Each service has many connections, each loop has its own map.
     using ChannelMap = std::unordered_map<unsigned int, ServerChannel* >;
     std::vector<ChannelMap> channels_;
 };
@@ -87,7 +85,7 @@ public:
     void SetDecoder(Decoder dec);
     std::shared_ptr<google::protobuf::Message> OnData(const char*& data, size_t len);
     bool OnMessage(std::shared_ptr<google::protobuf::Message> req);
-    void OnError(const std::exception& err);
+    void OnError(const std::exception& err, int code = 0);
 private:
     void _Invoke(const std::string& methodName,
                  std::shared_ptr<google::protobuf::Message> req);
