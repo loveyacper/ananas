@@ -117,9 +117,9 @@ template <int RepeatCount, typename Duration, typename F, typename... Args>
 TimerId TimerManager::ScheduleAfterWithRepeat(const Duration& duration, F&& f, Args&&... args) {
     const auto now = std::chrono::steady_clock::now();
     return ScheduleAtWithRepeat<RepeatCount>(now + duration,
-            duration,
-            std::forward<F>(f),
-            std::forward<Args>(args)...);
+                                             duration,
+                                             std::forward<F>(f),
+                                             std::forward<Args>(args)...);
 }
 
 template <typename F, typename... Args>
@@ -140,8 +140,7 @@ TimerId TimerManager::ScheduleAfter(const Duration& duration, F&& f, Args&&... a
 
 template <typename F, typename... Args>
 void TimerManager::Timer::SetCallback(F&& f, Args&&... args) {
-    auto temp = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-    func_ = [temp]() mutable { (void)temp(); };
+    func_ = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
 }
 
 } // end namespace internal

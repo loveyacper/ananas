@@ -2,7 +2,6 @@
 #define BERT_RPCSERVICESTUB_H
 
 #include <google/protobuf/message.h>
-#include <google/protobuf/service.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -26,7 +25,6 @@
 namespace google {
 namespace protobuf {
 
-class Message;
 class Service;
 
 }
@@ -40,18 +38,20 @@ class Request;
 class ClientChannel;
 class RpcMessage;
 
+using google::protobuf::Message;
+using GoogleService = google::protobuf::Service;
 
 class ServiceStub final {
 public:
     explicit
-    ServiceStub(google::protobuf::Service* service);
+    ServiceStub(GoogleService* service);
     ~ServiceStub();
 
-    google::protobuf::Service* GetService() const;
+    GoogleService* GetService() const;
     const std::string& FullName() const;
 
-    // serviceUrl list format : tcp://127.0.0.1:6379;tcp://127.0.0.1:6380
-    // Direct connect to, not via name service
+    // Format : tcp://127.0.0.1:6379;tcp://127.0.0.1:6380
+    // Directly connect, not via name service
     void SetUrlList(const std::string& hardCodedUrls);
     void SetOnCreateChannel(std::function<void (ClientChannel* )> );
 
@@ -77,7 +77,7 @@ private:
     using ChannelMap = std::unordered_map<Endpoint, std::shared_ptr<ClientChannel> >;
     std::vector<ChannelMap> channels_;
 
-    std::shared_ptr<google::protobuf::Service> service_;
+    std::shared_ptr<GoogleService> service_;
 
     // pending connects
     using ChannelPromise = Promise<ClientChannel* >;
@@ -112,24 +112,24 @@ public:
 
     template <typename RSP>
     Future<Try<RSP>> Invoke(const ananas::StringView& method,
-                            const std::shared_ptr<google::protobuf::Message>& request);
+                            const std::shared_ptr<Message>& request);
 
     // encode
     void SetEncoder(Encoder );
 
     // decode
-    std::shared_ptr<google::protobuf::Message> OnData(const char*& data, size_t len);
+    std::shared_ptr<Message> OnData(const char*& data, size_t len);
     void SetDecoder(Decoder dec);
 
     // fullfil promise
-    bool OnMessage(std::shared_ptr<google::protobuf::Message> msg);
+    bool OnMessage(std::shared_ptr<Message> msg);
 
     void OnDestroy();
 
 private:
     template <typename RSP>
     Future<Try<RSP>> _Invoke(const ananas::StringView& method,
-                             const std::shared_ptr<google::protobuf::Message>& request);
+                             const std::shared_ptr<Message>& request);
 
     void _CheckPendingTimeout();
     std::weak_ptr<ananas::Connection> conn_;
@@ -137,12 +137,12 @@ private:
 
     std::shared_ptr<void> ctx_;
 
-    Buffer _MessageToBytesEncoder(std::string&& method, const google::protobuf::Message& request);
+    Buffer _MessageToBytesEncoder(std::string&& method, const Message& request);
 
     // pending requests
     struct RequestContext {
-        Promise<std::shared_ptr<google::protobuf::Message>> promise;
-        std::shared_ptr<google::protobuf::Message> response;
+        Promise<std::shared_ptr<Message>> promise;
+        std::shared_ptr<Message> response;
         ananas::Time timestamp;
     };
 
@@ -166,11 +166,11 @@ std::shared_ptr<T> ClientChannel::GetContext() const {
 
 template <typename RSP>
 Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
-                                       const std::shared_ptr<google::protobuf::Message>& request) {
+                                       const std::shared_ptr<Message>& request) {
     auto sc = conn_.lock();
     if (!sc) {
         using namespace std;
-        string err = "Connection lost: method [" + method.ToString() + "], service [" + service_->FullName() + "]";
+        string err("Connection lost: method [" + method.ToString() + "], service [" + service_->FullName() + "]");
         return MakeExceptionFuture<Try<RSP>>(Exception(ErrorCode::ConnectionLost, err));
     }
 
@@ -185,7 +185,7 @@ Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
 
 template <typename RSP>
 Future<Try<RSP>> ClientChannel::_Invoke(const ananas::StringView& method,
-const std::shared_ptr<google::protobuf::Message>& request) {
+                                        const std::shared_ptr<Message>& request) {
     auto sc = conn_.lock();
     assert (sc);
     assert (sc->GetLoop()->IsInSameLoop());
@@ -196,7 +196,7 @@ const std::shared_ptr<google::protobuf::Message>& request) {
         return MakeExceptionFuture<Try<RSP>>(Exception(ErrorCode::NoSuchMethod, err));
     }
 
-    Promise<std::shared_ptr<google::protobuf::Message>> promise;
+    Promise<std::shared_ptr<Message>> promise;
     auto fut = promise.GetFuture();
 
     // encode and send request
@@ -213,7 +213,7 @@ const std::shared_ptr<google::protobuf::Message>& request) {
 
         // convert RpcMessage to RSP
         RSP* rsp = (RSP* )reqContext.response.get();
-        auto decodeFut = fut.Then([this, rsp](std::shared_ptr<google::protobuf::Message>&& msg) -> Try<RSP> {
+        auto decodeFut = fut.Then([this, rsp](std::shared_ptr<Message>&& msg) -> Try<RSP> {
             if (decoder_.m2mDecoder_) {
                 try {
                     decoder_.m2mDecoder_(*msg, *rsp);

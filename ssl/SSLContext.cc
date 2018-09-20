@@ -6,7 +6,7 @@
 #include "SSLManager.h"
 #include "net/Connection.h"
 #include "net/AnanasDebug.h"
-#include "util/log/Logger.h"
+#include "util/Logger.h"
 
 //#define TEST_SSL_RENEGO
 #ifdef TEST_SSL_RENEGO

@@ -16,12 +16,12 @@ namespace rpc {
 Server* Server::s_rpcServer = nullptr;
 
 Server::Server() :
-    app_(ananas::Application::Instance()) {
+    app_(Application::Instance()) {
     assert (!s_rpcServer);
     s_rpcServer = this;
 }
 
-bool Server::AddService(ananas::rpc::Service* service) {
+bool Server::AddService(Service* service) {
     auto googleService = service->GetService();
     const auto& name = googleService->GetDescriptor()->full_name();
     ANANAS_INF << "AddService " << googleService->GetDescriptor()->name().data();
@@ -48,7 +48,7 @@ bool Server::AddService(std::unique_ptr<Service>&& service) {
     return true;
 }
 
-bool Server::AddServiceStub(ananas::rpc::ServiceStub* service) {
+bool Server::AddServiceStub(ServiceStub* service) {
     auto googleService = service->GetService();
     const auto& name = googleService->GetDescriptor()->full_name();
     ANANAS_INF << "AddServiceStub " << googleService->GetDescriptor()->name().data();
@@ -75,7 +75,7 @@ bool Server::AddServiceStub(std::unique_ptr<ServiceStub>&& service) {
     return true;
 }
 
-ananas::rpc::ServiceStub* Server::GetServiceStub(const ananas::StringView& name) const {
+ServiceStub* Server::GetServiceStub(const StringView& name) const {
     auto it = stubs_.find(name);
     return it == stubs_.end() ? nullptr : it->second.get();
 }
@@ -104,7 +104,7 @@ void Server::Start(int ac, char* av[]) {
     if (services_.empty()) {
         ANANAS_WRN << "Warning: No available service";
     } else {
-        BaseLoop()->ScheduleAfterWithRepeat<ananas::kForever>(std::chrono::seconds(3),
+        BaseLoop()->ScheduleAfterWithRepeat<kForever>(std::chrono::seconds(3),
         [this]() {
             if (keepaliveInfo_.size() == 0) {
                 for (const auto& kv : services_) {

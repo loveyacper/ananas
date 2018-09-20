@@ -4,60 +4,63 @@ namespace ananas {
 
 namespace rpc {
 
-constexpr AnanasErrorCategory::AnanasErrorCategory() {
+AnanasErrorCategory::AnanasErrorCategory() {
 }
 
 const char* AnanasErrorCategory::name() const noexcept {
-    return "ananas.rpc.error";
+    return "ananas.error";
 }
 
 std::string AnanasErrorCategory::message(int ec) const {
 
     switch (static_cast<ErrorCode>(ec)) {
         case ErrorCode::None:
-            return "ananas.rpc.error:OK";
+            return "ananas.error:OK";
 
         case ErrorCode::NoSuchService:
-            return "ananas.rpc.error:NoSuchService";
+            return "ananas.error:NoSuchService";
 
         case ErrorCode::NoSuchMethod:
-            return "ananas.rpc.error:NoSuchMethod";
+            return "ananas.error:NoSuchMethod";
 
         case ErrorCode::ConnectionLost:
-            return "ananas.rpc.error:ConnectionLost";
+            return "ananas.error:ConnectionLost";
 
         case ErrorCode::ConnectionReset:
-            return "ananas.rpc.error:ConnectionReset";
+            return "ananas.error:ConnectionReset";
 
         case ErrorCode::DecodeFail:
-            return "ananas.rpc.error:DecodeFail";
+            return "ananas.error:DecodeFail";
 
         case ErrorCode::EncodeFail:
-            return "ananas.rpc.error:EncodeFail";
+            return "ananas.error:EncodeFail";
 
         case ErrorCode::Timeout:
-            return "ananas.rpc.error:Timeout";
+            return "ananas.error:Timeout";
+
+        case ErrorCode::TooLongFrame:
+            return "ananas.error:TooLongFrame";
 
         case ErrorCode::EmptyRequest:
-            return "ananas.rpc.error:EmptyRequest";
+            return "ananas.error:EmptyRequest";
 
         case ErrorCode::MethodUndetermined:
-            return "ananas.rpc.error:MethodUndetermined";
+            return "ananas.error:MethodUndetermined";
 
         case ErrorCode::ThrowInMethod:
-            return "ananas.rpc.error:ThrowInMethod";
+            return "ananas.error:ThrowInMethod";
 
         case ErrorCode::NoAvailableEndpoint:
-            return "ananas.rpc.error:NoAvailableEndpoint";
+            return "ananas.error:NoAvailableEndpoint";
 
         case ErrorCode::ConnectRefused:
-            return "ananas.rpc.error:ConnectRefused";
+            return "ananas.error:ConnectRefused";
 
         default:
             break;
     }
             
-    return "bad ananas.rpc error code";
+    return "Bad ananas.rpc error code";
 }
 
 const std::error_category& AnanasCategory() noexcept {

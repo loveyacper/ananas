@@ -26,10 +26,10 @@ set(HEADERS
     RpcService.h
     RpcServiceStub.h
     RpcEndpoint.h
+    RpcException.h
     ProtobufCoder.h
     ananas_rpc.pb.h
     name_service_protocol/RedisClientContext.h
-    #RpcException.h
    )
                       
 INSTALL(FILES ${HEADERS} DESTINATION include/ananas/rpc)

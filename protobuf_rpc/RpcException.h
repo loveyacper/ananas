@@ -19,6 +19,7 @@ enum class ErrorCode {
     DecodeFail,
     EncodeFail,
     Timeout,
+    TooLongFrame,
 
     // server-side
     EmptyRequest,
@@ -32,7 +33,7 @@ enum class ErrorCode {
 
 class AnanasErrorCategory : public std::error_category {
 public:
-    constexpr AnanasErrorCategory();
+    AnanasErrorCategory();
 
     AnanasErrorCategory(const AnanasErrorCategory& ) = delete;
     AnanasErrorCategory& operator=(const AnanasErrorCategory& ) = delete;

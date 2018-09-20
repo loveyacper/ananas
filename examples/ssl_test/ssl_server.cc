@@ -6,7 +6,7 @@
 #include "net/EventLoop.h"
 #include "net/Application.h"
 #include "net/Connection.h"
-#include "util/log/Logger.h"
+#include "util/Logger.h"
 
 void NewSSLConnection(const std::string& ctxName, int verifyMode, bool incoming, ananas::Connection* c) {
     ananas::ssl::OnNewSSLConnection(ctxName, verifyMode, incoming, c);
@@ -19,7 +19,7 @@ void NewSSLConnection(const std::string& ctxName, int verifyMode, bool incoming,
     });
 }
 
-int main(int ac, char* av) {
+int main(int ac, char* av[]) {
     ananas::LogManager::Instance().Start();
 
     using ananas::ssl::SSLManager;

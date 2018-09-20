@@ -21,8 +21,8 @@ std::shared_ptr<google::protobuf::Message> BytesToPbDecoder(const char*& data, s
     const int totalLen = TotalPbLength(data);
 
     // TODO totalLen limit
-    if (totalLen <= kPbHeaderLen || totalLen >= 128 * 1024 * 1024)
-        throw Exception(ananas::rpc::ErrorCode::DecodeFail, "abnormal totalLen:" + std::to_string(totalLen));
+    if (totalLen <= kPbHeaderLen || totalLen >= 256 * 1024 * 1024)
+        throw Exception(ErrorCode::TooLongFrame, "abnormal totalLen:" + std::to_string(totalLen));
 
     if (static_cast<int>(len) < totalLen)
         return nullptr;
@@ -31,7 +31,7 @@ std::shared_ptr<google::protobuf::Message> BytesToPbDecoder(const char*& data, s
     std::shared_ptr<google::protobuf::Message> res(frame = new RpcMessage);
 
     if (!frame->ParseFromArray(data + kPbHeaderLen, totalLen - kPbHeaderLen))
-        throw Exception(ananas::rpc::ErrorCode::DecodeFail, "ParseFromArray failed");
+        throw Exception(ErrorCode::DecodeFail, "ParseFromArray failed");
 
     data += totalLen;
     return res;
@@ -53,7 +53,7 @@ DecodeState PbToMessageDecoder(const google::protobuf::Message& pbMsg, google::p
             throw Exception(ErrorCode::DecodeFail, "EmptyResponse");
         }
     } else {
-        throw Exception(ananas::rpc::ErrorCode::DecodeFail, "PbToMessageDecoder failed.");
+        throw Exception(ErrorCode::DecodeFail, "PbToMessageDecoder failed.");
     }
 
     return DecodeState::Ok;
@@ -87,7 +87,7 @@ ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& rpcMsg) {
     bool succ = rpcMsg.SerializeToArray(bytes.WriteAddr(), bodyLen);
     if (!succ) {
         bytes.Clear();
-        throw Exception(ananas::rpc::ErrorCode::EncodeFail);
+        throw Exception(ErrorCode::EncodeFail);
     } else {
         bytes.Produce(bodyLen);
     }

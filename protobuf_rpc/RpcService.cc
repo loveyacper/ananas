@@ -14,7 +14,7 @@ namespace ananas {
 
 namespace rpc {
 
-Service::Service(google::protobuf::Service* service) :
+Service::Service(GoogleService* service) :
     service_(service),
     name_(service->GetDescriptor()->full_name()) {
 }
@@ -22,7 +22,7 @@ Service::Service(google::protobuf::Service* service) :
 Service::~Service() {
 }
 
-google::protobuf::Service* Service::GetService() const {
+GoogleService* Service::GetService() const {
     return service_.get();
 }
 
@@ -69,7 +69,7 @@ void Service::OnRegister() {
     channels_.resize(Application::Instance().NumOfWorker());
 }
 
-void Service::SetMethodSelector(std::function<std::string (const google::protobuf::Message* )> ms) {
+void Service::SetMethodSelector(std::function<std::string (const Message* )> ms) {
     methodSelector_ = std::move(ms);
 }
 
@@ -164,11 +164,11 @@ void ServerChannel::SetDecoder(Decoder dec) {
     decoder_ = std::move(dec);
 }
 
-std::shared_ptr<google::protobuf::Message> ServerChannel::OnData(const char*& data, size_t len) {
+std::shared_ptr<Message> ServerChannel::OnData(const char*& data, size_t len) {
     return decoder_.b2mDecoder_(data, len);
 }
 
-bool ServerChannel::OnMessage(std::shared_ptr<google::protobuf::Message> req) {
+bool ServerChannel::OnMessage(std::shared_ptr<Message> req) {
     std::string method;
     RpcMessage* frame = dynamic_cast<RpcMessage*>(req.get());
     if (frame) {
@@ -201,7 +201,7 @@ bool ServerChannel::OnMessage(std::shared_ptr<google::protobuf::Message> req) {
     return true;
 }
 
-void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<google::protobuf::Message> req) {
+void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<Message> req) {
     const auto googServ = service_->GetService();
     auto method = googServ->GetDescriptor()->FindMethodByName(methodName);
     if (!method) {
@@ -210,7 +210,7 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<googl
     }
 
     if (decoder_.m2mDecoder_) {
-        std::unique_ptr<google::protobuf::Message> request(googServ->GetRequestPrototype(method).New());
+        std::unique_ptr<Message> request(googServ->GetRequestPrototype(method).New());
         decoder_.m2mDecoder_(*req, *request);
         req.reset(request.release());
     }
@@ -224,7 +224,7 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<googl
      * 3. Closure must be managed by raw pointer, so when call Closure::Run, it will execute
      * `delete this` when exit, at which time the response is also destroyed.
      */
-    std::shared_ptr<google::protobuf::Message> response(googServ->GetResponsePrototype(method).New());
+    std::shared_ptr<Message> response(googServ->GetResponsePrototype(method).New());
 
     std::weak_ptr<ananas::Connection> wconn(std::static_pointer_cast<ananas::Connection>(conn_->shared_from_this()));
     auto done = new ananas::rpc::Closure(&ServerChannel::_OnServDone, this, wconn, currentId_, response);
@@ -248,7 +248,7 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<googl
 
 void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
                                 int id,
-                                std::shared_ptr<google::protobuf::Message> response) {
+                                std::shared_ptr<Message> response) {
     auto conn = wconn.lock();
     if (!conn) return;
 

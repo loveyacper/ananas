@@ -14,12 +14,13 @@ namespace {
 // The defer class for C++11
 class ExecuteOnScopeExit {
 public:
-    ExecuteOnScopeExit() { }
+    ExecuteOnScopeExit() = default;
 
-    ExecuteOnScopeExit(ExecuteOnScopeExit&& e) {
-        func_ = std::move(e.func_);
-    }
+    // movable
+    ExecuteOnScopeExit(ExecuteOnScopeExit&& ) = default;
+    ExecuteOnScopeExit& operator=(ExecuteOnScopeExit&& ) = default;
 
+    // non copyable
     ExecuteOnScopeExit(const ExecuteOnScopeExit& e) = delete;
     void operator=(const ExecuteOnScopeExit& f) = delete;
 

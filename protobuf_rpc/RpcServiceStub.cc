@@ -21,7 +21,7 @@ static const std::string idStr("id");
 static const std::string svrStr("service_name");
 static const std::string methodStr("method_name");
 
-ServiceStub::ServiceStub(google::protobuf::Service* service) {
+ServiceStub::ServiceStub(GoogleService* service) {
     service_.reset(service);
     name_ = service->GetDescriptor()->full_name();
 }
@@ -29,7 +29,7 @@ ServiceStub::ServiceStub(google::protobuf::Service* service) {
 ServiceStub::~ServiceStub() {
 }
 
-google::protobuf::Service* ServiceStub::GetService() const {
+GoogleService* ServiceStub::GetService() const {
     return service_.get();
 }
 
@@ -84,7 +84,8 @@ Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep) {
     }
 }
 
-Future<ClientChannel* > ServiceStub::_SelectChannel(EventLoop* loop, Try<std::shared_ptr<std::vector<Endpoint>>>&& eps) {
+Future<ClientChannel* > ServiceStub::_SelectChannel(EventLoop* loop,
+                                                    Try<std::shared_ptr<std::vector<Endpoint>>>&& eps) {
     assert (loop->IsInSameLoop());
     try {
         return _MakeChannel(loop, _SelectEndpoint(eps));
@@ -123,7 +124,6 @@ Future<ClientChannel* > ServiceStub::_Connect(EventLoop* loop, const Endpoint& e
     pendingConns[dst].emplace_back(std::move(promise));
 
     if (needConnect) {
-        ANANAS_INF << "Connect to " << dst.ToString() << " in loop " << loop->Id();
         // TODO check UDP or TCP, now treat it as TCP
         Application::Instance().Connect(dst,
                                         std::bind(&ServiceStub::_OnNewConnection,
@@ -348,8 +348,7 @@ int ClientChannel::GenId() {
     return ++ reqIdGen_;
 }
 
-ananas::Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method,
-        const google::protobuf::Message& request) {
+ananas::Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method, const Message& request) {
     RpcMessage rpcMsg;
     encoder_.m2fEncoder_(&request, rpcMsg);
 
@@ -360,7 +359,7 @@ ananas::Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method,
     if (!HasField(*req, idStr))
         req->set_id(this->GenId());
     else
-        reqIdGen_ = req->id(); // other protocol may has its own req-id, such as http2
+        reqIdGen_ = req->id(); // Some protocol may has its own req-id, eg. http2
 
     if (encoder_.f2bEncoder_) {
         // eg. add 4 bytes to indicate the frame length
@@ -375,11 +374,11 @@ ananas::Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method,
     }
 }
 
-std::shared_ptr<google::protobuf::Message> ClientChannel::OnData(const char*& data, size_t len) {
+std::shared_ptr<Message> ClientChannel::OnData(const char*& data, size_t len) {
     return decoder_.b2mDecoder_(data, len);
 }
 
-bool ClientChannel::OnMessage(std::shared_ptr<google::protobuf::Message> msg) {
+bool ClientChannel::OnMessage(std::shared_ptr<Message> msg) {
     RpcMessage* frame = dynamic_cast<RpcMessage*>(msg.get());
     if (frame) {
         assert (HasField(frame->response(), idStr));

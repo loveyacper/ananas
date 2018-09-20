@@ -31,13 +31,16 @@ namespace rpc {
 class Request;
 class ServerChannel;
 
+using google::protobuf::Message;
+using GoogleService = google::protobuf::Service;
+
 class Service final {
 public:
     explicit
-    Service(google::protobuf::Service* service);
+    Service(GoogleService* service);
     ~Service();
 
-    google::protobuf::Service* GetService() const;
+    GoogleService* GetService() const;
     const std::string& FullName() const;
 
     void SetEndpoint(const Endpoint& ep);
@@ -50,7 +53,7 @@ public:
     void OnRegister();
 
     // if the third party protocol, this func tell ananas to invoke which method
-    void SetMethodSelector(std::function<std::string (const google::protobuf::Message* )> );
+    void SetMethodSelector(std::function<std::string (const Message* )> );
     void SetOnCreateChannel(std::function<void (ServerChannel* )> );
 
 private:
@@ -59,12 +62,12 @@ private:
     static size_t _OnMessage(ananas::Connection* conn, const char* data, size_t len);
     void _OnDisconnect(ananas::Connection* conn);
 
-    std::unique_ptr<google::protobuf::Service> service_;
+    std::unique_ptr<GoogleService> service_;
     Endpoint endpoint_;
     std::string name_;
 
     std::function<void (ServerChannel* )> onCreateChannel_;
-    std::function<std::string (const google::protobuf::Message* )> methodSelector_;
+    std::function<std::string (const Message* )> methodSelector_;
 
     // Each service has many connections, each loop has its own map.
     using ChannelMap = std::unordered_map<unsigned int, ServerChannel* >;
@@ -72,7 +75,7 @@ private:
 };
 
 class ServerChannel {
-    friend class Service;
+    //friend class Service;
 public:
     ServerChannel(ananas::Connection* conn, ananas::rpc::Service* service);
     ~ServerChannel();
@@ -83,15 +86,15 @@ public:
     void SetEncoder(Encoder enc);
 
     void SetDecoder(Decoder dec);
-    std::shared_ptr<google::protobuf::Message> OnData(const char*& data, size_t len);
-    bool OnMessage(std::shared_ptr<google::protobuf::Message> req);
+    std::shared_ptr<Message> OnData(const char*& data, size_t len);
+    bool OnMessage(std::shared_ptr<Message> req);
     void OnError(const std::exception& err, int code = 0);
 private:
     void _Invoke(const std::string& methodName,
-                 std::shared_ptr<google::protobuf::Message> req);
+                 std::shared_ptr<Message> req);
     void _OnServDone(std::weak_ptr<ananas::Connection> wconn,
                      int id,
-                     std::shared_ptr<google::protobuf::Message> response);
+                     std::shared_ptr<Message> response);
 
     ananas::Connection* const conn_;
     ananas::rpc::Service* const service_;
