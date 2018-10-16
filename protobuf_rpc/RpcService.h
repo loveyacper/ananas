@@ -58,6 +58,7 @@ public:
 
 private:
     friend class ServerChannel;
+    friend class HealthServiceImpl;
 
     static size_t _OnMessage(ananas::Connection* conn, const char* data, size_t len);
     void _OnDisconnect(ananas::Connection* conn);
@@ -75,10 +76,14 @@ private:
 };
 
 class ServerChannel {
-    //friend class Service;
 public:
     ServerChannel(ananas::Connection* conn, ananas::rpc::Service* service);
     ~ServerChannel();
+
+    void SetContext(std::shared_ptr<void> ctx);
+
+    template <typename T>
+    std::shared_ptr<T> GetContext() const;
 
     ananas::rpc::Service* Service() const;
     ananas::Connection* Connection() const;
@@ -89,6 +94,7 @@ public:
     std::shared_ptr<Message> OnData(const char*& data, size_t len);
     bool OnMessage(std::shared_ptr<Message> req);
     void OnError(const std::exception& err, int code = 0);
+
 private:
     void _Invoke(const std::string& methodName,
                  std::shared_ptr<Message> req);
@@ -99,12 +105,20 @@ private:
     ananas::Connection* const conn_;
     ananas::rpc::Service* const service_;
 
+    std::shared_ptr<void> ctx_;
+
     // coders
     Decoder decoder_;
     Encoder encoder_;
 
     int currentId_ {0};
 };
+
+template <typename T>
+std::shared_ptr<T> ServerChannel::GetContext() const {
+    return std::static_pointer_cast<T>(ctx_);
+}
+
 
 } // end namespace rpc
 

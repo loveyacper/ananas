@@ -42,6 +42,9 @@ public:
     void SetNameServer(const std::string& url);
     void SetOnCreateNameServerChannel(std::function<void (ClientChannel*)> );
 
+    // health service
+    void SetHealthService(const std::string& url);
+
     // server-side
     bool AddService(Service* service);
     bool AddService(std::unique_ptr<Service>&& service);
@@ -54,15 +57,19 @@ public:
 
     // both
     void SetNumOfWorker(size_t n);
+    size_t NumOfWorker() const;
     void Start(int argc, char* argv[]);
     void Shutdown();
 
 private:
+    friend class HealthServiceImpl;
+
     Application& app_;
     std::unordered_map<StringView, std::unique_ptr<Service> > services_;
     std::unordered_map<StringView, std::unique_ptr<ServiceStub> > stubs_;
 
     ServiceStub* nameServiceStub_ {nullptr};
+    Service* healthService_ {nullptr};
     std::function<void (ClientChannel*)> onCreateNameServiceChannel_;
 
     // The services's info
