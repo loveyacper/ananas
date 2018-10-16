@@ -71,10 +71,8 @@ DurationMs TimerManager::NearestTimer() const {
 }
 
 TimerManager::Timer::Timer(const TimePoint& tp) :
-    id_(new std::pair<TimePoint, unsigned int> {
-    tp, ++ TimerManager::s_timerIdGen_
-}),
-count_(kForever) {
+    id_(std::make_shared<std::pair<TimePoint, unsigned int>>(tp, ++ TimerManager::s_timerIdGen_)),
+    count_(kForever) {
 }
 
 TimerManager::Timer::Timer(Timer&& timer) {

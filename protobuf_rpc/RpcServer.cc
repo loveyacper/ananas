@@ -8,6 +8,7 @@
 #include "ananas/net/AnanasDebug.h"
 
 #include "RedisClientContext.h"
+#include "HealthService.h"
 
 namespace ananas {
 
@@ -87,6 +88,10 @@ void Server::SetNumOfWorker(size_t n) {
         assert (!!!"Don't change worker number after service added");
 }
 
+size_t Server::NumOfWorker() const {
+    return app_.NumOfWorker();
+}
+
 void Server::Start(int ac, char* av[]) {
     for (const auto& kv : services_) {
         if (kv.second->Start()) {
@@ -103,7 +108,7 @@ void Server::Start(int ac, char* av[]) {
 
     if (services_.empty()) {
         ANANAS_WRN << "Warning: No available service";
-    } else {
+    } else if (this->nameServiceStub_) {
         BaseLoop()->ScheduleAfterWithRepeat<kForever>(std::chrono::seconds(3),
         [this]() {
             if (keepaliveInfo_.size() == 0) {
@@ -162,6 +167,19 @@ void Server::SetNameServer(const std::string& url) {
     ANANAS_DBG << "SetNameServer " << nameServiceStub_->FullName();
 
     this->AddServiceStub(nameServiceStub_);
+}
+
+void Server::SetHealthService(const std::string& url) {
+    assert (!healthService_);
+
+    healthService_ = new Service(new HealthServiceImpl);
+    healthService_->SetEndpoint(EndpointFromString(url));
+    healthService_->SetOnCreateChannel(OnCreateHealthChannel);
+    healthService_->SetMethodSelector(DispatchHealthMethod);
+
+    ANANAS_DBG << "Enable health service on " << url;
+
+    this->AddService(healthService_);
 }
 
 void Server::SetOnCreateNameServerChannel(std::function<void (ClientChannel*)> occ) {

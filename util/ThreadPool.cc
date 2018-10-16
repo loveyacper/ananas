@@ -119,7 +119,7 @@ void ThreadPool::_MonitorRoutine() {
 
         while (nw -- > maxIdleThreads_) {
             tasks_.push_back([this]() {
-                working_ = false;
+                this->working_ = false;
             });
             cond_.notify_one();
             ++ pendingStopSignal_;

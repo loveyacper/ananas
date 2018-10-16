@@ -70,6 +70,7 @@ int main(int ac, char* av[]) {
     server.AddService(testsrv);
 
     server.SetNameServer("tcp://127.0.0.1:6379");
+    server.SetHealthService("tcp://127.0.0.1:8000");
     server.Start(ac, av);
 
     return 0;

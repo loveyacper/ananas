@@ -148,6 +148,10 @@ ServerChannel::ServerChannel(ananas::Connection* conn, ananas::rpc::Service* ser
 ServerChannel::~ServerChannel() {
 }
 
+void ServerChannel::SetContext(std::shared_ptr<void> ctx) {
+    ctx_ = std::move(ctx);
+}
+
 ananas::rpc::Service* ServerChannel::Service() const {
     return service_;
 }

@@ -42,17 +42,18 @@ QQ群讨论784231426](#补全)
 
 ## Features
 * Protobuf-based rpc.
-* Pythonic generator style coroutine, see [Intro](coroutine/README.md).
 * `Future` & `Promise`, see [future](future/README.md).
+* Http health service for inspect, enabled by `SetHealthService()`.
 * Network(`udp`&`tcp`,`kqueue`&`epoll`), support ssl.
+* Pythonic generator style coroutine, see [Intro](coroutine/README.md).
 * Easy used and powerful timer, see [test](tests/test_timer/).
 * Extremely high performance multi-thread logger, see [Intro](util/log/README.md).
 * etc...
 
 ## What's ananas?
-&ensp;&ensp;&ensp;&ensp;ananas是一个基于promise模式和google protobuf的RPC框架，目前由C++11实现，golang版本在计划中。
+&ensp;&ensp;&ensp;&ensp;ananas是一个基于promise模式和google protobuf的RPC框架，目前由C++11实现，[golang版本](https://github.com/ananas-rpc/ananas_golang)在计划中。
       
-&ensp;&ensp;&ensp;&ensp;ananas并不是一个大而全的框架，出于教学目的，也秉着less is more的原则，它只包含RPC框架该有的部分，非常小巧，便于初学者学习。
+&ensp;&ensp;&ensp;&ensp;用c++编写rpc属于个人的舒适区，以及出于教学目的，它不会是一个大而全的框架，只包含RPC框架该有的部分，非常小巧，便于初学者学习。
 
 &ensp;&ensp;&ensp;&ensp;可以基于ananas rpc编写代码，也可以抛弃rpc，仅仅使用网络库编写应用(类似使用muduo或netty)。
 

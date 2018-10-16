@@ -115,6 +115,8 @@ ananas rpc只提供了基于future的异步调用，方式如下:
 ## ananas协议设计
 首先向netty致敬，完美的协议处理链使得实现任何协议都十分优雅。
 
+PS: Http rpc服务端实现可参考`HealthService.cc`文件，ananas中内置的http监控服务。
+
 ananas rpc也模仿了这样的设计，但在具体的实现过程中仍然遇到了很多问题，个人也反复思考了常见
 的协议，比如http1.1，redis，websocket，https。最终思路如下：
 默认内置的rpc协议是二进制协议；以client发起rpc请求为例，业务层的参数信息被称为message，代码中对应为google::protobuf::Message的子类；
