@@ -8,7 +8,7 @@ A C++11 RPC framework and toolbox for server-side development.
 <!-- vim-markdown-toc GFM -->
 * [Requirements](#requirements)
 * [Features](#features)
-* [What's ananas](#whats-ananas)
+* [ananas简介](#ananas简介)
     * [需要什么预备知识](#需要什么预备知识)
     * [阅读ananas源码需要读什么书](#阅读ananas源码需要读什么书)
 * [源码目录结构](#源码目录结构)
@@ -50,12 +50,12 @@ QQ群讨论784231426](#补全)
 * Extremely high performance multi-thread logger, see [Intro](util/log/README.md).
 * etc...
 
-## What's ananas?
+## ananas简介
 &ensp;&ensp;&ensp;&ensp;ananas是一个基于promise模式和google protobuf的RPC框架，目前由C++11实现，[golang版本](https://github.com/ananas-rpc/ananas_golang)在计划中。
       
-&ensp;&ensp;&ensp;&ensp;用c++编写rpc属于个人的舒适区，以及出于教学目的，它不会是一个大而全的框架，只包含RPC框架该有的部分，非常小巧，便于初学者学习。
+&ensp;&ensp;&ensp;&ensp;写这份c++代码属于个人的舒适区，不会是一个大而全的框架，再加上出于教学目的，它只包含RPC框架该有的部分，非常小巧，便于初学者学习。
 
-&ensp;&ensp;&ensp;&ensp;可以基于ananas rpc编写代码，也可以抛弃rpc，仅仅使用网络库编写应用(类似使用muduo或netty)。
+&ensp;&ensp;&ensp;&ensp;可以基于ananas rpc编写代码，也可以抛弃rpc，仅仅使用网络库编写应用(类似使用muduo)。
 
 &ensp;&ensp;&ensp;&ensp;ananas主要包括两个部分:基础部分是一个**reactor模式的多线程非阻塞网络库**，基于epoll或kqueue，和陈硕先生的muduo比较相似；ananas有一些部分参考了java netty的实现。如果你是javaer，看到了EventLoopGroup可能会心一笑。
 
@@ -78,13 +78,12 @@ QQ群讨论784231426](#补全)
 
    * [Unix网络编程](https://www.amazon.cn/dp/B011S72JB6)
     
-     被推荐烂了，书很厚，但只需要读一小半:
+     被推荐烂了，书很厚，但只需要读1/3:
      
      第1-7章；基础，特别是要理解TCP的双工特性.  
      第14章；了解gather write/scatter read.  
      第16章；这是本书最最重要的一章。  
      第30章；  
-     也就是说，这么厚的书，只需要读10章足矣，是否有信心了?
 
 ### 推荐的书
    * [Netty in action](https://book.douban.com/subject/24700704/)
