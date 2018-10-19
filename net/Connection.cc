@@ -273,6 +273,24 @@ void  Connection::HandleErrorEvent() {
     loop_->Unregister(eET_Read | eET_Write, shared_from_this());
 }
 
+bool Connection::SafeSend(const void* data, std::size_t size) {
+    if (loop_->IsInSameLoop())
+        return this->SendPacket(data, size);
+    else
+        return SafeSend(std::string((const char*)data, size));
+}
+
+bool Connection::SafeSend(const std::string& data) {
+    if (loop_->IsInSameLoop())
+        return this->SendPacket(data);
+    else
+        loop_->Execute([this, data]() {
+                          this->SendPacket(data);
+                       });
+
+    return true;
+}
+
 bool Connection::SendPacket(const void* data, std::size_t size) {
     assert (loop_->IsInSameLoop());
 
