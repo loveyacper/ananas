@@ -262,17 +262,19 @@ void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
     bool succ = encoder_.m2fEncoder_(response.get(), frame);
     assert (succ);
 
+    // may be called from other thread, so use SafeSend
     if (encoder_.f2bEncoder_) {
         ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
-        conn->SendPacket(bytes);
+        conn->SafeSend(bytes.ReadAddr(), bytes.ReadableSize());
     } else {
         const auto& bytes = rsp->serialized_response();
-        conn->SendPacket(bytes);
+        conn->SafeSend(bytes);
     }
 }
 
-
 void ServerChannel::OnError(const std::exception& err, int code) {
+    assert (conn_->GetLoop()->IsInSameLoop());
+
     RpcMessage frame;
     Response* rsp = frame.mutable_response();
     if (currentId_ != -1) rsp->set_id(currentId_);

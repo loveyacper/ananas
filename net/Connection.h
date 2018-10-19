@@ -50,11 +50,16 @@ public:
     bool HandleWriteEvent() override;
     void HandleErrorEvent() override;
 
+    // NOT thread-safe
     bool SendPacket(const void* data, std::size_t len);
     bool SendPacket(const std::string& data);
     bool SendPacket(const Buffer& buf);
     bool SendPacket(const BufferVector& datum);
     bool SendPacket(const SliceVector& slice);
+
+    // Thread safe
+    bool SafeSend(const void* data, std::size_t len);
+    bool SafeSend(const std::string& data);
 
     void SetBatchSend(bool batch);
 
