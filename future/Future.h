@@ -17,7 +17,8 @@ namespace internal {
 enum class Progress {
     None,
     Timeout,
-    Done
+    Done,
+    Retrieved,
 };
 
 using TimeoutCallback = std::function<void ()>;
@@ -64,10 +65,10 @@ public:
         state_(std::make_shared<State<T>>()) {
     }
 
-    // TODO: C++11 lambda doesn't support move capture
-    // just for compile, copy Promise is ub, do NOT do that!
-    Promise(const Promise&) = default;
-    Promise& operator= (const Promise&) = default;
+    // The lambda with movable capture can not be stored in
+    // std::function, just for compile, do NOT copy promise!
+    Promise(const Promise& ) = default;
+    Promise& operator= (const Promise& ) = default;
 
     Promise(Promise&& pm) = default;
     Promise& operator= (Promise&& pm) = default;
@@ -89,9 +90,10 @@ public:
     template <typename SHIT = T>
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
     SetValue(SHIT&& t) {
-        // if ThenImp is running, here will wait for the lock.
-        // ThenImp will release lock after set then_ callback.
-        // And this func acquired lock, definitely call then_.
+
+        // If ThenImp is running, here will wait for the lock.
+        // After set then_, ThenImp will release lock.
+        // And this func got lock, definitely will call then_.
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         bool isRoot = state_->IsRoot();
         if (isRoot && state_->progress_ != Progress::None)
@@ -101,9 +103,10 @@ public:
         state_->value_ = std::forward<SHIT>(t);
 
         guard.unlock();
-        // when here, the state is defined, so mutex is useless
-        // If the ThenImp function run, it'll see the Done state
-        // and call func there, not use then_ callback.
+
+        // When reach here, state_ is determined, so mutex is useless
+        // If the ThenImp function run, it'll see the Done state and
+        // call user func there, not assign to then_.
         if (state_->then_)
             state_->then_(std::move(state_->value_));
     }
@@ -246,6 +249,55 @@ public:
         state_(std::move(state)) {
     }
 
+    // The blocking interface
+    // PAY ATTENTION to deadlock: Wait thread must NOT be same as promise thread!!!
+    typename State<T>::ValueType
+    Wait(const std::chrono::milliseconds& timeout = std::chrono::milliseconds(7*24*3600*1000)) {
+
+        std::unique_lock<std::mutex> guard(state_->thenLock_);
+        switch (state_->progress_) {
+            case Progress::None:
+                break;
+
+            case Progress::Timeout:
+                throw std::runtime_error("Future timeout");
+
+            case Progress::Done:
+                state_->progress_ = Progress::Retrieved;
+                return std::move(state_->value_);
+
+            default:
+                throw std::runtime_error("Future already retrieved");
+        }
+        guard.unlock();
+
+        auto cond(std::make_shared<std::condition_variable>());
+        auto mutex(std::make_shared<std::mutex>());
+        bool ready = false;
+        typename State<T>::ValueType value;
+
+        this->Then([&value, &ready,
+                    wcond = std::weak_ptr<std::condition_variable>(cond),
+                    wmutex = std::weak_ptr<std::mutex>(mutex)](typename State<T>::ValueType&& v)
+                   {
+                       auto cond = wcond.lock();
+                       auto mutex = wmutex.lock();
+                       if (!cond || !mutex) return;
+
+                       std::unique_lock<std::mutex> guard(*mutex);
+                       value = std::move(v);
+                       ready = true;
+                       cond->notify_one();
+                   });
+
+        std::unique_lock<std::mutex> waiter(*mutex);
+        bool success = cond->wait_for(waiter, timeout, [&ready]() { return ready; } );
+        if (success)
+            return std::move(value);
+        else
+            throw std::runtime_error("Future wait_for timeout");
+     }
+
     // T is of type Future<InnerType>
     template <typename SHIT = T>
     typename std::enable_if<IsFuture<SHIT>::value, SHIT>::type
@@ -314,7 +366,6 @@ public:
         Promise<FReturnType> pm;
         auto nextFuture = pm.GetFuture();
 
-        // FIXME
         using FuncType = typename std::decay<F>::type;
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
@@ -331,7 +382,7 @@ public:
             guard.unlock();
 
             auto func = [res = std::move(t),
-                             f = std::forward<FuncType>(f),
+                         f = std::forward<FuncType>(f),
                 prom = std::move(pm)]() mutable {
                 auto result = WrapWithTry(f, std::move(res));
                 prom.SetValue(std::move(result));
@@ -366,7 +417,7 @@ public:
             // 2. set this future's then callback
             SetCallback([sched,
                          func = std::forward<FuncType>(f),
-            prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
+                         prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
 
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // run callback, T can be void, thanks to folly Try<>
@@ -396,7 +447,6 @@ public:
         Promise<FReturnType> pm;
         auto nextFuture = pm.GetFuture();
 
-        // FIXME
         using FuncType = typename std::decay<F>::type;
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
@@ -413,12 +463,12 @@ public:
             guard.unlock();
 
             auto cb = [res = std::move(t),
-                           f = std::forward<FuncType>(f),
-                prom = std::move(pm)]() mutable {
+                       f = std::forward<FuncType>(f),
+                       prom = std::move(pm)]() mutable {
                 // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
                 decltype(f(res.template Get<Args>()...)) innerFuture;
                 if (res.HasException()) {
-                    // FIXME if Args... is void
+                    // Failed if Args... is void
                     innerFuture = f(typename TryWrapper<typename std::decay<Args...>::type>::Type(res.Exception()));
                 } else {
                     innerFuture = f(res.template Get<Args>()...);
@@ -472,13 +522,14 @@ public:
 
             // 2. set this future's then callback
             SetCallback([sched = sched,
-                               func = std::forward<FuncType>(f),
-                  prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
+                         func = std::forward<FuncType>(f),
+                         prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
+
                 auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
                     // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
                     decltype(func(t.template Get<Args>()...)) innerFuture;
                     if (t.HasException()) {
-                        // FIXME if Args... is void
+                        // Failed if Args... is void
                         innerFuture = func(typename TryWrapper<typename std::decay<Args...>::type>::Type(t.Exception()));
                     } else {
                         innerFuture = func(t.template Get<Args>()...);
@@ -538,7 +589,8 @@ public:
     void OnTimeout(std::chrono::milliseconds duration,
                    TimeoutCallback f,
                    Scheduler* scheduler) {
-        scheduler->ScheduleAfter(duration, [state = state_, cb = std::move(f)]() mutable {
+
+        scheduler->ScheduleLater(duration, [state = state_, cb = std::move(f)]() mutable {
             {
                 std::unique_lock<std::mutex> guard(state->thenLock_);
 

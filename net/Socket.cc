@@ -98,8 +98,11 @@ bool GetPeerAddr(int sock, SocketAddr& addr) {
 
 in_addr_t GetLocalAddrInfo() {
 #ifdef __APPLE__
-    // TODO can not work on mac os
-    return 0;
+    // TODO Not work on mac os
+    fprintf(stderr, "GetLocalAddrInfo can't work on MAC OS, return 127.0.0.1 instead\n");
+    struct in_addr pin;
+    ::inet_aton("127.0.0.1", &pin);
+    return pin.s_addr;
 #else
     char buff[512];
     struct ifconf conf;
@@ -167,6 +170,7 @@ std::string ConvertIp(const char* ip) {
         return tmp.GetIP();
     }
 
+    // TODO DNS resolve
     return ip;
 }
 

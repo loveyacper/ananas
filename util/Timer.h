@@ -35,18 +35,26 @@ public:
     void Update();
 
     // Schedule timer at absolute timepoint then repeat with period
+    // RepeatCount: Timer will be canceled after trigger RepeatCount times, kForever implies forever.
+    // triggerTime: The absolute time at when timer first triggered
+    // period: After 1st trigger, Timer will be triggered every period
     template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args);
 
     // Schedule timer with period
+    // RepeatCount: Timer will be canceled after triggered RepeatCount times, kForever implies forever.
+    // period: Timer will be triggered every period
+    // PAY ATTENTION: Timer's first triggered at once, but after period time
     template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args);
 
     // Schedule timer at timepoint
+    // triggerTime: The absolute time at when timer will be triggered
     template <typename F, typename... Args>
     TimerId ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args);
 
     // Schedule timer after duration
+    // duration: After duration, timer will be triggered
     template <typename Duration, typename F, typename... Args>
     TimerId ScheduleAfter(const Duration& duration, F&& f, Args&&... args);
 
@@ -91,6 +99,7 @@ private:
     std::multimap<TimePoint, Timer> timers_;
 
     friend class Timer;
+
     // not thread-safe, but who cares?
     static unsigned int s_timerIdGen_;
 };
@@ -114,10 +123,10 @@ TimerId TimerManager::ScheduleAtWithRepeat(const TimePoint& triggerTime, const D
 }
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
-TimerId TimerManager::ScheduleAfterWithRepeat(const Duration& duration, F&& f, Args&&... args) {
+TimerId TimerManager::ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args) {
     const auto now = std::chrono::steady_clock::now();
-    return ScheduleAtWithRepeat<RepeatCount>(now + duration,
-                                             duration,
+    return ScheduleAtWithRepeat<RepeatCount>(now + period,
+                                             period,
                                              std::forward<F>(f),
                                              std::forward<Args>(args)...);
 }

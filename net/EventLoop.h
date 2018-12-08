@@ -20,7 +20,6 @@ struct SocketAddr;
 namespace internal {
 class Connector;
 class EventLoopGroup;
-//class PipeChannel;
 }
 
 class EventLoop : public Scheduler {
@@ -64,20 +63,33 @@ public:
                  EventLoop* dstLoop = nullptr);
 
     // timer : NOT thread-safe
+    // See `Timer::ScheduleAtWithRepeat`
     template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args);
+    // See `Timer::ScheduleAfterWithRepeat`
     template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args);
     bool Cancel(TimerId id);
 
-    // for future : thread-safe
-    void ScheduleAfter(std::chrono::milliseconds duration, std::function<void ()> f) override;
+    // Schedule timer at timepoint
+    // triggerTime: The absolute time at when timer will be triggered
+    template <typename F, typename... Args>
+    TimerId ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args);
+
+    // Schedule timer after duration
+    // duration: After duration, timer will be triggered
+    template <typename Duration, typename F, typename... Args>
+    TimerId ScheduleAfter(const Duration& duration, F&& f, Args&&... args);
+
+    // Internal use for future : thread-safe
+    void ScheduleLater(std::chrono::milliseconds duration, std::function<void ()> f) override;
     void Schedule(std::function<void ()> f) override;
 
     // thread-safe
     // F return non-void
     template <typename F, typename... Args,
-              typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type, typename Dummy = void>
+              typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type,
+              typename Dummy = void>
     auto Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type>;
 
     // F return void
@@ -95,7 +107,9 @@ public:
     std::size_t Size() const {
         return channelSet_.size();
     }
-    bool IsInSameLoop() const;
+
+    bool InThisLoop() const;
+
     internal::EventLoopGroup* Parent() const {
         return group_;
     }
@@ -104,7 +118,7 @@ public:
         return id_;
     }
 
-    static EventLoop* GetCurrentEventLoop();
+    static EventLoop* Self();
 
     static void SetMaxOpenFd(rlim_t maxfdPlus1);
 
@@ -134,33 +148,48 @@ private:
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
 TimerId EventLoop::ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args) {
-    // not thread-safe for now, consider use future.
-    assert (IsInSameLoop());
+    assert (InThisLoop());
     return timers_.ScheduleAtWithRepeat<RepeatCount>(triggerTime,
-            period,
-            std::forward<F>(f),
-            std::forward<Args>(args)...);
+                                                     period,
+                                                     std::forward<F>(f),
+                                                     std::forward<Args>(args)...);
 }
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
 TimerId EventLoop::ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args) {
-    // not thread-safe for now, consider use future.
-    assert (IsInSameLoop());
+    assert (InThisLoop());
     return timers_.ScheduleAfterWithRepeat<RepeatCount>(period,
-            std::forward<F>(f),
-            std::forward<Args>(args)...);
+                                                        std::forward<F>(f),
+                                                        std::forward<Args>(args)...);
+}
+
+template <typename F, typename... Args>
+TimerId EventLoop::ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args) {
+    assert (InThisLoop());
+    return timers_.ScheduleAt(triggerTime,
+                              std::forward<F>(f),
+                              std::forward<Args>(args)...);
+}
+
+template <typename Duration, typename F, typename... Args>
+TimerId EventLoop::ScheduleAfter(const Duration& duration, F&& f, Args&&... args) {
+    assert (InThisLoop());
+    return timers_.ScheduleAfter(duration,
+                                 std::forward<F>(f),
+                                 std::forward<Args>(args)...);
 }
 
 // if F return something not void and Future
 // or if F return Future
 template <typename F, typename... Args, typename, typename >
 auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type> {
+
     using resultType = typename std::result_of<F (Args...)>::type;
 
     Promise<resultType> promise;
     auto future = promise.GetFuture();
 
-    if (IsInSameLoop()) {
+    if (InThisLoop()) {
         promise.SetValue(std::forward<F>(f)(std::forward<Args>(args)...));
     } else {
         auto innerTask = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
@@ -186,13 +215,14 @@ auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of
 // F return void
 template <typename F, typename... Args, typename >
 auto EventLoop::Execute(F&& f, Args&&... args) -> Future<void> {
+
     using resultType = typename std::result_of<F (Args...)>::type;
     static_assert(std::is_void<resultType>::value, "must be void");
 
     Promise<void> promise;
     auto future = promise.GetFuture();
 
-    if (IsInSameLoop()) {
+    if (InThisLoop()) {
         std::forward<F>(f)(std::forward<Args>(args)...);
         promise.SetValue();
     } else {

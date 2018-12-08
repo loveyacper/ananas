@@ -243,10 +243,10 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<Messa
 
     try {
         googServ->CallMethod(method, nullptr, req.get(), response.get(), done);
-    } catch (...) {
+    } catch (const std::exception& e) {
         hasException = true;
         // U should never throw exception in rpc call!
-        throw Exception(ErrorCode::ThrowInMethod, methodName);
+        throw Exception(ErrorCode::ThrowInMethod, methodName + ", detail:" + e.what());
     }
 }
 
@@ -273,7 +273,7 @@ void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
 }
 
 void ServerChannel::OnError(const std::exception& err, int code) {
-    assert (conn_->GetLoop()->IsInSameLoop());
+    assert (conn_->GetLoop()->InThisLoop());
 
     RpcMessage frame;
     Response* rsp = frame.mutable_response();

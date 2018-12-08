@@ -22,11 +22,10 @@ int main(int ac, char* av[]) {
 
     ananas::ThreadPool tpool;
 
-    Promise<int> pm;
     Future<int> ft(tpool.Execute(ThreadException<int>));
 
     ft.Then(&loop, [&loop](Try<int>&& v) {
-        assert(loop.IsInSameLoop());
+        assert(loop.InThisLoop());
         try {
             int value = v;
             std::cout << "1.Then got int value " << value
@@ -51,7 +50,7 @@ int main(int ac, char* av[]) {
         return future;
     })
     .Then(&loop, [&app, &loop]() {
-        assert(loop.IsInSameLoop());
+        assert(loop.InThisLoop());
         std::cout << "4. Then GOODBYE!\n";
         app.Exit();
     });

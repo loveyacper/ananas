@@ -96,7 +96,7 @@ private:
     using EndpointsPtr = std::shared_ptr<std::vector<Endpoint>>;
     EndpointsPtr endpoints_;
     std::vector<Promise<EndpointsPtr>> pendingEndpoints_;
-    //ananas::Time refreshTime_; // TODO refresh endpoints
+    ananas::Time refreshTime_;
 };
 
 class ClientChannel {
@@ -146,7 +146,6 @@ private:
         ananas::Time timestamp;
     };
 
-    // TODO
     std::map<int, RequestContext> pendingCalls_;
     // Check Timeout ID
     TimerId pendingTimeoutId_;
@@ -174,7 +173,7 @@ Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
         return MakeExceptionFuture<Try<RSP>>(Exception(ErrorCode::ConnectionLost, err));
     }
 
-    if (sc->GetLoop()->IsInSameLoop()) {
+    if (sc->GetLoop()->InThisLoop()) {
         return _Invoke<RSP>(method, request);
     } else {
         auto invoker = std::bind(&ClientChannel::_Invoke<RSP>, this, method, request);
@@ -188,7 +187,7 @@ Future<Try<RSP>> ClientChannel::_Invoke(const ananas::StringView& method,
                                         const std::shared_ptr<Message>& request) {
     auto sc = conn_.lock();
     assert (sc);
-    assert (sc->GetLoop()->IsInSameLoop());
+    assert (sc->GetLoop()->InThisLoop());
 
     auto methodStr = method.ToString();
     if (!service_->GetService()->GetDescriptor()->FindMethodByName(methodStr)) {

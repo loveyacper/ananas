@@ -23,9 +23,9 @@
 
 namespace ananas {
 
-static thread_local EventLoop* g_thisLoop;
+static thread_local EventLoop* g_thisLoop = nullptr;
 
-EventLoop* EventLoop::GetCurrentEventLoop() {
+EventLoop* EventLoop::Self() {
     return g_thisLoop;
 }
 
@@ -280,13 +280,13 @@ bool EventLoop::Loop(DurationMs timeout) {
     return ready >= 0;
 }
 
-bool EventLoop::IsInSameLoop() const {
+bool EventLoop::InThisLoop() const {
     return this == g_thisLoop;
 }
 
-void EventLoop::ScheduleAfter(std::chrono::milliseconds duration,
+void EventLoop::ScheduleLater(std::chrono::milliseconds duration,
                               std::function<void()> f) {
-    if (IsInSameLoop())
+    if (InThisLoop())
         ScheduleAfterWithRepeat<1>(duration, std::move(f));
     else
         Execute([=]() {
