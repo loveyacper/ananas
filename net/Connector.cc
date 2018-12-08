@@ -42,6 +42,11 @@ bool Connector::Connect(const SocketAddr& addr, DurationMs timeout, EventLoop* d
     if (!addr.IsValid())
         return false;
 
+    if (addr.GetIP() == "0.0.0.0") {
+        ANANAS_ERR << "Why connect to 0.0.0.0";
+        return false;
+    }
+
     if (state_ != ConnectState::none) {
         ANANAS_INF << "Already connect or connecting "
                    << peer_.ToString();
@@ -106,8 +111,8 @@ bool Connector::HandleWriteEvent() {
     int error = 0;
     socklen_t len = sizeof(error);
 
-    if (::getsockopt(localSock_, SOL_SOCKET, SO_ERROR, &error, &len) < 0 ||
-            error != 0) {
+    int state = ::getsockopt(localSock_, SOL_SOCKET, SO_ERROR, &error, &len);
+    if (state == -1 || error != 0) {
         if (error != 0)
             errno = error;
 
@@ -149,7 +154,7 @@ void Connector::_OnSuccess() {
         this->loop_->Unregister(eET_Write, shared_from_this());
 
     auto func = [loop, connfd, peer, newCb, onFail]() {
-        assert (loop->IsInSameLoop());
+        assert (loop->InThisLoop());
         // create new conn
         auto c = std::make_shared<Connection>(loop);
         c->Init(connfd, peer);
@@ -165,6 +170,7 @@ void Connector::_OnSuccess() {
                        << " failed!";
         }
     };
+
     loop->Execute(std::move(func));
 }
 

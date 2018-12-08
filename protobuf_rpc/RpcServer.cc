@@ -109,7 +109,7 @@ void Server::Start(int ac, char* av[]) {
     if (services_.empty()) {
         ANANAS_WRN << "Warning: No available service";
     } else if (this->nameServiceStub_) {
-        BaseLoop()->ScheduleAfterWithRepeat<kForever>(std::chrono::seconds(3),
+        BaseLoop()->ScheduleAtWithRepeat<kForever>(std::chrono::steady_clock::now(), std::chrono::seconds(3),
         [this]() {
             if (keepaliveInfo_.size() == 0) {
                 for (const auto& kv : services_) {

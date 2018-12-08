@@ -24,7 +24,7 @@ public:
         // simulate async process
         // MUST copy request, because the fucking raw pointer.
         // No need copy response, because `done` manage it.
-        auto loop = ananas::EventLoop::GetCurrentEventLoop();
+        auto loop = ananas::EventLoop::Self();
         loop->ScheduleAfterWithRepeat<1>(std::chrono::seconds(2),
         [request = *request, answer, done]() {
             std::transform(request.text().begin(), request.text().end(), answer->begin(), ::toupper);

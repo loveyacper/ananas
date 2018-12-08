@@ -10,6 +10,7 @@ ADD_EXECUTABLE(future_whenall_iter_test TestFutureWhenAllIter.cc)
 ADD_EXECUTABLE(future_whenany_test TestFutureWhenAny.cc)
 ADD_EXECUTABLE(future_whenN_test TestFutureWhenN.cc)
 ADD_EXECUTABLE(future_timeout TestFutureTimeout.cc)
+ADD_EXECUTABLE(future_blocking TestFutureBlocking.cc)
 
 TARGET_LINK_LIBRARIES(future_timeout ananas_net)
 TARGET_LINK_LIBRARIES(future_test ananas_net)

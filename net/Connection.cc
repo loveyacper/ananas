@@ -101,7 +101,7 @@ bool Connection::HandleReadEvent() {
 
     bool busy = false;
     while (true) {
-        recvBuf_.AssureSpace(4 * 1024);
+        recvBuf_.AssureSpace(8 * 1024);
         char stack[128 * 1024];
 
         struct iovec vecs[2];
@@ -193,6 +193,7 @@ void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVect
 }
 
 bool Connection::HandleWriteEvent() {
+
     if (state_ != State::eS_Connected &&
         state_ != State::eS_CloseWaitWrite) {
         ANANAS_ERR << localSock_ << " HandleWriteEvent wrong state " << state_;
@@ -214,9 +215,6 @@ bool Connection::HandleWriteEvent() {
         expectSend += e.ReadableSize();
     }
 
-    if (iovecs.size() > 100)
-        ANANAS_ERR << localSock_ << " HandleWriteEvent iovecs.size = " << iovecs.size();
-
     int ret = WriteV(localSock_, iovecs);
     if (ret == kError) {
         ANANAS_ERR << localSock_ << " HandleWriteEvent ERROR ";
@@ -230,7 +228,6 @@ bool Connection::HandleWriteEvent() {
     ConsumeBufferVectors(sendBuf_, alreadySent);
 
     if (alreadySent == expectSend) {
-        //ANANAS_DBG << localSock_ << " HandleWriteEvent complete";
         loop_->Modify(eET_Read, shared_from_this());
 
         if (onWriteComplete_)
@@ -274,14 +271,14 @@ void  Connection::HandleErrorEvent() {
 }
 
 bool Connection::SafeSend(const void* data, std::size_t size) {
-    if (loop_->IsInSameLoop())
+    if (loop_->InThisLoop())
         return this->SendPacket(data, size);
     else
         return SafeSend(std::string((const char*)data, size));
 }
 
 bool Connection::SafeSend(const std::string& data) {
-    if (loop_->IsInSameLoop())
+    if (loop_->InThisLoop())
         return this->SendPacket(data);
     else
         loop_->Execute([this, data]() {
@@ -292,7 +289,7 @@ bool Connection::SafeSend(const std::string& data) {
 }
 
 bool Connection::SendPacket(const void* data, std::size_t size) {
-    assert (loop_->IsInSameLoop());
+    assert (loop_->InThisLoop());
 
     if (size == 0)
         return true;

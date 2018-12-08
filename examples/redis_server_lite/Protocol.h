@@ -20,6 +20,10 @@ public:
         return params_;
     }
 
+    void SetParams(std::vector<std::string>&& pa) {
+        params_ = std::move(pa);
+    }
+
     bool IsInitialState() const {
         return multi_ == -1;
     }

@@ -57,11 +57,11 @@ void ServiceStub::SetUrlList(const std::string& serviceUrls) {
 }
 
 Future<ClientChannel* > ServiceStub::GetChannel() {
-    auto loop = EventLoop::GetCurrentEventLoop();
+    auto loop = EventLoop::Self();
     if (!loop || loop == RPC_SERVER.BaseLoop())
         loop = RPC_SERVER.Next();
 
-    if (loop->IsInSameLoop())
+    if (loop->InThisLoop())
         return _GetEndpoints()
                .Then(std::bind(&ServiceStub::_SelectChannel, this, loop, std::placeholders::_1));
     else
@@ -71,11 +71,11 @@ Future<ClientChannel* > ServiceStub::GetChannel() {
 
 Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep) {
     if (IsValidEndpoint(ep)) {
-        auto loop = EventLoop::GetCurrentEventLoop();
+        auto loop = EventLoop::Self();
         if (!loop || loop == RPC_SERVER.BaseLoop())
             loop = RPC_SERVER.Next();
 
-        if (loop->IsInSameLoop())
+        if (loop->InThisLoop())
             return _MakeChannel(loop, ep);
         else
             return loop->Execute(std::bind(&ServiceStub::_MakeChannel, this, loop, ep)).Unwrap();
@@ -86,7 +86,7 @@ Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep) {
 
 Future<ClientChannel* > ServiceStub::_SelectChannel(EventLoop* loop,
                                                     Try<std::shared_ptr<std::vector<Endpoint>>>&& eps) {
-    assert (loop->IsInSameLoop());
+    assert (loop->InThisLoop());
     try {
         return _MakeChannel(loop, _SelectEndpoint(eps));
     } catch (...) {
@@ -95,7 +95,7 @@ Future<ClientChannel* > ServiceStub::_SelectChannel(EventLoop* loop,
 }
 
 Future<ClientChannel* > ServiceStub::_MakeChannel(EventLoop* loop, const Endpoint& ep) {
-    assert (loop->IsInSameLoop());
+    assert (loop->InThisLoop());
 
     if (!IsValidEndpoint(ep))
         return MakeExceptionFuture<ClientChannel*>(Exception(ErrorCode::NoAvailableEndpoint, FullName()));
@@ -110,7 +110,7 @@ Future<ClientChannel* > ServiceStub::_MakeChannel(EventLoop* loop, const Endpoin
 }
 
 Future<ClientChannel* > ServiceStub::_Connect(EventLoop* loop, const Endpoint& ep) {
-    assert (loop->IsInSameLoop());
+    assert (loop->InThisLoop());
 
     ChannelPromise promise;
     auto fut = promise.GetFuture();
@@ -141,7 +141,7 @@ Future<ClientChannel* > ServiceStub::_Connect(EventLoop* loop, const Endpoint& e
 }
 
 void ServiceStub::_OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer) {
-    assert (loop->IsInSameLoop());
+    assert (loop->InThisLoop());
     const int id = loop->Id();
     auto& pendingConns = pendingConns_[id];
     auto req = pendingConns.find(peer);
@@ -158,7 +158,7 @@ void ServiceStub::SetOnCreateChannel(std::function<void (ClientChannel* )> cb) {
 }
 
 void ServiceStub::_OnNewConnection(ananas::Connection* conn) {
-    assert (conn->GetLoop()->IsInSameLoop());
+    assert (conn->GetLoop()->InThisLoop());
 
     auto _ = std::static_pointer_cast<ananas::Connection>(conn->shared_from_this());
     auto channel = std::make_shared<ClientChannel>(_, this);
@@ -191,7 +191,7 @@ void ServiceStub::OnRegister() {
 
 void ServiceStub::_OnConnect(ananas::Connection* conn) {
     // It's called in conn's EventLoop, see `ananas::Connector::_OnSuccess`
-    assert (conn->GetLoop()->IsInSameLoop());
+    assert (conn->GetLoop()->InThisLoop());
 
     auto& pendingConns = pendingConns_[conn->GetLoop()->Id()];
     auto req = pendingConns.find(conn->Peer());
@@ -231,15 +231,15 @@ Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints() {
         Promise<std::shared_ptr<std::vector<Endpoint>>> promise;
         auto future = promise.GetFuture();
 
-        bool needRefresh = pendingEndpoints_.empty(); // TODO:Timeout is checked by timer
+        bool needRefresh = pendingEndpoints_.empty();
         pendingEndpoints_.emplace_back(std::move(promise));
         guard.unlock();
 
         if (needRefresh) {
-            // call NameServer to GetEndpoints
+            // call NameServer for GetEndpoints
             ananas::rpc::ServiceName name;
             name.set_name(this->FullName());
-            auto scheduler = EventLoop::GetCurrentEventLoop();
+            auto scheduler = EventLoop::Self();
             if (!scheduler)
                 scheduler = RPC_SERVER.BaseLoop();
 

@@ -26,7 +26,7 @@ public:
      * },
      * &this_loop);
      */
-    virtual void ScheduleAfter(std::chrono::milliseconds duration, std::function<void()> f) = 0;
+    virtual void ScheduleLater(std::chrono::milliseconds duration, std::function<void()> f) = 0;
     virtual void Schedule(std::function<void()> f) = 0;
 };
 

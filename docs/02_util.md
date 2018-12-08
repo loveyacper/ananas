@@ -55,10 +55,7 @@
           // 就算抛出异常, mysql_close也一定执行，不会句柄泄露
       }
 
-      if (!mysql.Insert(yyy))
-          return false;
-
-      return true;
+      return mysql.Insert(yyy);
   }
   ```
 
@@ -113,8 +110,8 @@
   会自动回收多余的线程
 
   ```cpp
-  int getMoney(const std::string& name);
-  std::string getInfo(int year, const std::string& city);
+  extern int getMoney(const std::string& name);
+  extern std::string getInfo(int year, const std::string& city);
 
   ananas::ThreadPool pool;
 
@@ -129,8 +126,38 @@
       });
 
   // 在某个线程内睡眠10秒
-  pool.Execute([] (int n) { sleep(n); },  10);
+  pool.Execute(::sleep,  10);
   ```
 
-* 还没写完，抽时间再写
+## Timer
+
+* ananas定时器
+
+  定时器是一个非常基础必要的功能。EventLoop暴露定时器习惯接口，TimerMananger本身作为EventLoop的成员做真正的工作。
+  这里以java定时器提供的其中四个接口为例，给出ananas对应的用法。
+
+  ```cpp
+  // 1. 在指定的时间点，执行任务一次
+  // task可以是任意签名的函数，可以带任意参数
+  loop.ScheduleAt(time, task, args...);
+
+
+  // 2. 在经过指定的延迟时间后，执行任务一次
+  // task可以是任意签名的函数，可以带任意参数
+  loop.ScheduleAfter(delay, task, args...);
+
+
+  // 3. 在经过指定的延迟时间后，执行任务，之后以固定的周期重复执行指定的任务。
+  // ananas可以指定重复次数，在task执行指定次数后停止，也可以kForever不停止
+  loop.ScheduleAfterWithRepeat<kForever>(delay, period, task, args...);
+
+
+  // 4. 在指定的时间点，执行任务，之后以固定的周期重复执行指定的任务。
+  // ananas可以指定重复次数，在task执行指定次数后停止，也可以kForever不停止
+  loop.ScheduleAtWithRepeat<kForever>(delay, period, task, args...);
+  ```
+
+  和java不同的是，后面两个接口，提供了任务触发次数，java只允许是forever触发。
+  另外，如果定时器某一次触发有延迟，后续的触发会catch up，这和java的scheduleAtFixedRate是一致的。
+
 

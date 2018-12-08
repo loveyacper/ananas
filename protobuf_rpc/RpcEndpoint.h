@@ -39,7 +39,8 @@ Endpoint EndpointFromString(const std::string& url) {
     if (p == std::string::npos)
         return ep;
 
-    ep.set_ip(ipport.substr(0, p));
+    std::string host(ipport.substr(0, p));
+    ep.set_ip(ConvertIp(host.data()));
     ep.set_port(std::stoi(ipport.substr(p + 1)));
     return ep;
 }

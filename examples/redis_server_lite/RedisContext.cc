@@ -6,6 +6,39 @@
 
 #define CRLF "\r\n"
 
+
+static
+ananas::PacketLen_t ProcessInlineCmd(const char* buf,
+                                     size_t bytes,
+                                     std::vector<std::string>& params) {
+    if (bytes < 2)
+        return 0;
+
+    std::string res;
+
+    for (size_t i = 0; i + 1 < bytes; ++ i) {
+        if (buf[i] == '\r' && buf[i+1] == '\n') {
+            if (!res.empty())
+                params.emplace_back(std::move(res));
+
+            return static_cast<ananas::PacketLen_t>(i + 2);
+        }
+
+        if (isblank(buf[i])) {
+            if (!res.empty()) {
+                params.reserve(4);
+                params.emplace_back(std::move(res));
+            }
+        } else {
+            res.reserve(16);
+            res.push_back(buf[i]);
+        }
+    }
+
+    return 0;
+}
+
+
 static thread_local DB* g_db;
 
 
@@ -20,11 +53,23 @@ ananas::PacketLen_t RedisContext::OnRecv(ananas::Connection* conn, const char* d
 
     auto parseRet = proto_.ParseRequest(ptr, end);
     if (parseRet == ParseResult::error) {
-        ERR(logger) << "ParseError for " << data;
-        // error protocol
-        hostConn_->ActiveClose();
-        return 0;
-    } else if (parseRet != ParseResult::ok) {
+        if (!proto_.IsInitialState()) {
+            ERR(logger) << "ParseError for " << data;
+            hostConn_->ActiveClose();
+            return 0;
+        }
+        // try inline cmd
+        std::vector<std::string> params;
+        auto l = ::ProcessInlineCmd(ptr, len, params);
+        if (l == 0)
+            return 0;
+
+        ptr += l;
+        proto_.SetParams(std::move(params));
+        parseRet = ParseResult::ok;
+    }
+
+    if (parseRet != ParseResult::ok) {
         // wait
         return static_cast<ananas::PacketLen_t>(ptr - data);
     }

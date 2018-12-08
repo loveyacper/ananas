@@ -20,18 +20,18 @@ A C++11 RPC framework and toolbox for server-side development.
     * [coroutine](#coroutine)
     * [tests](#tests)
     * [examples](#examples)
-* [教程待补全,暂没时间,有兴趣可先加
-QQ群讨论784231426](#补全)
+* 教程待补全,暂没时间,有兴趣可先加
+QQ群讨论784231426
 
 <!-- vim-markdown-toc -->
 
 * [教程目录](#dummy)
     * [整体overview](docs/01_overview.md)
-    * [util库使用](docs/util.md)
-    * [网络库使用](docs/networking.md)
-    * [协程介绍](docs/coroutine.md)
-    * [future](docs/future.md)
-    * [rpc](docs/rpc.md)
+    * [util库使用](docs/02_util.md)
+    * [网络库使用](docs/03_networking.md)
+    * [协程介绍](docs/04_coroutine.md)
+    * [future](docs/05_future.md)
+    * [protobuf-rpc](docs/06_protobuf_rpc.md)
 
 ## Requirements
 * C++11 compiler (required)
@@ -61,15 +61,17 @@ QQ群讨论784231426](#补全)
 
 &ensp;&ensp;&ensp;&ensp;另一个部分则是在网络库之上，融合`google protobuf`以及`ananas future`库实现了一套RPC框架，只提供了基于future的异步调用接口。可能有人会问，为什么不提供同步。最大的原因是，我不认为一个非阻塞的框架应该提供同步操作（无协程情况）。尽管netty的future提供了阻塞接口，但官方文档中明确指出不提倡使用。如果思考一下one eventloop per thread模型就明白了，同步很有可能造成死锁。另一个原因是，future接口已经非常易用，并没有将逻辑打的支离破碎，而且支持when-all、when-any、when-N并发模式，十分强大。
 
+> 更新：现在future提供了阻塞的Wait接口，但和netty4一样，不推荐在正式代码中使用，除非你非常清楚在做什么，否则程序出现死锁。而异步接口永远没有顾虑，还有性能上的优势.
+
 ### 需要什么预备知识
    * 你需要较为了解socket API，对TCP有一定认识;
    * 对多线程有所了解即可，会正确使用互斥锁、条件变量；
    * 需要较为熟悉C++11，特别是`shared_ptr, weak_ptr, bind&function, move&forward, lambda`.
    强烈推荐《Effective modern C++》.
 
-   &ensp;&ensp;对于初学者，建议先放弃rpc和future部分，只研究网络库的实现；
+   &ensp;&ensp;对于新手，建议先放弃rpc和future部分，只研究网络库的实现；
    
-   &ensp;&ensp;对于水平更高一些的用户，建议完整学习网络库和rpc实现，如果对future感兴趣，也可以研究源码，但难度较高。
+   &ensp;&ensp;对于水平更高一些的朋友，建议完整学习网络库和rpc实现，如果对future感兴趣，也可以研究源码，但难度较高。
 
 ### 阅读ananas源码需要读什么书
    * [Effective modern C++](https://www.amazon.cn/dp/B016OFO492)
