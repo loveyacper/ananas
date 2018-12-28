@@ -9,7 +9,7 @@ namespace ananas {
 namespace rpc {
 
 enum class ErrorCode {
-    None,   
+    None,
 
     // both
     NoSuchService,

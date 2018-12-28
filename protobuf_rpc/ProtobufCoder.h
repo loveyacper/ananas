@@ -52,6 +52,13 @@ ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& );
 // helper function
 bool HasField(const google::protobuf::Message& msg, const std::string& field);
 
+// Decoder for inbound message.
+// b2bDecoder_ is optional, for ssl decrypt data or unzip data, etc.
+// b2mDecoder_ is required, bytes must be convert to message.
+// m2mDecoder_ is optional, for message convert.
+// For example, if receive https data, b2bDecoder_ is for SSLRead
+// to decrypt data, then pass to b2mDecoder_ for http parse.
+// m2mDecoder_ is useless in this case.
 struct Decoder {
 public:
     Decoder();
@@ -60,13 +67,20 @@ public:
     void SetMessageToMessageDecoder(MessageToMessageDecoder m2m);
 
     int minLen_;
-    //BytesToBytesDecoder b2bDecoder_; // TODO for SSL
-    BytesToMessageDecoder b2mDecoder_;
-    MessageToMessageDecoder m2mDecoder_;
+    //BytesToBytesDecoder b2bDecoder_; // TODO for SSL decrypt, unzip etc
+    BytesToMessageDecoder b2mDecoder_; // required
+    MessageToMessageDecoder m2mDecoder_; // optional, for binary protocol
 private:
     bool default_;
 };
 
+// Encoder for outbound message.
+// m2fEncoder_ is required, bytes must be convert to frame.
+// f2bEncoder_ is optional, for binary protocol
+// b2bEncoder_ is optional, for ssl encrypt data or zip data, etc.
+// For example, if send https data, m2fEncoder_ is for http encode,
+// then pass to b2bEncoder_ for SSLWrite to encrypt.
+// f2bEncoder_ is useless in this case.
 struct Encoder {
 public:
     Encoder();
@@ -75,9 +89,9 @@ public:
     void SetMessageToFrameEncoder(MessageToFrameEncoder m2f);
     void SetFrameToBytesEncoder(FrameToBytesEncoder f2b);
 
-    MessageToFrameEncoder m2fEncoder_;
-    FrameToBytesEncoder f2bEncoder_;
-    //BytesToBytesEncoder b2bEncoder_; // TODO for SSL
+    MessageToFrameEncoder m2fEncoder_; // required
+    FrameToBytesEncoder f2bEncoder_; // optional for binary protocol
+    //BytesToBytesEncoder b2bEncoder_; // TODO for SSL encrypt, zip etc
 
 private:
     bool default_;

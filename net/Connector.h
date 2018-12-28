@@ -25,18 +25,19 @@ public:
     Connector(const Connector& ) = delete;
     void operator= (const Connector& ) = delete;
 
+    // Callback when connect success as new connection
     void SetNewConnCallback(NewTcpConnCallback cb);
+    // Callback when connect failed, usually retry
     void SetFailCallback(TcpConnFailCallback cb);
-    bool Connect(const SocketAddr& addr, DurationMs timeout, EventLoop* dstLoop = nullptr);
+
+    // Connect with timeout, if EventLoop is not null, new connection
+    // will be put into it.
+    bool Connect(const SocketAddr& , DurationMs , EventLoop* = nullptr);
 
     int Identifier() const override;
     bool HandleReadEvent() override;
     bool HandleWriteEvent() override;
     void HandleErrorEvent() override;
-
-    ConnectState State() const {
-        return state_;
-    }
 
 private:
     void _OnSuccess();

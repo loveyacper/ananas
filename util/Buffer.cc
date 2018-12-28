@@ -63,9 +63,7 @@ void Buffer::Consume(std::size_t bytes) {
 
 std::size_t Buffer::PeekDataAt(void* buf, std::size_t size, std::size_t offset) {
     const std::size_t dataSize = ReadableSize();
-    if (!buf ||
-            size == 0 ||
-            dataSize <= offset)
+    if (!buf || size == 0 || dataSize <= offset)
         return 0;
 
     if (size + offset > dataSize)
@@ -93,6 +91,7 @@ void Buffer::AssureSpace(std::size_t needsize) {
             else
                 capacity_ = 3 * newCapcity / 2;
         } else {
+            // may be bug, needsize is too big.
             assert (false);
         }
     }
@@ -104,12 +103,9 @@ void Buffer::AssureSpace(std::size_t needsize) {
             memcpy(&tmp[0], &buffer_[readPos_], dataSize);
 
         buffer_.swap(tmp);
-        //std::cout << " expand to " << capacity_ << ", and data size " << dataSize << std::endl;
     } else {
         assert (readPos_ > 0);
-
         ::memmove(&buffer_[0], &buffer_[readPos_], dataSize);
-        //std::cout << " move from " << readPos_ << ", and dataSize " << dataSize << std::endl;
     }
 
     readPos_ = 0;
@@ -139,14 +135,11 @@ void Buffer::Shrink() {
 
     readPos_  = 0;
     writePos_ = dataSize;
-
-    std::cout << oldCap << " shrink to " << capacity_ << std::endl;
 }
 
 void Buffer::Clear() {
     readPos_ = writePos_ = 0;
 }
-
 
 void Buffer::Swap(Buffer& buf) {
     std::swap(readPos_, buf.readPos_);

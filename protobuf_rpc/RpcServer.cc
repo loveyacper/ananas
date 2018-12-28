@@ -109,8 +109,10 @@ void Server::Start(int ac, char* av[]) {
     if (services_.empty()) {
         ANANAS_WRN << "Warning: No available service";
     } else if (this->nameServiceStub_) {
-        BaseLoop()->ScheduleAtWithRepeat<kForever>(std::chrono::steady_clock::now(), std::chrono::seconds(3),
-        [this]() {
+        auto start = std::chrono::steady_clock::now();
+        auto period = std::chrono::seconds(3);
+        BaseLoop()->ScheduleAtWithRepeat<kForever>(start, period,
+          [this]() {
             if (keepaliveInfo_.size() == 0) {
                 for (const auto& kv : services_) {
                     KeepaliveInfo info;
@@ -123,8 +125,7 @@ void Server::Start(int ac, char* av[]) {
             ANANAS_DBG << "Call Keepalive";
             for (const auto& e : keepaliveInfo_)
                 Call<Status>("ananas.rpc.NameService", "Keepalive", e);
-        }
-                                                             );
+        });
     }
 
     app_.Run(ac, av);

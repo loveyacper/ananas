@@ -59,7 +59,7 @@ std::string AnanasErrorCategory::message(int ec) const {
         default:
             break;
     }
-            
+
     return "Bad ananas.rpc error code";
 }
 
@@ -69,7 +69,9 @@ const std::error_category& AnanasCategory() noexcept {
 }
 
 std::system_error Exception(ErrorCode e, const std::string& msg) {
-    return std::system_error(std::error_code(static_cast<int>(e), AnanasCategory()), msg);
+    return std::system_error(std::error_code(static_cast<int>(e),
+                             AnanasCategory()),
+                             msg);
 }
 
 } // end namespace rpc

@@ -11,6 +11,18 @@
 
 namespace ananas {
 
+// A powerful ThreadPool implementation with Future interface.
+//
+// Usage:
+//
+// pool.Execute(your_heavy_work, some_args)
+//     .Then(process_heavy_work_result)
+//
+// Here, your_heavy_work will be executed in a thread, and return Future
+// immediately. When it done, function process_heavy_work_result will be called.
+// The type of argument of process_heavy_work_result is the same as the return
+// type of your_heavy_work.
+
 class ThreadPool final {
 public:
     ThreadPool();
@@ -21,7 +33,8 @@ public:
 
     // F return non-void
     template <typename F, typename... Args,
-              typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type, typename Dummy = void>
+              typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type,
+              typename Dummy = void>
     auto Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type>;
 
     // F return void
@@ -38,7 +51,9 @@ private:
     void _WorkerRoutine();
     void _MonitorRoutine();
 
+    // Recycle redundant threads
     std::thread monitor_;
+
     std::atomic<unsigned> maxThreads_;
     std::atomic<unsigned> currentThreads_;
     std::atomic<unsigned> maxIdleThreads_;
@@ -70,12 +85,12 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_o
     Promise<resultType> promise;
     auto future = promise.GetFuture();
 
-    auto innerTask = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-    auto task = [t = std::move(innerTask), promise = std::move(promise)]() mutable {
+    auto func = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+    auto task = [t = std::move(func), pm = std::move(promise)]() mutable {
         try {
-            promise.SetValue(Try<resultType>(t()));
+            pm.SetValue(Try<resultType>(t()));
         } catch(...) {
-            promise.SetException(std::current_exception());
+            pm.SetException(std::current_exception());
         }
     };
 
@@ -83,7 +98,6 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_o
     if (waiters_ == 0 && currentThreads_ < maxThreads_)
         _SpawnWorker();
 
-    guard.unlock();
     cond_.notify_one();
 
     return future;
@@ -102,13 +116,13 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void> {
     Promise<resultType> promise;
     auto future = promise.GetFuture();
 
-    auto innerTask = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-    auto task = [t = std::move(innerTask), promise = std::move(promise)]() mutable {
+    auto func = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+    auto task = [t = std::move(func), pm = std::move(promise)]() mutable {
         try {
             t();
-            promise.SetValue();
+            pm.SetValue();
         } catch(...) {
-            promise.SetException(std::current_exception());
+            pm.SetException(std::current_exception());
         }
     };
 
@@ -116,7 +130,6 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void> {
     if (waiters_ == 0 && currentThreads_ < maxThreads_)
         _SpawnWorker();
 
-    guard.unlock();
     cond_.notify_one();
 
     return future;
