@@ -10,7 +10,7 @@ A C++11 RPC framework and toolbox for server-side development.
 * [Features](#features)
 * [ananas简介](#ananas简介)
     * [需要什么预备知识](#需要什么预备知识)
-    * [阅读ananas源码需要读什么书](#阅读ananas源码需要读什么书)
+    * [推荐的书](#推荐的书)
 * [源码目录结构](#源码目录结构)
     * [net](#net)
     * [future](#future)
@@ -42,12 +42,12 @@ QQ群讨论784231426
 
 ## Features
 * Protobuf-based rpc.
-* `Future` & `Promise`, see [future](future/README.md).
+* `Future` & `Promise`, see [future](docs/05_future.md).
 * Http health service for inspect, enabled by `SetHealthService()`.
 * Network(`udp`&`tcp`,`kqueue`&`epoll`), support ssl.
 * Pythonic generator style coroutine, see [Intro](coroutine/README.md).
 * Easy used and powerful timer, see [test](tests/test_timer/).
-* Extremely high performance multi-thread logger, see [Intro](util/log/README.md).
+* Extremely high performance multi-thread logger, see [Intro](util/Logger.md).
 * etc...
 
 ## ananas简介
@@ -61,7 +61,7 @@ QQ群讨论784231426
 
 &ensp;&ensp;&ensp;&ensp;另一个部分则是在网络库之上，融合`google protobuf`以及`ananas future`库实现了一套RPC框架，只提供了基于future的异步调用接口。可能有人会问，为什么不提供同步。最大的原因是，我不认为一个非阻塞的框架应该提供同步操作（无协程情况）。尽管netty的future提供了阻塞接口，但官方文档中明确指出不提倡使用。如果思考一下one eventloop per thread模型就明白了，同步很有可能造成死锁。另一个原因是，future接口已经非常易用，并没有将逻辑打的支离破碎，而且支持when-all、when-any、when-N并发模式，十分强大。
 
-> 更新：现在future提供了阻塞的Wait接口，但和netty4一样，不推荐在正式代码中使用，除非你非常清楚在做什么，否则程序出现死锁。而异步接口永远没有顾虑，还有性能上的优势.
+> 更新：现在future提供了阻塞的Wait接口，但和netty4一样，不推荐在正式代码中使用，除非你非常清楚在做什么，否则程序出现死锁。而异步接口永远没有顾虑，还有性能上的优势.在使用阻塞的Wait接口前，请务必检查EventLoop::Self()为nullptr，否则可能造成死锁！另外请参考[Netty关于同步接口死锁的文档](https://netty.io/4.0/api/io/netty/util/concurrent/BlockingOperationException.html)
 
 ### 需要什么预备知识
    * 你需要较为了解socket API，对TCP有一定认识;
@@ -69,11 +69,9 @@ QQ群讨论784231426
    * 需要较为熟悉C++11，特别是`shared_ptr, weak_ptr, bind&function, move&forward, lambda`.
    强烈推荐《Effective modern C++》.
 
-   &ensp;&ensp;对于新手，建议先放弃rpc和future部分，只研究网络库的实现；
-   
-   &ensp;&ensp;对于水平更高一些的朋友，建议完整学习网络库和rpc实现，如果对future感兴趣，也可以研究源码，但难度较高。
+   &ensp;&ensp;对于新手，建议先放弃rpc和future部分.
 
-### 阅读ananas源码需要读什么书
+### 推荐的书
    * [Effective modern C++](https://www.amazon.cn/dp/B016OFO492)
      
      学习C++11只需要这一本书,请耐心多读几遍。
@@ -87,7 +85,6 @@ QQ群讨论784231426
      第16章；这是本书最最重要的一章。  
      第30章；  
 
-### 推荐的书
    * [Netty in action](https://book.douban.com/subject/24700704/)
      
      各种语言的网络库千千万，netty是其中翘楚。

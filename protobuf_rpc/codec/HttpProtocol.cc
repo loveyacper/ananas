@@ -26,7 +26,7 @@ const char* SearchCRLF(const char* ptr, size_t nBytes) {
 namespace ananas {
 
 namespace rpc {
-    
+
 void HttpRequestParser::Reset() {
     waitMore_ = false;
     state_ = ParseState::RequestLine;

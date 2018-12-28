@@ -22,6 +22,8 @@ class Connector;
 class EventLoopGroup;
 }
 
+// One thread should at most has one eventLoop object.
+//
 class EventLoop : public Scheduler {
 public:
     explicit
@@ -34,7 +36,7 @@ public:
     void operator= (EventLoop&& ) = delete;
 
     // listener
-    bool Listen(const SocketAddr& listenAddr, NewTcpConnCallback cb);
+    bool Listen(const SocketAddr& addr, NewTcpConnCallback cb);
     bool Listen(const char* ip, uint16_t hostPort, NewTcpConnCallback cb);
     bool ListenUDP(const SocketAddr& listenAddr,
                    UDPMessageCallback mcb,
@@ -65,40 +67,46 @@ public:
     // timer : NOT thread-safe
     // See `Timer::ScheduleAtWithRepeat`
     template <int RepeatCount, typename Duration, typename F, typename... Args>
-    TimerId ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args);
+    TimerId ScheduleAtWithRepeat(const TimePoint& , const Duration& , F&& , Args&&...);
     // See `Timer::ScheduleAfterWithRepeat`
     template <int RepeatCount, typename Duration, typename F, typename... Args>
-    TimerId ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args);
+    TimerId ScheduleAfterWithRepeat(const Duration& , F&& , Args&&...);
     bool Cancel(TimerId id);
 
-    // Schedule timer at timepoint
-    // triggerTime: The absolute time at when timer will be triggered
+    // See `Timer::ScheduleAt`
     template <typename F, typename... Args>
-    TimerId ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args);
+    TimerId ScheduleAt(const TimePoint& , F&& , Args&&...);
 
-    // Schedule timer after duration
-    // duration: After duration, timer will be triggered
+    // See `Timer::ScheduleAfter`
     template <typename Duration, typename F, typename... Args>
-    TimerId ScheduleAfter(const Duration& duration, F&& f, Args&&... args);
+    TimerId ScheduleAfter(const Duration& , F&& , Args&&...);
 
-    // Internal use for future : thread-safe
-    void ScheduleLater(std::chrono::milliseconds duration, std::function<void ()> f) override;
-    void Schedule(std::function<void ()> f) override;
+    // thread-safe
+    // Internal use for future
+    void ScheduleLater(std::chrono::milliseconds , std::function<void ()> ) override;
+    void Schedule(std::function<void ()> ) override;
 
     // thread-safe
     // F return non-void
+    //
+    // Usage:
+    //
+    // loop.Execute(my_work_func, some_args)
+    //     .Then(process_work_result);
+    //
+    // my_work_func will be executed ASAP, but you SHOULD assure that
+    // it will NOT block, otherwise EventLoop will be hang!
     template <typename F, typename... Args,
               typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type,
               typename Dummy = void>
-    auto Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type>;
+    auto Execute(F&& , Args&&...) -> Future<typename std::result_of<F (Args...)>::type>;
 
     // F return void
     template <typename F, typename... Args,
               typename = typename std::enable_if<std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type>
-    auto Execute(F&& f, Args&&... args) -> Future<void>;
+    auto Execute(F&& , Args&&...) -> Future<void>;
 
     void Run();
-    bool Loop(DurationMs timeout);
 
     bool Register(int events, std::shared_ptr<internal::Channel> src);
     bool Modify(int events, std::shared_ptr<internal::Channel> src);
@@ -108,11 +116,8 @@ public:
         return channelSet_.size();
     }
 
+    // check if current thread is same as this loop's thread
     bool InThisLoop() const;
-
-    internal::EventLoopGroup* Parent() const {
-        return group_;
-    }
 
     int Id() const {
         return id_;
@@ -123,6 +128,8 @@ public:
     static void SetMaxOpenFd(rlim_t maxfdPlus1);
 
 private:
+    bool _Loop(DurationMs timeout);
+
     internal::EventLoopGroup* group_;
     std::unique_ptr<internal::Poller> poller_;
 
@@ -147,7 +154,9 @@ private:
 
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
-TimerId EventLoop::ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args) {
+TimerId EventLoop::ScheduleAtWithRepeat(const TimePoint& triggerTime,
+                                        const Duration& period,
+                                        F&& f, Args&&... args) {
     assert (InThisLoop());
     return timers_.ScheduleAtWithRepeat<RepeatCount>(triggerTime,
                                                      period,
@@ -156,7 +165,8 @@ TimerId EventLoop::ScheduleAtWithRepeat(const TimePoint& triggerTime, const Dura
 }
 
 template <int RepeatCount, typename Duration, typename F, typename... Args>
-TimerId EventLoop::ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args) {
+TimerId EventLoop::ScheduleAfterWithRepeat(const Duration& period,
+                                           F&& f, Args&&... args) {
     assert (InThisLoop());
     return timers_.ScheduleAfterWithRepeat<RepeatCount>(period,
                                                         std::forward<F>(f),
@@ -164,7 +174,8 @@ TimerId EventLoop::ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&
 }
 
 template <typename F, typename... Args>
-TimerId EventLoop::ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args) {
+TimerId EventLoop::ScheduleAt(const TimePoint& triggerTime,
+                              F&& f, Args&&... args) {
     assert (InThisLoop());
     return timers_.ScheduleAt(triggerTime,
                               std::forward<F>(f),
@@ -172,17 +183,19 @@ TimerId EventLoop::ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... arg
 }
 
 template <typename Duration, typename F, typename... Args>
-TimerId EventLoop::ScheduleAfter(const Duration& duration, F&& f, Args&&... args) {
+TimerId EventLoop::ScheduleAfter(const Duration& duration,
+                                 F&& f, Args&&... args) {
     assert (InThisLoop());
     return timers_.ScheduleAfter(duration,
                                  std::forward<F>(f),
                                  std::forward<Args>(args)...);
 }
 
-// if F return something not void and Future
-// or if F return Future
+// If F return something not void, or return Future
 template <typename F, typename... Args, typename, typename >
-auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type> {
+
+Future<typename std::result_of<F (Args...)>::type>
+EventLoop::Execute(F&& f, Args&&... args) {
 
     using resultType = typename std::result_of<F (Args...)>::type;
 
@@ -192,12 +205,12 @@ auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of
     if (InThisLoop()) {
         promise.SetValue(std::forward<F>(f)(std::forward<Args>(args)...));
     } else {
-        auto innerTask = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-        auto func = [t = std::move(innerTask), promise = std::move(promise)]() mutable {
+        auto task = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+        auto func = [t = std::move(task), pm = std::move(promise)]() mutable {
             try {
-                promise.SetValue(Try<resultType>(t()));
+                pm.SetValue(Try<resultType>(t()));
             } catch(...) {
-                promise.SetException(std::current_exception());
+                pm.SetException(std::current_exception());
             }
         };
 
@@ -214,7 +227,7 @@ auto EventLoop::Execute(F&& f, Args&&... args) -> Future<typename std::result_of
 
 // F return void
 template <typename F, typename... Args, typename >
-auto EventLoop::Execute(F&& f, Args&&... args) -> Future<void> {
+Future<void> EventLoop::Execute(F&& f, Args&&... args) {
 
     using resultType = typename std::result_of<F (Args...)>::type;
     static_assert(std::is_void<resultType>::value, "must be void");
@@ -226,13 +239,13 @@ auto EventLoop::Execute(F&& f, Args&&... args) -> Future<void> {
         std::forward<F>(f)(std::forward<Args>(args)...);
         promise.SetValue();
     } else {
-        auto innerTask = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-        auto func = [t = std::move(innerTask), promise = std::move(promise)]() mutable {
+        auto task = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+        auto func = [t = std::move(task), pm = std::move(promise)]() mutable {
             try {
                 t();
-                promise.SetValue();
+                pm.SetValue();
             } catch(...) {
-                promise.SetException(std::current_exception());
+                pm.SetException(std::current_exception());
             }
         };
 

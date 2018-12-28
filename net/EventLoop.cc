@@ -158,7 +158,8 @@ bool EventLoop::Register(int events, std::shared_ptr<internal::Channel> src) {
      * RLIMIT_NOFILE
      * Specifies a value one greater than the maximum file descriptor number
      * that can be opened by this process.
-     * Attempts (open(2), pipe(2), dup(2), etc.)  to exceed this limit yield the error EMFILE.
+     * Attempts (open(2), pipe(2), dup(2), etc.)
+     * to exceed this limit yield the error EMFILE.
      */
     if (src->Identifier() + 1 >= static_cast<int>(s_maxOpenFdPlus1)) {
         ANANAS_ERR
@@ -212,7 +213,7 @@ void EventLoop::Run() {
         auto timeout = std::min(kDefaultPollTime, timers_.NearestTimer());
         timeout = std::max(kMinPollTime, timeout);
 
-        Loop(timeout);
+        _Loop(timeout);
     }
 
     for (auto& kv : channelSet_) {
@@ -224,7 +225,7 @@ void EventLoop::Run() {
     poller_.reset();
 }
 
-bool EventLoop::Loop(DurationMs timeout) {
+bool EventLoop::_Loop(DurationMs timeout) {
     ANANAS_DEFER {
         timers_.Update();
 
@@ -252,7 +253,7 @@ bool EventLoop::Loop(DurationMs timeout) {
 
     const auto& fired = poller_->GetFiredEvents();
 
-    // Consider stale event, DO NOT unregister another socket in your event handler!
+    // Consider stale event, DO NOT unregister another socket in event handler!
 
     std::vector<std::shared_ptr<internal::Channel>> sources(ready);
     for (int i = 0; i < ready; ++ i) {
@@ -286,12 +287,13 @@ bool EventLoop::InThisLoop() const {
 
 void EventLoop::ScheduleLater(std::chrono::milliseconds duration,
                               std::function<void()> f) {
-    if (InThisLoop())
+    if (InThisLoop()) {
         ScheduleAfterWithRepeat<1>(duration, std::move(f));
-    else
+    } else {
         Execute([=]() {
-        ScheduleAfterWithRepeat<1>(duration, std::move(f));
-    });
+            ScheduleAfterWithRepeat<1>(duration, std::move(f));
+        });
+    }
 }
 
 void EventLoop::Schedule(std::function<void()> f) {

@@ -12,6 +12,36 @@ namespace ananas {
 namespace {
 
 // The defer class for C++11
+//
+// Usage:
+// void f() {
+//    FILE* fp = fopen(xxx);
+//    if (!fp) return;
+//
+//    ANANAS_DEFER {
+//        // it'll be executed on f() exiting.
+//        fclose(fp);
+//    }
+//
+//    ... // Do your business
+// }
+//
+// An example for statics function time cost:
+//
+// #define STAT_FUNC_COST \
+//     // !!! omits std::chrono namespace
+//     auto _start_ = steady_clock::now();
+//     ANANAS_DEFER {
+//          auto end = steady_clock::now();
+//          cout << "Used:" << duration_cast<milliseconds>(end-_start_).count();
+//     }
+//
+// // Insert into your function at first line.
+// void f() {
+//     STAT_FUNC_COST;
+//     // when f() exit, will print its running time.
+// }
+//
 class ExecuteOnScopeExit {
 public:
     ExecuteOnScopeExit() = default;
@@ -30,7 +60,7 @@ public:
     }
 
     ~ExecuteOnScopeExit() noexcept {
-        if (func_)  func_();
+        if (func_) func_();
     }
 
 private:
@@ -40,10 +70,10 @@ private:
 } // end namespace
 
 #define _CONCAT(a, b) a##b
-#define _MAKE_DEFER_HELPER_(line)  ananas::ExecuteOnScopeExit _CONCAT(defer, line) = [&]()
+#define _MAKE_DEFER_(line) ananas::ExecuteOnScopeExit _CONCAT(defer, line) = [&]()
 
 #undef ANANAS_DEFER
-#define ANANAS_DEFER _MAKE_DEFER_HELPER_(__LINE__)
+#define ANANAS_DEFER _MAKE_DEFER_(__LINE__)
 
 
 inline

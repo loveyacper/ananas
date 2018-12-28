@@ -125,7 +125,7 @@ bool Connection::HandleReadEvent() {
                 state_ = State::eS_PassiveClose;
             } else {
                 state_ = State::eS_CloseWaitWrite;
-                loop_->Modify(eET_Write, shared_from_this()); // disable ReadEvent
+                loop_->Modify(eET_Write, shared_from_this()); // disable read
             }
 
             return false;
@@ -147,7 +147,9 @@ bool Connection::HandleReadEvent() {
         }
 
         while (recvBuf_.ReadableSize() >= minPacketSize_) {
-            auto bytes = onMessage_(this, recvBuf_.ReadAddr(), recvBuf_.ReadableSize());
+            auto bytes = onMessage_(this,
+                                    recvBuf_.ReadAddr(),
+                                    recvBuf_.ReadableSize());
 
             if (bytes == 0) {
                 break;
@@ -169,7 +171,7 @@ int Connection::_Send(const void* data, size_t len) {
     if (len == 0)
         return 0;
 
-    int  bytes = ::send(localSock_, data, len, 0);
+    int bytes = ::send(localSock_, data, len, 0);
     if (kError == bytes) {
         if (EAGAIN == errno || EWOULDBLOCK == errno)
             bytes = 0;
@@ -187,9 +189,9 @@ int Connection::_Send(const void* data, size_t len) {
 }
 
 namespace {
-int WriteV(int sock, const std::vector<iovec>& buffers);
-void ConsumeBufferVectors(BufferVector& buffers, size_t toSkippedBytes);
-void CollectBuffer(const std::vector<iovec>& buffers, size_t skipped, BufferVector& dst);
+int WriteV(int , const std::vector<iovec>& );
+void ConsumeBufferVectors(BufferVector& , size_t );
+void CollectBuffer(const std::vector<iovec>& , size_t , BufferVector& );
 }
 
 bool Connection::HandleWriteEvent() {
@@ -302,7 +304,7 @@ bool Connection::SendPacket(const void* data, std::size_t size) {
     ANANAS_DEFER {
         size_t nowSendBytes = sendBuf_.TotalBytes();
         if (oldSendBytes < sendBufHighWater_ &&
-                nowSendBytes >= sendBufHighWater_) {
+            nowSendBytes >= sendBufHighWater_) {
             if (onWriteHighWater)
                 onWriteHighWater(this, nowSendBytes);
         }
@@ -450,7 +452,7 @@ bool Connection::SendPacket(const SliceVector& slices) {
     ANANAS_DEFER {
         size_t nowSendBytes = sendBuf_.TotalBytes();
         if (oldSendBytes < sendBufHighWater_ &&
-                nowSendBytes >= sendBufHighWater_) {
+            nowSendBytes >= sendBufHighWater_) {
             if (onWriteHighWater)
                 onWriteHighWater(this, nowSendBytes);
         }

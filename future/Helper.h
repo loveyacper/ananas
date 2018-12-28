@@ -23,6 +23,7 @@
 #include <tuple>
 #include <vector>
 #include <memory>
+#include <mutex>
 
 namespace ananas {
 
@@ -63,7 +64,7 @@ struct CanCallWith {
         return std::false_type{};
     };
 
-    typedef decltype(Check<F>(nullptr)) type; // true_type if T可以接受Args作为参数
+    typedef decltype(Check<F>(nullptr)) type; // true_type if F can accept Args
     static constexpr bool value = type::value; // the integral_constant's value
 };
 
@@ -80,7 +81,7 @@ struct IsFuture<Future<T>> : std::true_type {
 
 template<typename F, typename T>
 struct CallableResult {
-    // Test F call with arg type: void, T&&, T&, but do Not choose Try type as args
+    // Test F call with arg type: void, T&&, T&, but do NOT choose Try type as args
     typedef
     typename std::conditional<
     CanCallWith<F>::value, // if true, F can call with void
@@ -125,15 +126,19 @@ struct CollectAllVariadicContext {
     void operator= (const CollectAllVariadicContext& ) = delete;
 
     template <typename T, size_t I>
-    inline void SetPartialResult(Try<T>& t) {
+    inline void SetPartialResult(Try<T>&& t) {
+        std::unique_lock<std::mutex> guard(mutex);
+
         std::get<I>(results) = std::move(t);
         collects.push_back(I);
-        if (collects.size() == std::tuple_size<decltype(results)>::value)
+        if (collects.size() == std::tuple_size<decltype(results)>::value) {
+            guard.unlock();
             pm.SetValue(std::move(results));
+        }
     }
 
-
     Promise<std::tuple<Try<ELEM>...>> pm;
+    std::mutex mutex;
     std::tuple<Try<ELEM>...> results;
     std::vector<size_t> collects;
 
@@ -149,9 +154,9 @@ template <template <typename ...> class CTX, typename... Ts,
           typename THead, typename... TTail>
 void CollectVariadicHelper(const std::shared_ptr<CTX<Ts...>>& ctx,
                            THead&& head, TTail&&... tail) {
-    head.SetCallback([ctx](Try<typename THead::InnerType>&& t) {
+    head.SetCallback([ctx](Try<typename THead::InnerType> t) {
         ctx->template SetPartialResult<typename THead::InnerType,
-                                       sizeof...(Ts) - sizeof...(TTail) - 1>(t);
+                                       sizeof...(Ts) - sizeof...(TTail) - 1>(std::move(t));
     });
 
     CollectVariadicHelper(ctx, std::forward<TTail>(tail)...);

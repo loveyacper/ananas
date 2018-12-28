@@ -33,16 +33,22 @@ public:
     void operator= (const Connection& ) = delete;
 
     bool Init(int sock, const SocketAddr& peer);
-    void SetMaxPacketSize(std::size_t s);
+
     const SocketAddr& Peer() const {
         return peer_;
     }
+
+    // Active close this connection, will be scheduled later in eventloop.
     void ActiveClose();
+
     EventLoop* GetLoop() const {
         return loop_;
     }
 
+    // Call ::shutdown at once
     void Shutdown(ShutdownMode mode);
+
+    // NAGLE option
     void SetNodelay(bool enable);
 
     int Identifier() const override;
@@ -61,23 +67,32 @@ public:
     bool SafeSend(const void* data, std::size_t len);
     bool SafeSend(const std::string& data);
 
+    // see comment for `batchSend_`, you shouldn't call this func most time.
     void SetBatchSend(bool batch);
 
+    // Callback when connection established.
     void SetOnConnect(std::function<void (Connection* )> cb);
+    // Callback when connection disconnected, usually for recycle resourse
     void SetOnDisconnect(std::function<void (Connection* )> cb);
+    // Callback when recv data stream.
     void SetOnMessage(TcpMessageCallback cb);
+    // Callback when connection disconnected, usually for reconnect
     void SetFailCallback(TcpConnFailCallback cb);
-    void SetOnWriteComplete(TcpWriteCompleteCallback wccb);
-    void SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb);
 
-    void SetMinPacketSize(size_t s);
+    // Callback when send data without EAGAIN, kernel sendbuffer is enough
+    void SetOnWriteComplete(TcpWriteCompleteCallback wccb);
+    // Callback when too much data can't send, kernel sendbuffer is full
+    void SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb);
     void SetWriteHighWater(size_t s);
 
+    // user context pointer
     void SetUserData(std::shared_ptr<void> user);
 
     template <typename T>
     std::shared_ptr<T> GetUserData() const;
 
+    // If recv data less than this, do not try onMessage_ callback.
+    void SetMinPacketSize(size_t s);
     size_t GetMinPacketSize() const;
 
 private:

@@ -55,9 +55,11 @@ public:
     void SetUrlList(const std::string& hardCodedUrls);
     void SetOnCreateChannel(std::function<void (ClientChannel* )> );
 
+    // For internal use, you should not call these function
     Future<ClientChannel* > GetChannel();
     Future<ClientChannel* > GetChannel(const Endpoint& ep);
 
+    // Called by rpc server when init this stub
     void OnRegister();
 private:
     Future<ClientChannel* > _Connect(EventLoop*, const Endpoint& ep);
@@ -68,10 +70,21 @@ private:
     void _OnConnFail(EventLoop* loop, const SocketAddr& peer);
     static size_t _OnMessage(Connection* conn, const char* data, size_t len);
 
-    Future<std::shared_ptr<std::vector<Endpoint>>> _GetEndpoints();
-    Future<ClientChannel* > _SelectChannel(EventLoop*, Try<std::shared_ptr<std::vector<Endpoint>>>&& );
+    using EndpointsPtr = std::shared_ptr<std::vector<Endpoint>>;
+
+    // May visit name server for service endpoints, so return future type
+    Future<EndpointsPtr> _GetEndpoints();
+
+    // Call _SelectEndpoint and _MakeChannel
+    Future<ClientChannel* > _SelectChannel(EventLoop*, Try<EndpointsPtr>&& );
+
+    // Try establish connection with endpoint
     Future<ClientChannel* > _MakeChannel(EventLoop*, const Endpoint& );
-    static const Endpoint& _SelectEndpoint(std::shared_ptr<std::vector<Endpoint>> );
+
+    // Choose a endpoint by some load balance algorithm
+    static const Endpoint& _SelectEndpoint(EndpointsPtr );
+
+    // Callback for nameserver's response
     void _OnNewEndpointList(Try<EndpointList>&& );
 
     using ChannelMap = std::unordered_map<Endpoint, std::shared_ptr<ClientChannel> >;
@@ -82,7 +95,7 @@ private:
     // pending connects
     using ChannelPromise = Promise<ClientChannel* >;
     // one unordered_map per loop
-    std::vector<std::unordered_map<SocketAddr, std::vector<ChannelPromise> >> pendingConns_;
+    std::vector<std::unordered_map<SocketAddr, std::vector<ChannelPromise>>> pendingConns_;
     // if hardCodedUrls_ is not empty, never access name server
     std::shared_ptr<std::vector<Endpoint>> hardCodedUrls_;
     std::string name_;
@@ -93,7 +106,6 @@ private:
     // active nodes fetched from name server
     std::mutex endpointsMutex_;
 
-    using EndpointsPtr = std::shared_ptr<std::vector<Endpoint>>;
     EndpointsPtr endpoints_;
     std::vector<Promise<EndpointsPtr>> pendingEndpoints_;
     ananas::Time refreshTime_;
@@ -168,15 +180,18 @@ Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
                                        const std::shared_ptr<Message>& request) {
     auto sc = conn_.lock();
     if (!sc) {
-        using namespace std;
-        string err("Connection lost: method [" + method.ToString() + "], service [" + service_->FullName() + "]");
+        // When we're ready to send packet, the connection lost :-(
+        std::string err("Connection lost: method [" +
+                         method.ToString() +
+                         "], service [" +
+                         service_->FullName() + "]");
         return MakeExceptionFuture<Try<RSP>>(Exception(ErrorCode::ConnectionLost, err));
     }
 
     if (sc->GetLoop()->InThisLoop()) {
         return _Invoke<RSP>(method, request);
     } else {
-        auto invoker = std::bind(&ClientChannel::_Invoke<RSP>, this, method, request);
+        auto invoker(std::bind(&ClientChannel::_Invoke<RSP>, this, method, request));
         return sc->GetLoop()->Execute(std::move(invoker)).Unwrap();
     }
 }
@@ -191,7 +206,10 @@ Future<Try<RSP>> ClientChannel::_Invoke(const ananas::StringView& method,
 
     auto methodStr = method.ToString();
     if (!service_->GetService()->GetDescriptor()->FindMethodByName(methodStr)) {
-        std::string err = "method [" + methodStr + "], service [" + service_->FullName() + "]";
+        std::string err("method [" +
+                         methodStr +
+                        "], service [" +
+                         service_->FullName() + "]");
         return MakeExceptionFuture<Try<RSP>>(Exception(ErrorCode::NoSuchMethod, err));
     }
 
@@ -202,17 +220,21 @@ Future<Try<RSP>> ClientChannel::_Invoke(const ananas::StringView& method,
     Buffer bytes = this->_MessageToBytesEncoder(std::move(methodStr), *request);
     if (!sc->SendPacket(bytes)) {
         using namespace std;
-        string err = "SendPacket failed: method [" + method.ToString() + "], service [" + service_->FullName() + "]";
+        string err("SendPacket failed: method [" +
+                    method.ToString() +
+                   "], service [" +
+                   service_->FullName() + "]");
         return MakeExceptionFuture<Try<RSP>>(Exception(ErrorCode::ConnectionReset, err));
     } else {
         // save context
         RequestContext reqContext;
         reqContext.promise = std::move(promise);
-        reqContext.response.reset(new RSP()); // here be dragon
+        reqContext.response.reset(new RSP()); // It's delicious :-)
 
         // convert RpcMessage to RSP
         RSP* rsp = (RSP* )reqContext.response.get();
-        auto decodeFut = fut.Then([this, rsp](std::shared_ptr<Message>&& msg) -> Try<RSP> {
+        auto decodeF = fut.Then([this, rsp](std::shared_ptr<Message>&& msg) -> Try<RSP> {
+            // Convert to user message type
             if (decoder_.m2mDecoder_) {
                 try {
                     decoder_.m2mDecoder_(*msg, *rsp);
@@ -222,15 +244,17 @@ Future<Try<RSP>> ClientChannel::_Invoke(const ananas::StringView& method,
                     ANANAS_ERR << "Unknown exception when m2mDecode";
                     return Try<RSP>(std::current_exception());
                 }
-            } else
-                // msg type must be RSP
+            } else {
+                // msg type must be of RSP type
                 *rsp = std::move(*std::static_pointer_cast<RSP>(msg));
+            }
 
             return std::move(*rsp);
         });
 
+        // saving request context
         pendingCalls_.insert(std::make_pair(reqIdGen_, std::move(reqContext)));
-        return decodeFut;
+        return decodeF;
     }
 }
 

@@ -61,12 +61,13 @@ Future<ClientChannel* > ServiceStub::GetChannel() {
     if (!loop || loop == RPC_SERVER.BaseLoop())
         loop = RPC_SERVER.Next();
 
+    auto f(std::bind(&ServiceStub::_SelectChannel, this, loop, std::placeholders::_1));
     if (loop->InThisLoop())
         return _GetEndpoints()
-               .Then(std::bind(&ServiceStub::_SelectChannel, this, loop, std::placeholders::_1));
+               .Then(std::move(f));
     else
         return _GetEndpoints()
-               .Then(loop, std::bind(&ServiceStub::_SelectChannel, this, loop, std::placeholders::_1));
+               .Then(loop, std::move(f));
 }
 
 Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep) {
@@ -85,7 +86,7 @@ Future<ClientChannel* > ServiceStub::GetChannel(const Endpoint& ep) {
 }
 
 Future<ClientChannel* > ServiceStub::_SelectChannel(EventLoop* loop,
-                                                    Try<std::shared_ptr<std::vector<Endpoint>>>&& eps) {
+                                                    Try<EndpointsPtr>&& eps) {
     assert (loop->InThisLoop());
     try {
         return _MakeChannel(loop, _SelectEndpoint(eps));
@@ -218,46 +219,61 @@ void ServiceStub::_OnDisconnect(ananas::Connection* conn) {
     channelMap.erase(it);
 }
 
-Future<std::shared_ptr<std::vector<Endpoint>>> ServiceStub::_GetEndpoints() {
+Future<ServiceStub::EndpointsPtr> ServiceStub::_GetEndpoints() {
     if (hardCodedUrls_ && !hardCodedUrls_->empty())
         return MakeReadyFuture(hardCodedUrls_);
 
     // rpc::Call() can be called everywhere, so protect these code
     std::unique_lock<std::mutex> guard(endpointsMutex_);
     if (endpoints_ && !endpoints_->empty()) {
-        return MakeReadyFuture(endpoints_);
-    } else {
-        // No endpoints, we need visit NameServer
-        Promise<std::shared_ptr<std::vector<Endpoint>>> promise;
-        auto future = promise.GetFuture();
+        ananas::Time now;
+        if (now - refreshTime_ < 60 * 1000) {
+            return MakeReadyFuture(endpoints_);
+        } else {
+            // Update refreshTime_ whatever,
+            // and do not clear endpoints, in case name server is unreachable!
+            refreshTime_ = now;
+        }
+    }
 
-        bool needRefresh = pendingEndpoints_.empty();
-        pendingEndpoints_.emplace_back(std::move(promise));
-        guard.unlock();
+    // No endpoints or too old, we need visit NameServer
+    Promise<EndpointsPtr> promise;
+    auto future = promise.GetFuture();
 
-        if (needRefresh) {
-            // call NameServer for GetEndpoints
-            ananas::rpc::ServiceName name;
-            name.set_name(this->FullName());
-            auto scheduler = EventLoop::Self();
-            if (!scheduler)
-                scheduler = RPC_SERVER.BaseLoop();
+    bool needVisit = pendingEndpoints_.empty();
+    pendingEndpoints_.emplace_back(std::move(promise));
+    guard.unlock();
 
-            assert (scheduler);
-            rpc::Call<EndpointList>("ananas.rpc.NameService", "GetEndpoints", name)
-            .Then(scheduler, std::bind(&ServiceStub::_OnNewEndpointList, this, std::placeholders::_1))
-            .OnTimeout(std::chrono::seconds(3), [this]() {
-                std::unique_lock<std::mutex> guard(endpointsMutex_);
+    if (needVisit) {
+        // call NameServer for GetEndpoints
+        ananas::rpc::ServiceName name;
+        name.set_name(this->FullName());
+        auto scheduler = EventLoop::Self();
+        if (!scheduler)
+            scheduler = RPC_SERVER.BaseLoop();
+
+        assert (scheduler);
+        rpc::Call<EndpointList>("ananas.rpc.NameService", "GetEndpoints", name)
+        .Then(scheduler, std::bind(&ServiceStub::_OnNewEndpointList, this, std::placeholders::_1))
+        .OnTimeout(std::chrono::seconds(2), [this]() {
+            std::unique_lock<std::mutex> guard(endpointsMutex_);
+            if (!endpoints_ || endpoints_->empty()) {
                 for (auto& promise : pendingEndpoints_) {
                     promise.SetException(std::make_exception_ptr(Exception(ErrorCode::Timeout, "GetEndpoints")));
                 }
-                pendingEndpoints_.clear();
-            },
-            scheduler);
-        }
+            } else {
+                // Use cached endpoints.
+                for (auto& promise : pendingEndpoints_) {
+                    promise.SetValue(endpoints_);
+                }
+            }
 
-        return future;
+            pendingEndpoints_.clear();
+        },
+        scheduler);
     }
+
+    return future;
 }
 
 void ServiceStub::_OnNewEndpointList(Try<EndpointList>&& endpoints) {
@@ -284,6 +300,7 @@ void ServiceStub::_OnNewEndpointList(Try<EndpointList>&& endpoints) {
         // Do not clear cache if exception from name server
         ANANAS_ERR << "GetEndpoints exception:" << e.what();
         std::unique_lock<std::mutex> guard(endpointsMutex_);
+        // Use cached endpoints.
         auto endpoints = this->endpoints_;
         for (auto& promise : pendingEndpoints_) {
             promise.SetValue(endpoints);
@@ -292,7 +309,7 @@ void ServiceStub::_OnNewEndpointList(Try<EndpointList>&& endpoints) {
     }
 }
 
-const Endpoint& ServiceStub::_SelectEndpoint(std::shared_ptr<std::vector<Endpoint>> eps) {
+const Endpoint& ServiceStub::_SelectEndpoint(EndpointsPtr eps) {
     if (!eps || eps->empty())
         return Endpoint::default_instance();
 
@@ -425,10 +442,10 @@ void ClientChannel::OnDestroy() {
 }
 
 void ClientChannel::_CheckPendingTimeout() {
-    // TODO set max timeout, default 15s
+    // TODO set max timeout, default 60s
     ananas::Time now;
     for (auto it(pendingCalls_.begin()); it != pendingCalls_.end(); ) {
-        if (now < it->second.timestamp + 15 * 1000)
+        if (now < it->second.timestamp + 60 * 1000)
             return;
 
         if (it->second.promise.IsReady())

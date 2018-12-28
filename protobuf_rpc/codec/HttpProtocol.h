@@ -14,10 +14,10 @@ namespace rpc {
 enum class HttpMethod : int8_t
 {
     Invalid,
-    Get, 
-    Post, 
-    Head, 
-    Put, 
+    Get,
+    Post,
+    Head,
+    Put,
     Delete
 };
 
@@ -33,7 +33,7 @@ public:
 
     bool SetMethod(const std::string& m) {
         assert(method_ == HttpMethod::Invalid);
-    
+
         if (m == "GET")
             method_ = HttpMethod::Get;
         else if (m == "POST")

@@ -3,6 +3,8 @@
 #include "ananas/util/Buffer.h"
 #include "ananas_rpc.pb.h"
 
+using google::protobuf::Message;
+
 namespace ananas {
 
 namespace rpc {
@@ -16,7 +18,7 @@ static int TotalPbLength(const char* data) {
     return len;
 }
 
-std::shared_ptr<google::protobuf::Message> BytesToPbDecoder(const char*& data, size_t len) {
+std::shared_ptr<Message> BytesToPbDecoder(const char*& data, size_t len) {
     assert (len >= kPbHeaderLen);
     const int totalLen = TotalPbLength(data);
 
@@ -28,7 +30,7 @@ std::shared_ptr<google::protobuf::Message> BytesToPbDecoder(const char*& data, s
         return nullptr;
 
     RpcMessage* frame =  nullptr;
-    std::shared_ptr<google::protobuf::Message> res(frame = new RpcMessage);
+    std::shared_ptr<Message> res(frame = new RpcMessage);
 
     if (!frame->ParseFromArray(data + kPbHeaderLen, totalLen - kPbHeaderLen))
         throw Exception(ErrorCode::DecodeFail, "ParseFromArray failed");
@@ -37,7 +39,7 @@ std::shared_ptr<google::protobuf::Message> BytesToPbDecoder(const char*& data, s
     return res;
 }
 
-DecodeState PbToMessageDecoder(const google::protobuf::Message& pbMsg, google::protobuf::Message& msg) {
+DecodeState PbToMessageDecoder(const Message& pbMsg, Message& msg) {
     const RpcMessage& frame = reinterpret_cast<const RpcMessage& >(pbMsg);
     if (frame.has_request()) {
         msg.ParseFromString(frame.request().serialized_request());
@@ -60,7 +62,7 @@ DecodeState PbToMessageDecoder(const google::protobuf::Message& pbMsg, google::p
 }
 
 
-bool PbToFrameRequestEncoder(const google::protobuf::Message* msg, RpcMessage& frame) {
+bool PbToFrameRequestEncoder(const Message* msg, RpcMessage& frame) {
     Request* req = frame.mutable_request();
     if (msg)
         return msg->SerializeToString(req->mutable_serialized_request());
@@ -68,7 +70,7 @@ bool PbToFrameRequestEncoder(const google::protobuf::Message* msg, RpcMessage& f
         return true;
 }
 
-bool PbToFrameResponseEncoder(const google::protobuf::Message* msg, RpcMessage& frame) {
+bool PbToFrameResponseEncoder(const Message* msg, RpcMessage& frame) {
     Response* rsp = frame.mutable_response();
     if (msg)
         return msg->SerializeToString(rsp->mutable_serialized_response());
@@ -95,7 +97,7 @@ ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& rpcMsg) {
     return bytes;
 }
 
-bool HasField(const google::protobuf::Message& msg, const std::string& field) {
+bool HasField(const Message& msg, const std::string& field) {
     const auto descriptor = msg.GetDescriptor();
     assert(descriptor);
 
@@ -125,18 +127,20 @@ void Decoder::SetBytesToMessageDecoder(BytesToMessageDecoder b2m) {
     if (default_)
         Clear();
 
+    assert (!m2mDecoder_); // b2mDecoder_ must be set first!
     b2mDecoder_ = std::move(b2m);
 }
 
 void Decoder::SetMessageToMessageDecoder(MessageToMessageDecoder m2m) {
-    if (default_)
-        Clear();
+    assert (!default_);
+    assert (b2mDecoder_); // b2mDecoder_ must be set first!
 
+    assert (!m2mDecoder_);
     m2mDecoder_ = std::move(m2m);
 }
 
 Encoder::Encoder() :
-    default_(true) {
+    default_(false) {
 }
 
 Encoder::Encoder(MessageToFrameEncoder enc) :
@@ -155,13 +159,15 @@ void Encoder::SetMessageToFrameEncoder(MessageToFrameEncoder m2f) {
     if (default_)
         Clear();
 
+    assert (!f2bEncoder_); // f2bEncoder_ must be set after m2fEncoder
     m2fEncoder_ = std::move(m2f);
 }
 
 void Encoder::SetFrameToBytesEncoder(FrameToBytesEncoder f2b) {
-    if (default_)
-        Clear();
+    assert (!default_); // if you set this encoder, message to frame must exist!
+    assert (m2fEncoder_); // message to frame must exist!
 
+    assert (!f2bEncoder_);
     f2bEncoder_ = std::move(f2b);
 }
 
