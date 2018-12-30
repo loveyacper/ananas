@@ -37,7 +37,7 @@ QQ群讨论784231426
 * C++11 compiler (required)
 * CMake (required)
 * Linux or MAC OS (required)
-* google protobuf (optional)
+* google protobuf 3.0 or newer (optional)
 * redis for name service (optional, just for demo)
 
 ## Features
@@ -53,7 +53,7 @@ QQ群讨论784231426
 ## ananas简介
 &ensp;&ensp;&ensp;&ensp;ananas是一个基于promise模式和google protobuf的RPC框架，目前由C++11实现，[golang版本](https://github.com/ananas-rpc/ananas_golang)在计划中。
       
-&ensp;&ensp;&ensp;&ensp;写这份c++代码属于个人的舒适区，不会是一个大而全的框架，再加上出于教学目的，它只包含RPC框架该有的部分，非常小巧，便于初学者学习。
+&ensp;&ensp;&ensp;&ensp;写这份c++代码属于个人的舒适区，所以不会是一个大而全的框架，再加上出于教学目的，它只包含RPC框架该有的部分，非常小巧，便于初学者学习.
 
 &ensp;&ensp;&ensp;&ensp;可以基于ananas rpc编写代码，也可以抛弃rpc，仅仅使用网络库编写应用(类似使用muduo)。
 

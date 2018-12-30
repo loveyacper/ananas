@@ -70,11 +70,12 @@ int main(int ac, char* av[]) {
                 EchoResponse rsp = Call<EchoResponse>("ananas.rpc.test.TestService",
                                                       "AppendDots",
                                                       req)
-                                                     .Wait();
+                                                     .Wait(std::chrono::seconds(3));
             } catch (const std::exception& e) {
                 ERR(logger) << "fut.Wait exception " << e.what();
+                break;
             }
-        
+
             // for debug print
             if (i == totalCount) {
                 end.Now();
