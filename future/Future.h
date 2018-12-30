@@ -5,6 +5,7 @@
 #include <mutex>
 #include <functional>
 #include <type_traits>
+#include <condition_variable>
 
 #include "Helper.h"
 #include "Try.h"
@@ -55,7 +56,7 @@ struct State {
 
 template <typename T>
 class Future;
-    
+
 using namespace internal;
 
 template <typename T>
@@ -252,7 +253,7 @@ public:
     // The blocking interface
     // PAY ATTENTION to deadlock: Wait thread must NOT be same as promise thread!!!
     typename State<T>::ValueType
-    Wait(const std::chrono::milliseconds& timeout = std::chrono::milliseconds(7*24*3600*1000)) {
+    Wait(const std::chrono::milliseconds& timeout = std::chrono::milliseconds(24*3600*1000)) {
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         switch (state_->progress_) {
@@ -762,6 +763,7 @@ WhenN(size_t N, InputIterator first, InputIterator last) {
             ctx->results.push_back(std::make_pair(i, std::move(t)));
             if (ctx->needs == ctx->results.size()) {
                 ctx->done = true;
+                guard.unlock();
                 ctx->pm.SetValue(std::move(ctx->results));
             }
         });

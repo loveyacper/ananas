@@ -28,7 +28,7 @@ namespace {
 //
 // An example for statics function time cost:
 //
-// #define STAT_FUNC_COST \
+// #define STAT_FUNC_COST
 //     // !!! omits std::chrono namespace
 //     auto _start_ = steady_clock::now();
 //     ANANAS_DEFER {

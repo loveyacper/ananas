@@ -16,6 +16,16 @@
 
   `cmake -DCMAKE_INSTALL_PREFIX=< your_install_path >`
 
+
+  使用时，包含头文件和链接库类似如下语句：
+  ```cpp
+  // 包含头文件
+  #include <ananas/net/Application.h>
+
+  // 链接库
+  g++ -std=c++11 *.cc -lananas_net -lananas_util -lpthread
+  ```
+
 ## 程序语言
 
   目前只有C++11的实现，使用了大量C++11特性。
@@ -57,7 +67,7 @@ ananas功能十分健壮，网络库可以放心使用在生产环境。但rpc�
   app.Run(argc, argv);
   ```
 
-是不是很简单？不，事情还没结束，还没有介绍OnNewConnection，它是关键所在。
+是不是很简单？不，还没有介绍OnNewConnection，它是关键所在。
 
   ```cpp
   // OnNewConnection必须符合`void (ananas::Connection*)`的签名，具体定义是`net/Typedefs.h`的`NewTcpConnCallback`。
