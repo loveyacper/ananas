@@ -36,6 +36,9 @@ class Promise;
 template <typename T>
 class Try;
 
+template <typename T>
+struct TryWrapper;
+
 namespace internal {
 
 template<typename F, typename... Args>
@@ -76,7 +79,7 @@ struct IsFuture : std::false_type {
 
 template <typename T>
 struct IsFuture<Future<T>> : std::true_type {
-    typedef T Inner;
+    using Inner = T;
 };
 
 template<typename F, typename T>
@@ -103,8 +106,15 @@ struct CallableResult {
 // I don't know why folly works without this...
 template<typename F>
 struct CallableResult<F, void> {
-    // Test F call with arg type: void
-    typedef ResultOfWrapper<F> Arg;
+    // Test F call with arg type: void or Try(void)
+    typedef
+    typename std::conditional<
+    CanCallWith<F>::value, // if true, F can call with void
+                ResultOfWrapper<F>,
+                typename std::conditional< // NO, F(void) is invalid
+                CanCallWith<F, Try<void>&&>::value, // if true, F(Try<void>&&) is valid
+                ResultOfWrapper<F, Try<void>&&>, // Yes, F(Try<void>&& ) is ok
+                ResultOfWrapper<F, const Try<void>&>>::type>::type Arg;  // Above all failed, resort to F(const Try<void>&)
 
     // If ReturnsFuture::value is true, F returns another future type.
     typedef IsFuture<typename Arg::Type> IsReturnsFuture;
@@ -113,6 +123,7 @@ struct CallableResult<F, void> {
     typedef Future<typename IsReturnsFuture::Inner> ReturnFutureType;
 };
 
+//
 // For when_all
 //
 template <typename... ELEM>
@@ -126,7 +137,7 @@ struct CollectAllVariadicContext {
     void operator= (const CollectAllVariadicContext& ) = delete;
 
     template <typename T, size_t I>
-    inline void SetPartialResult(Try<T>&& t) {
+    inline void SetPartialResult(typename TryWrapper<T>::Type&& t) {
         std::unique_lock<std::mutex> guard(mutex);
 
         std::get<I>(results) = std::move(t);
@@ -137,12 +148,15 @@ struct CollectAllVariadicContext {
         }
     }
 
-    Promise<std::tuple<Try<ELEM>...>> pm;
+    // Sorry, typedef does not work..
+#define _TRYELEM_ typename TryWrapper<ELEM>::Type...
+    Promise<std::tuple<_TRYELEM_>> pm;
     std::mutex mutex;
-    std::tuple<Try<ELEM>...> results;
+    std::tuple<_TRYELEM_> results;
     std::vector<size_t> collects;
 
-    typedef Future<std::tuple<Try<ELEM>...>> FutureType;
+    typedef Future<std::tuple<_TRYELEM_>>FutureType;
+#undef _TRYELEM_
 };
 
 // base template
@@ -154,8 +168,9 @@ template <template <typename ...> class CTX, typename... Ts,
           typename THead, typename... TTail>
 void CollectVariadicHelper(const std::shared_ptr<CTX<Ts...>>& ctx,
                            THead&& head, TTail&&... tail) {
-    head.SetCallback([ctx](Try<typename THead::InnerType> t) {
-        ctx->template SetPartialResult<typename THead::InnerType,
+    using InnerTry = typename TryWrapper<typename THead::InnerType>::Type;
+    head.Then([ctx](InnerTry&& t) {
+        ctx->template SetPartialResult<InnerTry,
                                        sizeof...(Ts) - sizeof...(TTail) - 1>(std::move(t));
     });
 

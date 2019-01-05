@@ -33,9 +33,7 @@ int main(int ac, char* av[]) {
     })
     .OnTimeout(std::chrono::seconds(1), []() {
         printf("!!!FAILED: future is timeout!\n");
-    },
-    &loop
-              );
+    }, &loop);
 
     // exit after 2 seconds
     loop.ScheduleAfter(std::chrono::seconds(2), [&app]() {
