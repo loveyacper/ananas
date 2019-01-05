@@ -91,7 +91,6 @@ public:
     template <typename SHIT = T>
     typename std::enable_if<!std::is_void<SHIT>::value, void>::type
     SetValue(SHIT&& t) {
-
         // If ThenImp is running, here will wait for the lock.
         // After set then_, ThenImp will release lock.
         // And this func got lock, definitely will call then_.
@@ -321,10 +320,10 @@ public:
                 return MakeExceptionFuture<InnerType>(std::current_exception());
             }
         } else {
-            SetCallback([pm = std::move(prom)](typename TryWrapper<SHIT>::Type&& innerFuture) mutable {
+            _SetCallback([pm = std::move(prom)](typename TryWrapper<SHIT>::Type&& innerFuture) mutable {
                 try {
                     SHIT future = std::move(innerFuture);
-                    future.SetCallback([pm = std::move(pm)](typename TryWrapper<InnerType>::Type&& t) mutable {
+                    future._SetCallback([pm = std::move(pm)](typename TryWrapper<InnerType>::Type&& t) mutable {
                         // No need scheduler here, think about this code:
                         // `outer.Unwrap().Then(sched, func);`
                         // outer.Unwrap() is the inner future, the below line
@@ -359,8 +358,7 @@ public:
     template <typename F, typename R, typename... Args>
     typename std::enable_if<!R::IsReturnsFuture::value, typename R::ReturnFutureType>::type
     _ThenImpl(Scheduler* sched, F&& f, ResultOfWrapper<F, Args...> ) {
-        static_assert(std::is_void<T>::value ? sizeof...(Args) == 0 : sizeof...(Args) == 1,
-                      "Then callback must take 0/1 argument");
+        static_assert(sizeof...(Args) <= 1, "Then must take zero/one argument");
 
         using FReturnType = typename R::IsReturnsFuture::Inner;
 
@@ -382,20 +380,20 @@ public:
 
             guard.unlock();
 
-            auto func = [res = std::move(t),
-                         f = std::forward<FuncType>(f),
-                prom = std::move(pm)]() mutable {
-                auto result = WrapWithTry(f, std::move(res));
-                prom.SetValue(std::move(result));
-            };
-
-            if (sched)
-                sched->Schedule(std::move(func));
-            else
-                func();
+            if (sched) {
+                sched->Schedule([t = std::move(t),
+                                 f = std::forward<FuncType>(f),
+                                 pm = std::move(pm)]() mutable {
+                                     auto result = WrapWithTry(f, std::move(t));
+                                     pm.SetValue(std::move(result));
+                                 });
+            } else {
+                auto result = WrapWithTry(f, std::move(t));
+                pm.SetValue(std::move(result));
+            }
         } else {
             // 1. set pm's timeout callback
-            nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
+            nextFuture._SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
                 auto parent = weak_parent.lock();
                 if (!parent)
                     return;
@@ -416,21 +414,24 @@ public:
             });
 
             // 2. set this future's then callback
-            SetCallback([sched,
+            _SetCallback([sched,
                          func = std::forward<FuncType>(f),
                          prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
-
-                auto cb = [func = std::move(func), t = std::move(t), prom = std::move(prom)]() mutable {
+                if (sched) {
+                    sched->Schedule([func = std::move(func),
+                                     t = std::move(t),
+                                     prom = std::move(prom)]() mutable {
+                                         // run callback, T can be void, thanks to folly
+                                         auto result = WrapWithTry(func, std::move(t));
+                                         // set next future's result
+                                         prom.SetValue(std::move(result));
+                                  });
+                } else {
                     // run callback, T can be void, thanks to folly Try<>
                     auto result = WrapWithTry(func, std::move(t));
                     // set next future's result
                     prom.SetValue(std::move(result));
-                };
-
-                if (sched)
-                    sched->Schedule(std::move(cb));
-                else
-                    cb();
+                }
             });
         }
 
@@ -452,7 +453,7 @@ public:
 
         std::unique_lock<std::mutex> guard(state_->thenLock_);
         if (state_->progress_ == Progress::Timeout) {
-            throw std::runtime_error("Wrong state : should be Timeout");
+            throw std::runtime_error("Wrong state : Timeout");
         } else if (state_->progress_ == Progress::Done) {
             typename TryWrapper<T>::Type t;
             try {
@@ -489,7 +490,7 @@ public:
                     guard.unlock();
                     prom.SetValue(std::move(t));
                 } else {
-                    innerFuture.SetCallback([prom = std::move(prom)](typename TryWrapper<FReturnType>::Type&& t) mutable {
+                    innerFuture._SetCallback([prom = std::move(prom)](typename TryWrapper<FReturnType>::Type&& t) mutable {
                         prom.SetValue(std::move(t));
                     });
                 }
@@ -501,7 +502,7 @@ public:
                 cb();
         } else {
             // 1. set pm's timeout callback
-            nextFuture.SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
+            nextFuture._SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
                 auto parent = weak_parent.lock();
                 if (!parent)
                     return;
@@ -522,7 +523,7 @@ public:
             });
 
             // 2. set this future's then callback
-            SetCallback([sched = sched,
+            _SetCallback([sched = sched,
                          func = std::forward<FuncType>(f),
                          prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
 
@@ -538,8 +539,7 @@ public:
 
                     std::unique_lock<std::mutex> guard(innerFuture.state_->thenLock_);
                     if (innerFuture.state_->progress_ == Progress::Timeout) {
-                        struct FutureWrongState {};
-                        throw FutureWrongState();
+                        throw std::runtime_error("Wrong state : Timeout");
                     } else if (innerFuture.state_->progress_ == Progress::Done) {
                         typename TryWrapper<FReturnType>::Type t;
                         try {
@@ -551,7 +551,7 @@ public:
                         guard.unlock();
                         prom.SetValue(std::move(t));
                     } else {
-                        innerFuture.SetCallback([prom = std::move(prom)](typename TryWrapper<FReturnType>::Type&& t) mutable {
+                        innerFuture._SetCallback([prom = std::move(prom)](typename TryWrapper<FReturnType>::Type&& t) mutable {
                             prom.SetValue(std::move(t));
                         });
                     }
@@ -565,14 +565,6 @@ public:
         }
 
         return std::move(nextFuture);
-    }
-
-    void SetCallback(std::function<void (typename TryWrapper<T>::Type&& )>&& func) {
-        state_->then_ = std::move(func);
-    }
-
-    void SetOnTimeout(std::function<void (TimeoutCallback&& )>&& func) {
-        state_->onTimeout_ = std::move(func);
     }
 
     /*
@@ -609,6 +601,15 @@ public:
     }
 
 private:
+    void _SetCallback(std::function<void (typename TryWrapper<T>::Type&& )>&& func) {
+        state_->then_ = std::move(func);
+    }
+
+    void _SetOnTimeout(std::function<void (TimeoutCallback&& )>&& func) {
+        state_->onTimeout_ = std::move(func);
+    }
+
+
     std::shared_ptr<State<T>> state_;
 };
 
@@ -663,29 +664,29 @@ WhenAll(FT&&... futures) {
 
 template <class InputIterator>
 Future<
-      std::vector<Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>
+      std::vector<typename TryWrapper<typename std::iterator_traits<InputIterator>::value_type::InnerType>::Type>
       >
 WhenAll(InputIterator first, InputIterator last) {
-    using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
+    using TryT = typename TryWrapper<typename std::iterator_traits<InputIterator>::value_type::InnerType>::Type;
     if (first == last)
-        return MakeReadyFuture(std::vector<Try<T>>());
+        return MakeReadyFuture(std::vector<TryT>());
 
-    struct CollectAllContext {
-        CollectAllContext(int n) : results(n) {}
-        ~CollectAllContext() {
+    struct AllContext {
+        AllContext(int n) : results(n) {}
+        ~AllContext() {
             // I think this line is useless.
             // pm.SetValue(std::move(results));
         }
 
-        Promise<std::vector<Try<T>>> pm;
-        std::vector<Try<T>> results;
+        Promise<std::vector<TryT>> pm;
+        std::vector<TryT> results;
         std::atomic<size_t> collected{0};
     };
 
-    auto ctx = std::make_shared<CollectAllContext>(std::distance(first, last));
+    auto ctx = std::make_shared<AllContext>(std::distance(first, last));
 
     for (size_t i = 0; first != last; ++first, ++i) {
-        first->SetCallback([ctx, i](Try<T>&& t) {
+        first->Then([ctx, i](TryT&& t) {
             ctx->results[i] = std::move(t);
             if (ctx->results.size() - 1 ==
                     std::atomic_fetch_add (&ctx->collected, std::size_t(1))) {
@@ -700,24 +701,25 @@ WhenAll(InputIterator first, InputIterator last) {
 // When Any
 template <class InputIterator>
 Future<
-      std::pair<size_t, Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>
+      std::pair<size_t, typename TryWrapper<typename std::iterator_traits<InputIterator>::value_type::InnerType>::Type>
       >
 WhenAny(InputIterator first, InputIterator last) {
     using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
+    using TryT = typename TryWrapper<T>::Type;
 
     if (first == last) {
-        return MakeReadyFuture(std::make_pair(size_t(0), Try<T>(T())));
+        return MakeReadyFuture(std::make_pair(size_t(0), TryT()));
     }
 
-    struct CollectAnyContext {
-        CollectAnyContext() {};
-        Promise<std::pair<size_t, Try<T>>> pm;
+    struct AnyContext {
+        AnyContext() {};
+        Promise<std::pair<size_t, TryT>> pm;
         std::atomic<bool> done{false};
     };
 
-    auto ctx = std::make_shared<CollectAnyContext>();
+    auto ctx = std::make_shared<AnyContext>();
     for (size_t i = 0; first != last; ++first, ++i) {
-        first->SetCallback([ctx, i](Try<T>&& t) {
+        first->Then([ctx, i](TryT&& t) {
             if (!ctx->done.exchange(true)) {
                 ctx->pm.SetValue(std::make_pair(i, std::move(t)));
             }
@@ -731,34 +733,158 @@ WhenAny(InputIterator first, InputIterator last) {
 // When N
 template <class InputIterator>
 Future<
-     std::vector<std::pair<size_t, Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>>>
+     std::vector<std::pair<size_t, typename TryWrapper<typename std::iterator_traits<InputIterator>::value_type::InnerType>::Type>>
       >
 WhenN(size_t N, InputIterator first, InputIterator last) {
     using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
+    using TryT = typename TryWrapper<T>::Type;
 
     size_t nFutures = std::distance(first, last);
     const size_t needCollect = std::min(nFutures, N);
 
     if (needCollect == 0) {
-        return MakeReadyFuture(std::vector<std::pair<size_t, Try<T>>>());
+        return MakeReadyFuture(std::vector<std::pair<size_t, TryT>>());
     }
 
-    struct CollectNContext {
-        CollectNContext(size_t _needs) : needs(_needs) {}
-        Promise<std::vector<std::pair<size_t, Try<T>>>> pm;
+    struct NContext {
+        NContext(size_t _needs) : needs(_needs) {}
+        Promise<std::vector<std::pair<size_t, TryT>>> pm;
 
         std::mutex mutex;
-        std::vector<std::pair<size_t, Try<T>>> results;
+        std::vector<std::pair<size_t, TryT>> results;
         const size_t needs;
         bool done {false};
     };
 
-    auto ctx = std::make_shared<CollectNContext>(needCollect);
+    auto ctx = std::make_shared<NContext>(needCollect);
     for (size_t i = 0; first != last; ++first, ++i) {
-        first->SetCallback([ctx, i](Try<T>&& t) {
+        first->Then([ctx, i](TryT&& t) {
             std::unique_lock<std::mutex> guard(ctx->mutex);
             if (ctx->done)
                 return;
+
+            ctx->results.push_back(std::make_pair(i, std::move(t)));
+            if (ctx->needs == ctx->results.size()) {
+                ctx->done = true;
+                guard.unlock();
+                ctx->pm.SetValue(std::move(ctx->results));
+            }
+        });
+    }
+
+    return ctx->pm.GetFuture();
+}
+
+// When If Any
+template <class InputIterator>
+Future<
+      std::pair<size_t, typename TryWrapper<typename std::iterator_traits<InputIterator>::value_type::InnerType>::Type>
+      >
+WhenIfAny(InputIterator first, InputIterator last,
+          std::function<bool (const Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>& )> cond) {
+
+    using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
+    using TryT = typename TryWrapper<T>::Type;
+
+    if (first == last) {
+        return MakeReadyFuture(std::make_pair(size_t(0), TryT()));
+    }
+
+    const size_t nFutures = std::distance(first, last);
+
+    struct IfAnyContext {
+        IfAnyContext() {};
+        Promise<std::pair<size_t, TryT>> pm;
+        std::atomic<size_t> returned {0};  // including fail response, eg, cond(rsp) == false
+        std::atomic<bool> done{false};
+    };
+
+    auto ctx = std::make_shared<IfAnyContext>();
+    for (size_t i = 0; first != last; ++first, ++i) {
+        first->Then([ctx, i, nFutures, cond](TryT&& t) {
+            if (ctx->done) {
+                ctx->returned.fetch_add(1);
+                return;
+            }
+            if (!cond(t)) {
+                const size_t returned = ctx->returned.fetch_add(1) + 1;
+                if (returned == nFutures) {
+                    // If some success future done, below if statement will be false
+                    if (!ctx->done.exchange(true)) {
+                        // FAILED...
+                        try {
+                            throw std::runtime_error("WhenIfAny Failed, no true condition.");
+                        } catch(...) {
+                            ctx->pm.SetException(std::current_exception());
+                        }
+                    }
+                }
+
+                return;
+            }
+            if (!ctx->done.exchange(true)) {
+                ctx->pm.SetValue(std::make_pair(i, std::move(t)));
+            }
+            ctx->returned.fetch_add(1);
+        });
+    }
+
+    return ctx->pm.GetFuture();
+}
+
+
+// When if N
+template <class InputIterator>
+Future<
+     std::vector<std::pair<size_t, typename TryWrapper<typename std::iterator_traits<InputIterator>::value_type::InnerType>::Type>>
+      >
+WhenIfN(size_t N, InputIterator first, InputIterator last,
+        std::function<bool (const Try<typename std::iterator_traits<InputIterator>::value_type::InnerType>& )> cond) {
+
+    using T = typename std::iterator_traits<InputIterator>::value_type::InnerType;
+    using TryT = typename TryWrapper<T>::Type;
+
+    size_t nFutures = std::distance(first, last);
+    const size_t needCollect = std::min(nFutures, N);
+
+    if (needCollect == 0) {
+        return MakeReadyFuture(std::vector<std::pair<size_t, TryT>>());
+    }
+
+    struct IfNContext {
+        IfNContext(size_t _needs) : needs(_needs) {}
+        Promise<std::vector<std::pair<size_t, TryT>>> pm;
+
+        std::mutex mutex;
+        std::vector<std::pair<size_t, TryT>> results;
+        size_t returned {0}; // including fail response, eg, cond(rsp) == false
+        const size_t needs;
+        bool done {false};
+    };
+
+    auto ctx = std::make_shared<IfNContext>(needCollect);
+    for (size_t i = 0; first != last; ++first, ++i) {
+        first->Then([ctx, i, nFutures, cond](TryT&& t) {
+            std::unique_lock<std::mutex> guard(ctx->mutex);
+            ++ctx->returned;
+            if (ctx->done)
+                return;
+
+            if (!cond(t)) {
+                if (ctx->returned == nFutures) {
+                    // Failed: all returned, but not enough true cond(t)!
+                    // Should I return partial result ???
+                    try {
+                        throw std::runtime_error("WhenIfN Failed, not enough true condition.");
+                    } catch(...) {
+                        ctx->done = true;
+                        guard.unlock();
+                        ctx->pm.SetException(std::current_exception());
+                    }
+                }
+
+                return;
+            }
 
             ctx->results.push_back(std::make_pair(i, std::move(t)));
             if (ctx->needs == ctx->results.size()) {
