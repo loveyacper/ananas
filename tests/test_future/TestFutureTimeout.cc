@@ -25,11 +25,7 @@ int main(int ac, char* av[]) {
 
     ft.Then([](int v) {
         printf("!!!SUCC!\n");
-        printf("1.Then got int value: %d\n", v);
-        return std::string("dummy string");
-    })
-    .Then([] (std::string s) {
-        printf("2.Then got string value: %s\n", s.data());
+        printf("Then got int value: %d\n", v);
     })
     .OnTimeout(std::chrono::seconds(1), []() {
         printf("!!!FAILED: future is timeout!\n");

@@ -28,7 +28,7 @@ int main() {
     // N == 4
     const int N = static_cast<int>(pmv.size() / 2);
     // expect odd number, so it'll be 1,3,5,7
-    auto cond = [](const Try<int>& v)->bool {
+    std::function<bool (const Try<int>& )> cond = [](const Try<int>& v)->bool {
         return v % 2 == 1;
     };
     WhenIfN(N, std::begin(futures), std::end(futures), cond)

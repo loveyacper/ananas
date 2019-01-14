@@ -26,7 +26,7 @@ int main() {
     using Type = std::pair<size_t, Try<int>>;
 
     // expect odd number, so it may be 1,3,5,7
-    auto cond = [](const Try<int>& v)->bool {
+    std::function<bool (const Try<int>& )> cond = [](const Try<int>& v)->bool {
         return v % 2 == 1;
     };
     WhenIfAny(std::begin(futures), std::end(futures), cond)
