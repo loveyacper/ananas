@@ -55,7 +55,7 @@ RedisContext::Set(const std::string& key, const std::string& value) {
 }
 
 
-ananas::PacketLen_t RedisContext::OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len) {
+size_t RedisContext::OnRecv(ananas::Connection* conn, const char* data, size_t len) {
     // just for test.
     if (type_ == None) {
         switch (data[0]) {

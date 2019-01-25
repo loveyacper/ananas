@@ -5,15 +5,19 @@
 #include "ananas/net/Socket.h"
 #include "ananas_rpc.pb.h"
 
+///@file RpcEndpoint.h
 namespace ananas {
 
 namespace rpc {
 
+///@brief Convert endpoint to socket address
 inline
 SocketAddr EndpointToSocketAddr(const Endpoint& ep) {
     return SocketAddr(ep.ip().data(), ep.port());
 }
 
+///@brief Construct endpoint from string format:
+/// tcp://127.0.0.1:8000
 inline
 Endpoint EndpointFromString(const std::string& url) {
     // len(tcp://1.1.1.1:1) = 15
@@ -45,6 +49,8 @@ Endpoint EndpointFromString(const std::string& url) {
     return ep;
 }
 
+///@brief Convert endpoint to string format:
+/// tcp://127.0.0.1:8000
 inline
 std::string EndpointToString(const Endpoint& ep) {
     std::string rep;
@@ -66,6 +72,7 @@ bool operator==(const Endpoint& a, const Endpoint& b) {
            a.port() == b.port();
 }
 
+///@brief Check it whether valid endpoint
 inline
 bool IsValidEndpoint(const Endpoint& ep) {
     return !ep.ip().empty() && ep.port() > 0;

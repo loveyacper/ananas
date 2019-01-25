@@ -85,7 +85,7 @@ ananas功能十分健壮，网络库可以放心使用在生产环境。但rpc�
 
 继续，看看OnMessage怎么编写的：
   ```cpp
-  ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, ananas::PacketLen_t len) {
+  size_t OnMessage(ananas::Connection* conn, const char* data, size_t len) {
       conn->SendPacket(data, len);  // echo package
       return len;       // the bytes consumed.
   }

@@ -82,8 +82,9 @@ bool M2FEncode(const google::protobuf::Message* msg, ananas::rpc::RpcMessage& fr
 
 static
 std::shared_ptr<google::protobuf::Message> B2MDecode(HttpRequestParser* parser, const char*& data, size_t len) {
+    const char* const end = data + len;
     while (!parser->Done()) {
-        if (!parser->ParseRequest(data, data+len))
+        if (!parser->ParseRequest(data, end))
             throw Exception(ErrorCode::DecodeFail);
         else if (parser->WaitMore())
             return std::shared_ptr<google::protobuf::Message>();
@@ -99,7 +100,7 @@ std::shared_ptr<google::protobuf::Message> B2MDecode(HttpRequestParser* parser, 
         msg->mutable_body()->append(req.Body());
         parser->Reset();
     }
-        
+
     return msg;
 }
 

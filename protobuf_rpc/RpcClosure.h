@@ -6,9 +6,7 @@
 
 #include <google/protobuf/stubs/callback.h>
 
-/**
- * A much more powerful closure than google::protobuf::Closure
- */
+// A much more powerful closure than google::protobuf::Closure
 
 namespace ananas {
 

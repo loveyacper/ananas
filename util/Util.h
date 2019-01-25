@@ -1,47 +1,57 @@
+/// @file Util.h
+/// @brief The defer class for C++11
+///
+/// Usage:
+///
+/// @code
+/// void f() {
+///    FILE* fp = fopen(xxx);
+///    ANANAS_DEFER {
+///      // it'll be executed on f() exiting.
+///      fclose(fp);
+///    }
+///    ... // Do your business
+/// }
+/// @endcode
+///
+/// An example for statics function time cost:
+///
+/// @code
+/// void f() {
+///
+///    FILE* fp = fopen(xxx);
+///
+///    ANANAS_DEFER {
+///
+///      // it'll be executed on f() exiting.
+/// #define STAT_FUNC_COST
+///    // !!! omits std::chrono namespace
+///     auto _start_ = steady_clock::now();
+///    ANANAS_DEFER {
+///         auto end = steady_clock::now();
+///         cout << "Used:" << duration_cast<milliseconds>(end-_start_).count();
+///    }
+///
+/// // Insert into your function at first line.
+/// void f() {
+///    STAT_FUNC_COST;
+///    // when f() exit, will print its running time.
+///}
+/// @endcode
+
 #ifndef BERT_UTIL_H
 #define BERT_UTIL_H
 
-// Ananas tool box
 
 #include <functional>
 #include <string>
 #include <vector>
 
+
 namespace ananas {
 
 namespace {
 
-// The defer class for C++11
-//
-// Usage:
-// void f() {
-//    FILE* fp = fopen(xxx);
-//    if (!fp) return;
-//
-//    ANANAS_DEFER {
-//        // it'll be executed on f() exiting.
-//        fclose(fp);
-//    }
-//
-//    ... // Do your business
-// }
-//
-// An example for statics function time cost:
-//
-// #define STAT_FUNC_COST
-//     // !!! omits std::chrono namespace
-//     auto _start_ = steady_clock::now();
-//     ANANAS_DEFER {
-//          auto end = steady_clock::now();
-//          cout << "Used:" << duration_cast<milliseconds>(end-_start_).count();
-//     }
-//
-// // Insert into your function at first line.
-// void f() {
-//     STAT_FUNC_COST;
-//     // when f() exit, will print its running time.
-// }
-//
 class ExecuteOnScopeExit {
 public:
     ExecuteOnScopeExit() = default;

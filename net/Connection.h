@@ -23,6 +23,7 @@ enum class ShutdownMode {
     eSM_Write,
 };
 
+///@brief Abstract for stream socket
 class Connection : public internal::Channel {
 public:
     explicit
@@ -32,67 +33,97 @@ public:
     Connection(const Connection& ) = delete;
     void operator= (const Connection& ) = delete;
 
+    ///@brief Init, called by library internal
     bool Init(int sock, const SocketAddr& peer);
 
+    ///@brief Got peer address
+    ///@return Peer address, you can print it with ToString() method.
     const SocketAddr& Peer() const {
         return peer_;
     }
 
-    // Active close this connection, will be scheduled later in eventloop.
+    ///@brief Active close this connection, will be scheduled later in eventloop.
     void ActiveClose();
 
+    ///@brief Return pointer to EventLoop which this connection in.
     EventLoop* GetLoop() const {
         return loop_;
     }
 
-    // Call ::shutdown at once
+    ///@brief Call ::shutdown at once
     void Shutdown(ShutdownMode mode);
 
-    // NAGLE option
+    ///@brief About the NAGLE option
     void SetNodelay(bool enable);
 
+    ///@brief Return socket fd
     int Identifier() const override;
     bool HandleReadEvent() override;
     bool HandleWriteEvent() override;
     void HandleErrorEvent() override;
 
-    // NOT thread-safe
+    ///@brief Send bytes to network
+    ///
+    /// NOT thread-safe
     bool SendPacket(const void* data, std::size_t len);
+    ///@brief Send bytes to network
+    ///
+    /// NOT thread-safe
     bool SendPacket(const std::string& data);
+    ///@brief Send bytes to network
+    ///
+    /// NOT thread-safe
     bool SendPacket(const Buffer& buf);
+    ///@brief Send vector bytes to network
+    ///
+    /// NOT thread-safe
     bool SendPacket(const BufferVector& datum);
+    ///@brief Send vector bytes to network
+    ///
+    /// NOT thread-safe
     bool SendPacket(const SliceVector& slice);
 
-    // Thread safe
+    ///@brief Send bytes to network
+    ///
+    /// Thread-safe
     bool SafeSend(const void* data, std::size_t len);
     bool SafeSend(const std::string& data);
 
-    // see comment for `batchSend_`, you shouldn't call this func most time.
+    ///@brief Something internal.
+    ///
+    ///    When processing read event, pipeline requests made us handle many
+    ///    requests at one time. If each response is ::send to network directyly,
+    ///    there will be many small packets, lead to poor performance.
+    ///    So if you call SetBatchSend(true), ananas will collect the small packets
+    ///    together, after processing read events, they'll be send all at once.
+    ///    The default value is true. But if your server process only one request at
+    ///    one time, you should call SetBatchSend(false)
     void SetBatchSend(bool batch);
 
-    // Callback when connection established.
+    ///@brief Callback when connection established.
     void SetOnConnect(std::function<void (Connection* )> cb);
-    // Callback when connection disconnected, usually for recycle resourse
+    ///@brief Callback when connection disconnected, usually for recycle resourse
     void SetOnDisconnect(std::function<void (Connection* )> cb);
-    // Callback when recv data stream.
+    ///@brief Callback when recv data stream.
     void SetOnMessage(TcpMessageCallback cb);
-    // Callback when connection disconnected, usually for reconnect
+    ///@brief Callback when connection disconnected, usually for reconnect
     void SetFailCallback(TcpConnFailCallback cb);
 
-    // Callback when send data without EAGAIN, kernel sendbuffer is enough
+    ///@brief Callback when send data without EAGAIN, kernel sendbuffer is enough
     void SetOnWriteComplete(TcpWriteCompleteCallback wccb);
-    // Callback when too much data can't send, kernel sendbuffer is full
-    void SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb);
-    void SetWriteHighWater(size_t s);
 
-    // user context pointer
+    ///@brief Set user's context pointer
     void SetUserData(std::shared_ptr<void> user);
 
+    ///@brief Get user's context pointer
     template <typename T>
     std::shared_ptr<T> GetUserData() const;
 
-    // If recv data less than this, do not try onMessage_ callback.
+    ///@brief Set the min size of your business packet
+    ///
+    /// If recv data less than this, never try onMessage_ callback.
     void SetMinPacketSize(size_t s);
+    ///@brief Get the min size of your business packet
     size_t GetMinPacketSize() const;
 
 private:
@@ -115,18 +146,10 @@ private:
     State state_ = State::eS_None;
     int localSock_;
     size_t minPacketSize_;
-    size_t sendBufHighWater_;
 
     Buffer recvBuf_;
     BufferVector sendBuf_;
 
-    // When processing read event, pipeline requests made us handle many
-    // requests at one time. If each response is ::send to network directyly,
-    // there will be many small packets, lead to poor performance.
-    // So if you call SetBatchSend(true), ananas will collect the small packets
-    // together, after processing read events, they'll be send all at once.
-    // The default value is true. But if your server process only one request at
-    // one time, you should call SetBatchSend(false)
     bool processingRead_{false};
     bool batchSend_{true};
     Buffer batchSendBuf_;
@@ -139,7 +162,6 @@ private:
     TcpMessageCallback onMessage_;
     TcpConnFailCallback onConnFail_;
     TcpWriteCompleteCallback onWriteComplete_;
-    TcpWriteHighWaterCallback onWriteHighWater;
 
     std::shared_ptr<void> userData_;
 };

@@ -8,7 +8,7 @@
 
 
 static
-ananas::PacketLen_t ProcessInlineCmd(const char* buf,
+size_t ProcessInlineCmd(const char* buf,
                                      size_t bytes,
                                      std::vector<std::string>& params) {
     if (bytes < 2)
@@ -21,7 +21,7 @@ ananas::PacketLen_t ProcessInlineCmd(const char* buf,
             if (!res.empty())
                 params.emplace_back(std::move(res));
 
-            return static_cast<ananas::PacketLen_t>(i + 2);
+            return i + 2;
         }
 
         if (isblank(buf[i])) {
@@ -47,7 +47,7 @@ RedisContext::RedisContext(ananas::Connection* conn) :
 }
 
 
-ananas::PacketLen_t RedisContext::OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len) {
+size_t RedisContext::OnRecv(ananas::Connection* conn, const char* data, size_t len) {
     const char* const end = data + len;
     const char* ptr = data;
 
@@ -71,13 +71,13 @@ ananas::PacketLen_t RedisContext::OnRecv(ananas::Connection* conn, const char* d
 
     if (parseRet != ParseResult::ok) {
         // wait
-        return static_cast<ananas::PacketLen_t>(ptr - data);
+        return static_cast<size_t>(ptr - data);
     }
 
     // handle packet
     const auto& params = proto_.GetParams();
     if (params.empty())
-        return static_cast<ananas::PacketLen_t>(ptr - data);
+        return static_cast<size_t>(ptr - data);
 
     std::string cmd(params[0]);
     std::transform(params[0].begin(), params[0].end(), cmd.begin(), ::tolower);
@@ -106,7 +106,7 @@ ananas::PacketLen_t RedisContext::OnRecv(ananas::Connection* conn, const char* d
 
     proto_.Reset();
     hostConn_->SendPacket(reply, replyBytes);
-    return static_cast<ananas::PacketLen_t>(ptr - data);
+    return static_cast<size_t>(ptr - data);
 }
 
 // helper
