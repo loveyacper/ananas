@@ -13,6 +13,7 @@
 #include "ananas/util/Scheduler.h"
 #include "ananas/future/Future.h"
 
+///@file EventLoop.h
 namespace ananas {
 
 struct SocketAddr;
@@ -22,10 +23,13 @@ class Connector;
 class EventLoopGroup;
 }
 
-// One thread should at most has one eventLoop object.
-//
+///@brief EventLoop class
+///
+/// One thread should at most has one EventLoop object.
 class EventLoop : public Scheduler {
 public:
+    ///@brief Constructor
+    ///@param group The group belong to
     explicit
     EventLoop(internal::EventLoopGroup* group);
     ~EventLoop();
@@ -64,65 +68,86 @@ public:
                  DurationMs timeout = DurationMs::max(),
                  EventLoop* dstLoop = nullptr);
 
-    // timer : NOT thread-safe
-    // See `Timer::ScheduleAtWithRepeat`
+    ///@brief timer : NOT thread-safe
+    // See [ScheduleAtWithRepeat](@ref Timer::ScheduleAtWithRepeat)
     template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAtWithRepeat(const TimePoint& , const Duration& , F&& , Args&&...);
-    // See `Timer::ScheduleAfterWithRepeat`
+    ///@brief timer : NOT thread-safe
+    /// See [ScheduleAfterWithRepeat](@ref Timer::ScheduleAfterWithRepeat)
     template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAfterWithRepeat(const Duration& , F&& , Args&&...);
+    ///@brief Cancel timer
     bool Cancel(TimerId id);
 
-    // See `Timer::ScheduleAt`
+    /// See `Timer::ScheduleAt`
+    /// See [ScheduleAt](@ref Timer::ScheduleAt)
     template <typename F, typename... Args>
     TimerId ScheduleAt(const TimePoint& , F&& , Args&&...);
 
-    // See `Timer::ScheduleAfter`
+    ///@brief timer : NOT thread-safe
+    /// See [ScheduleAfter](@ref Timer::ScheduleAfter)
     template <typename Duration, typename F, typename... Args>
     TimerId ScheduleAfter(const Duration& , F&& , Args&&...);
 
-    // thread-safe
-    // Internal use for future
+    ///@brief Internal use for future
+    ///
+    /// thread-safe
     void ScheduleLater(std::chrono::milliseconds , std::function<void ()> ) override;
     void Schedule(std::function<void ()> ) override;
 
-    // thread-safe
-    // F return non-void
-    //
-    // Usage:
-    //
-    // loop.Execute(my_work_func, some_args)
-    //     .Then(process_work_result);
-    //
-    // my_work_func will be executed ASAP, but you SHOULD assure that
-    // it will NOT block, otherwise EventLoop will be hang!
+    ///@brief Execute work in this loop
+    /// thread-safe, and F return non-void
+    ///
+    /// Usage:
+    ///@code
+    /// loop.Execute(my_work_func, some_args)
+    ///     .Then(process_work_result);
+    ///@endcode
+    ///my_work_func will be executed ASAP, but you SHOULD assure that
+    ///it will NOT block, otherwise EventLoop will be hang!
     template <typename F, typename... Args,
               typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type,
               typename Dummy = void>
     auto Execute(F&& , Args&&...) -> Future<typename std::result_of<F (Args...)>::type>;
 
-    // F return void
+    ///@brief Execute work in this loop
+    /// thread-safe, and F return void
     template <typename F, typename... Args,
               typename = typename std::enable_if<std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type>
     auto Execute(F&& , Args&&...) -> Future<void>;
 
+    ///@brief Run application
+    ///
+    /// It's a infinite loop, until belonging EventLoopGroup stopped
     void Run();
 
     bool Register(int events, std::shared_ptr<internal::Channel> src);
     bool Modify(int events, std::shared_ptr<internal::Channel> src);
     void Unregister(int events, std::shared_ptr<internal::Channel> src);
 
+    ///@brief Connection size
     std::size_t Size() const {
         return channelSet_.size();
     }
 
-    // check if current thread is same as this loop's thread
+    ///@brief If the caller thread run this loop?
+    ///Usage:
+    ///@code
+    /// if (loop.InThisLoop())
+    ///     do_something_in_this_loop(); // direct run it
+    /// else
+    ///     loop.Execute(do_something_in_this_loop); // schedule to this loop
+    ///@endcode
     bool InThisLoop() const;
 
+    ///@brief Unique id
     int Id() const {
         return id_;
     }
 
+    ///@brief EventLoop in this thread
+    ///
+    /// There will be at most one EventLoop in each thread, return it for current thread
     static EventLoop* Self();
 
     static void SetMaxOpenFd(rlim_t maxfdPlus1);

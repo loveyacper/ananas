@@ -55,7 +55,7 @@ QQ群讨论784231426
 &ensp;&ensp;&ensp;&ensp;安装`doxygen`之后，执行`make doc`，用浏览器打开当前目录中生成的`ananas.html`即可。
 &ensp;&ensp;&ensp;&ensp;如图所示:
 
-![image](docs/doxygen.jpg)
+<img src=docs/doxygen.jpg width=510 height=500>
 
 ## ananas简介
 &ensp;&ensp;&ensp;&ensp;ananas是一个基于promise模式和google protobuf的RPC框架，目前由C++11实现，[golang版本](https://github.com/ananas-rpc/ananas_golang)在计划中。

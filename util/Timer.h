@@ -8,6 +8,7 @@
 #include <memory>
 #include <ostream>
 
+///@file Timer.h
 namespace ananas {
 
 using DurationMs = std::chrono::milliseconds;
@@ -23,6 +24,9 @@ inline std::ostream& operator<< (std::ostream& os, const TimerId& d) {
 
 namespace internal {
 
+///@brief TimerManager class
+///
+/// You should not used it directly, but via Eventloop
 class TimerManager final {
 public:
     TimerManager();
@@ -34,34 +38,42 @@ public:
     // Tick
     void Update();
 
-    // Schedule timer at absolute timepoint then repeat with period
-    // RepeatCount: Timer will be canceled after trigger RepeatCount times, kForever implies forever.
-    // triggerTime: The absolute time at when timer first triggered
-    // period: After 1st trigger, Timer will be triggered every period
+    ///@brief Schedule timer at absolute timepoint then repeat with period
+    ///@param triggerTime The absolute time when timer first triggered
+    ///@param period After first trigger, will be trigger by this period repeated until RepeatCount
+    ///@param f The function to execute
+    ///@param args Args for f
+    ///
+    /// RepeatCount: Timer will be canceled after trigger RepeatCount times, kForever implies forever.
     template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAtWithRepeat(const TimePoint& triggerTime, const Duration& period, F&& f, Args&&... args);
 
-    // Schedule timer with period
-    // RepeatCount: Timer will be canceled after triggered RepeatCount times, kForever implies forever.
-    // period: Timer will be triggered every period
-    // PAY ATTENTION: Timer's first triggered at once, but after period time
+    ///@brief Schedule timer with period
+    ///@param period: Timer will be triggered every period
+    ///
+    /// RepeatCount: Timer will be canceled after triggered RepeatCount times, kForever implies forever.
+    /// PAY ATTENTION: Timer's first trigger isn't at once, but after period time
     template <int RepeatCount, typename Duration, typename F, typename... Args>
     TimerId ScheduleAfterWithRepeat(const Duration& period, F&& f, Args&&... args);
 
-    // Schedule timer at timepoint
-    // triggerTime: The absolute time at when timer will be triggered
+    ///@brief Schedule timer at timepoint
+    ///@param triggerTime: The absolute time when timer trigger
+    ///
+    /// It'll trigger only once
     template <typename F, typename... Args>
     TimerId ScheduleAt(const TimePoint& triggerTime, F&& f, Args&&... args);
 
-    // Schedule timer after duration
-    // duration: After duration, timer will be triggered
+    ///@brief Schedule timer after duration
+    ///@param duration: After duration, timer will be triggered
+    ///
+    /// It'll trigger only once
     template <typename Duration, typename F, typename... Args>
     TimerId ScheduleAfter(const Duration& duration, F&& f, Args&&... args);
 
-    // Cancel timer
+    ///@brief Cancel timer
     bool Cancel(TimerId id);
 
-    // how far the nearest timer will be trigger.
+    ///@brief how far the nearest timer will be trigger.
     DurationMs NearestTimer() const;
 
 private:

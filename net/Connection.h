@@ -10,6 +10,7 @@
 #include "Typedefs.h"
 #include "ananas/util/Buffer.h"
 
+///@file Connection.h
 namespace ananas {
 
 namespace internal {

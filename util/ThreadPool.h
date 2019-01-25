@@ -9,19 +9,19 @@
 #include <condition_variable>
 #include "ananas/future/Future.h"
 
+///@file ThreadPool.h
+///@brief A powerful ThreadPool implementation with Future interface.
+///Usage:
+///@code
+/// pool.Execute(your_heavy_work, some_args)
+///     .Then(process_heavy_work_result)
+///@endcode
+///
+///  Here, your_heavy_work will be executed in a thread, and return Future
+///  immediately. When it done, function process_heavy_work_result will be called.
+///  The type of argument of process_heavy_work_result is the same as the return
+///  type of your_heavy_work.
 namespace ananas {
-
-// A powerful ThreadPool implementation with Future interface.
-//
-// Usage:
-//
-// pool.Execute(your_heavy_work, some_args)
-//     .Then(process_heavy_work_result)
-//
-// Here, your_heavy_work will be executed in a thread, and return Future
-// immediately. When it done, function process_heavy_work_result will be called.
-// The type of argument of process_heavy_work_result is the same as the return
-// type of your_heavy_work.
 
 class ThreadPool final {
 public:
@@ -31,19 +31,55 @@ public:
     ThreadPool(const ThreadPool& ) = delete;
     void operator=(const ThreadPool& ) = delete;
 
-    // F return non-void
+    ///@brief Execute work in this pool
+    ///@return A future, you can register callback on it
+    ///when f is done or timeout.
+    ///
+    /// If the threads size not reach limit, or there are
+    /// some idle threads, f will be executed at once.
+    /// But if all threads are busy and threads size reach
+    /// limit, f will be queueing, will be executed later.
+    ///
+    /// F returns non-void
     template <typename F, typename... Args,
               typename = typename std::enable_if<!std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type,
               typename Dummy = void>
     auto Execute(F&& f, Args&&... args) -> Future<typename std::result_of<F (Args...)>::type>;
 
-    // F return void
+    ///@brief Execute work in this pool
+    ///@return A future, you can register callback on it
+    ///when f is done or timeout.
+    ///
+    /// If the threads size not reach limit, or there are
+    /// some idle threads, f will be executed at once.
+    /// But if all threads are busy and threads size reach
+    /// limit, f will be queueing, will be executed later.
+    ///
+    /// F returns void
     template <typename F, typename... Args,
               typename = typename std::enable_if<std::is_void<typename std::result_of<F (Args...)>::type>::value, void>::type>
     auto Execute(F&& f, Args&&... args) -> Future<void>;
 
+    ///@brief Stop thread pool and wait all threads terminate
     void JoinAll();
+    ///@brief Set max size of idle threads
+    ///
+    /// Details about threads in pool:
+    /// Busy threads, they are doing work on behalf of us.
+    /// Idle threads, they are waiting on a queue for new work.
+    /// Monitor thread, the internal thread, only one, it'll check
+    /// the size of idle threads periodly, if there are too many idle
+    /// threads, they will be recycled by monitor thread.
     void SetMaxIdleThreads(unsigned int );
+    ///@brief Set max size of idle threads
+    ///
+    /// Max threads size is the total of idle threads and busy threads,
+    /// not include monitor thread.
+    /// Default value is 1024
+    /// Example: if you SetMaxThreads(8), SetMaxIdleThreads(2)
+    /// and now execute 8 long working, there will be 8 busy threads,
+    /// 0 idle thread, when all work done, will be 0 busy thread, 2 idle
+    /// threads, other 6 threads are recycled by monitor thread.
     void SetMaxThreads(unsigned int );
 
 private:

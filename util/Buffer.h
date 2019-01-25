@@ -6,8 +6,10 @@
 #include <memory>
 #include <list>
 
+///@file Buffer.h
 namespace ananas {
 
+///@brief A simple buffer with memory management like STL's vector<char>
 class Buffer {
 public:
     Buffer() :

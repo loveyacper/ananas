@@ -1,9 +1,8 @@
 #ifndef BERT_LOGGER_H
 #define BERT_LOGGER_H
 
-/*
- * A multi-thread Logger class
- */
+///@file Logger.h
+///@brief A multi-thread Logger class
 
 #include <string>
 #include <vector>
