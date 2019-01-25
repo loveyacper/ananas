@@ -46,7 +46,7 @@ public:
     // Redis set command
     ananas::Future<std::pair<ResponseType, std::string> > Set(const std::string& key, const std::string& value);
     // Parse response
-    ananas::PacketLen_t OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len);
+    size_t OnRecv(ananas::Connection* conn, const char* data, size_t len);
 
     static void PrintResponse(const std::pair<ResponseType, std::string>& info);
 

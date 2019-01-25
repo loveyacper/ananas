@@ -17,8 +17,7 @@ using internal::eET_Write;
 Connection::Connection(EventLoop* loop) :
     loop_(loop),
     localSock_(kInvalid),
-    minPacketSize_(1),
-    sendBufHighWater_(10 * 1024 * 1024) {
+    minPacketSize_(1) {
 }
 
 Connection::~Connection() {
@@ -102,21 +101,17 @@ bool Connection::HandleReadEvent() {
     bool busy = false;
     while (true) {
         recvBuf_.AssureSpace(8 * 1024);
-        char stack[128 * 1024];
-
-        struct iovec vecs[2];
-        vecs[0].iov_base = recvBuf_.WriteAddr();
-        vecs[0].iov_len = recvBuf_.WritableSize();
-        vecs[1].iov_base = stack;
-        vecs[1].iov_len = sizeof stack;
-
-        int bytes = ::readv(localSock_, vecs, 2);
+        int bytes = ::recv(localSock_, recvBuf_.WriteAddr(), recvBuf_.WritableSize(), 0);
         if (bytes == kError) {
             if (EAGAIN == errno || EWOULDBLOCK == errno)
                 return true;
 
             if (EINTR == errno)
-                continue; // restart ::readv
+                continue; // restart ::recv
+
+            ANANAS_ERR << localSock_ << " HandleReadEvent Error";
+            state_ = State::eS_Error;
+            return false;
         }
 
         if (bytes == 0) {
@@ -131,25 +126,18 @@ bool Connection::HandleReadEvent() {
             return false;
         }
 
-        if (bytes < 0) {
-            ANANAS_ERR << localSock_ << " HandleReadEvent Error";
-            state_ = State::eS_Error;
-            return false;
-        }
-
-        if (static_cast<size_t>(bytes) <= vecs[0].iov_len) {
-            recvBuf_.Produce(static_cast<size_t>(bytes));
-        } else {
-            recvBuf_.Produce(vecs[0].iov_len);
-
-            auto stackBytes = static_cast<size_t>(bytes) - vecs[0].iov_len;
-            recvBuf_.PushData(stack, stackBytes);
-        }
-
+        recvBuf_.Produce(static_cast<size_t>(bytes));
         while (recvBuf_.ReadableSize() >= minPacketSize_) {
-            auto bytes = onMessage_(this,
-                                    recvBuf_.ReadAddr(),
-                                    recvBuf_.ReadableSize());
+            size_t bytes = 0;
+            if (onMessage_) {
+                bytes = onMessage_(this,
+                                   recvBuf_.ReadAddr(),
+                                   recvBuf_.ReadableSize());
+            } else {
+                // default: just echo
+                bytes = recvBuf_.ReadableSize();
+                SendPacket(recvBuf_);
+            }
 
             if (bytes == 0) {
                 break;
@@ -300,17 +288,7 @@ bool Connection::SendPacket(const void* data, std::size_t size) {
         state_ != State::eS_CloseWaitWrite)
         return false;
 
-    const size_t oldSendBytes = sendBuf_.TotalBytes();
-    ANANAS_DEFER {
-        size_t nowSendBytes = sendBuf_.TotalBytes();
-        if (oldSendBytes < sendBufHighWater_ &&
-            nowSendBytes >= sendBufHighWater_) {
-            if (onWriteHighWater)
-                onWriteHighWater(this, nowSendBytes);
-        }
-    };
-
-    if (oldSendBytes > 0) {
+    if (!sendBuf_.Empty()) {
         sendBuf_.Push(data, size);
         return true;
     }
@@ -448,17 +426,7 @@ bool Connection::SendPacket(const SliceVector& slices) {
     if (slices.Empty())
         return true;
 
-    const size_t oldSendBytes = sendBuf_.TotalBytes();
-    ANANAS_DEFER {
-        size_t nowSendBytes = sendBuf_.TotalBytes();
-        if (oldSendBytes < sendBufHighWater_ &&
-            nowSendBytes >= sendBufHighWater_) {
-            if (onWriteHighWater)
-                onWriteHighWater(this, nowSendBytes);
-        }
-    };
-
-    if (oldSendBytes > 0) {
+    if (!sendBuf_.Empty()) {
         for (const auto& e : slices) {
             sendBuf_.Push(e.data, e.len);
         }
@@ -543,14 +511,6 @@ void Connection::SetOnWriteComplete(TcpWriteCompleteCallback wccb) {
 
 void Connection::SetMinPacketSize(size_t s) {
     minPacketSize_ = s;
-}
-
-void Connection::SetWriteHighWater(size_t s) {
-    sendBufHighWater_ = s;
-}
-
-void Connection::SetOnWriteHighWater(TcpWriteHighWaterCallback whwcb) {
-    onWriteHighWater = std::move(whwcb);
 }
 
 void Connection::SetUserData(std::shared_ptr<void> user) {

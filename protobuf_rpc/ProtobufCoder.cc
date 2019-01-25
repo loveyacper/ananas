@@ -23,11 +23,11 @@ std::shared_ptr<Message> BytesToPbDecoder(const char*& data, size_t len) {
     const int totalLen = TotalPbLength(data);
 
     // TODO totalLen limit
-    if (totalLen <= kPbHeaderLen || totalLen >= 256 * 1024 * 1024)
+    if (totalLen <= kPbHeaderLen || totalLen >= 64 * 1024 * 1024)
         throw Exception(ErrorCode::TooLongFrame, "abnormal totalLen:" + std::to_string(totalLen));
 
     if (static_cast<int>(len) < totalLen)
-        return nullptr;
+        return nullptr; // wait more data
 
     RpcMessage* frame =  nullptr;
     std::shared_ptr<Message> res(frame = new RpcMessage);
@@ -39,7 +39,7 @@ std::shared_ptr<Message> BytesToPbDecoder(const char*& data, size_t len) {
     return res;
 }
 
-DecodeState PbToMessageDecoder(const Message& pbMsg, Message& msg) {
+void PbToMessageDecoder(const Message& pbMsg, Message& msg) {
     const RpcMessage& frame = reinterpret_cast<const RpcMessage& >(pbMsg);
     if (frame.has_request()) {
         msg.ParseFromString(frame.request().serialized_request());
@@ -57,8 +57,6 @@ DecodeState PbToMessageDecoder(const Message& pbMsg, Message& msg) {
     } else {
         throw Exception(ErrorCode::DecodeFail, "PbToMessageDecoder failed.");
     }
-
-    return DecodeState::Ok;
 }
 
 

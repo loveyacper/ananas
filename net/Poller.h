@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 namespace ananas {
+///@brief namespace internal, not exposed to user.
 namespace internal {
 
 enum EventType {
@@ -15,11 +16,14 @@ enum EventType {
     eET_Error = 0x1 << 2,
 };
 
+///@brief Event source base class.
 class Channel : public std::enable_shared_from_this<Channel> {
 public:
+    ///@brief Constructor, printf is for debug, you can comment it
     Channel() {
         printf("New channel %p\n", (void*)this);
     }
+    ///@brief Destructor, printf is for debug, you can comment it
     virtual ~Channel() {
         printf("Delete channel %p\n", (void*)this);
     }
@@ -27,17 +31,24 @@ public:
     Channel(const Channel& ) = delete;
     void operator=(const Channel& ) = delete;
 
-    virtual int Identifier() const = 0; // the socket
+    ///@brief Return socket fd for sockets, just for debug
+    virtual int Identifier() const = 0;
 
+    ///@brief The unique id, it'll not repeat in whole process.
     unsigned int GetUniqueId() const {
         return unique_id_;
     }
+
+    ///@brief Set the unique id, it's called by library.
     void SetUniqueId(unsigned int id) {
         unique_id_ = id;
     }
 
+    ///@brief When read event occurs
     virtual bool HandleReadEvent() = 0;
+    ///@brief When write event occurs
     virtual bool HandleWriteEvent() = 0;
+    ///@brief When error event occurs
     virtual void HandleErrorEvent() = 0;
 
 private:

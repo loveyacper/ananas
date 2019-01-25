@@ -30,6 +30,7 @@ class Service;
 }
 }
 
+///@file RpcServiceStub.h
 namespace ananas {
 
 namespace rpc {
@@ -41,6 +42,12 @@ class RpcMessage;
 using google::protobuf::Message;
 using GoogleService = google::protobuf::Service;
 
+///@brief Rpc ServiceStub class.
+/// It's used for rpc client side inside rpc library.
+/// You needn't call rpc with it directly.
+/// But you should create service stub before main loop start,
+/// Set the service name that you interested in, name server or
+/// address list of service, the channel initializer.
 class ServiceStub final {
 public:
     explicit
@@ -50,16 +57,20 @@ public:
     GoogleService* GetService() const;
     const std::string& FullName() const;
 
-    // Format : tcp://127.0.0.1:6379;tcp://127.0.0.1:6380
-    // Directly connect, not via name service
+    ///@brief Set the service address
+    ///
+    /// Format : tcp://127.0.0.1:6379;tcp://127.0.0.1:6380
+    /// If you call this function, ananas will made rpc call directly connect
+    /// to these addressed, not via name service
     void SetUrlList(const std::string& hardCodedUrls);
     void SetOnCreateChannel(std::function<void (ClientChannel* )> );
 
-    // For internal use, you should not call these function
+    ///@brief Get channel by some load balance.
+    ///
+    /// It's for internal use, you should not call these function
     Future<ClientChannel* > GetChannel();
     Future<ClientChannel* > GetChannel(const Endpoint& ep);
 
-    // Called by rpc server when init this stub
     void OnRegister();
 private:
     Future<ClientChannel* > _Connect(EventLoop*, const Endpoint& ep);
@@ -111,31 +122,44 @@ private:
     ananas::Time refreshTime_;
 };
 
+///@brief Rpc ClientChannel, wrap for protobuf rpc call.
 class ClientChannel {
     friend class ServiceStub;
 public:
     ClientChannel(std::shared_ptr<Connection> conn, ServiceStub* service);
     ~ClientChannel();
 
+    ///@brief Set user context
     void SetContext(std::shared_ptr<void> ctx);
 
+    ///@brief Get user context
     template <typename T>
     std::shared_ptr<T> GetContext() const;
 
+    ///@brief Call method by request
+    ///@return A future that can be register callback or timeout
+    ///
+    /// It's used for rpc library internal.
     template <typename RSP>
     Future<Try<RSP>> Invoke(const ananas::StringView& method,
                             const std::shared_ptr<Message>& request);
 
-    // encode
+    ///@brief Special encoder for this chanel, see [Encoder](@ref Encoder).
     void SetEncoder(Encoder );
 
-    // decode
+    ///@brief Called when recv bytes from network, it splits bytes stream
+    /// to user packets.
     std::shared_ptr<Message> OnData(const char*& data, size_t len);
+    ///@brief Special decoder for this chanel, see [Decoder](@ref Decoder).
     void SetDecoder(Decoder dec);
 
-    // fullfil promise
+    ///@brief Called when OnData return success, req is returned by OnData.
+    ///
+    /// It will call SetValue on promise, so trigger your Then callback when you
+    /// made rpc::Call.
     bool OnMessage(std::shared_ptr<Message> msg);
 
+    ///@brief Used by rpc library internal.
     void OnDestroy();
 
 private:

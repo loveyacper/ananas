@@ -56,7 +56,7 @@ public:
     // Redis get command
     ananas::AnyPointer Get(const std::string& key);
     // Parse response
-    ananas::PacketLen_t OnRecv(ananas::Connection* conn, const char* data, ananas::PacketLen_t len);
+    size_t OnRecv(ananas::Connection* conn, const char* data, size_t len);
 
     static void PrintResponse(const std::pair<ResponseType, std::string>& info);
 

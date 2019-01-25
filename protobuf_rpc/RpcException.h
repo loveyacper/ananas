@@ -4,31 +4,33 @@
 #include <string>
 #include <system_error>
 
+///@file RpcException.h
 namespace ananas {
 
 namespace rpc {
 
+///@brief ErrorCode for rpc exception
 enum class ErrorCode {
     None,
 
     // both
-    NoSuchService,
-    NoSuchMethod,
-    ConnectionLost,
-    ConnectionReset,
-    DecodeFail,
-    EncodeFail,
-    Timeout,
-    TooLongFrame,
+    NoSuchService, ///< Service name may be wrong.
+    NoSuchMethod, ///< Method name may be wrong.
+    ConnectionLost, ///< Connection lost, you can retry rpc::Call
+    ConnectionReset, ///< Connection reset, you can retry rpc::Call
+    DecodeFail, ///< Decode message failed, may be evil message.
+    EncodeFail, ///< Encode message failed, please check.
+    Timeout, ///< Timeout rpc call
+    TooLongFrame, ///< Too big message(64MB+), please check.
 
     // server-side
-    EmptyRequest,
-    MethodUndetermined,
-    ThrowInMethod,
+    EmptyRequest, ///< Request field is missing.
+    MethodUndetermined, ///< Can't know call which method, need call [SetMethodSelector](@ref Service::SetMethodSelector)
+    ThrowInMethod, ///< Server's method implementation throw some exception, but exception can't propagate via rpc.
 
     // client-side
-    NoAvailableEndpoint,
-    ConnectRefused,
+    NoAvailableEndpoint, ///< All server dead
+    ConnectRefused, ///< Server is not listen, try again.
 };
 
 class AnanasErrorCategory : public std::error_category {

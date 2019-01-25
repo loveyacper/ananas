@@ -14,10 +14,12 @@
 #include "ananas/util/StringView.h"
 #include "ananas/future/Future.h"
 
+///@file RpcServer.h
 namespace ananas {
 
 class Application;
 
+///@brief Sub namespace rpc in namespace ananas.
 namespace rpc {
 
 using google::protobuf::Message;
@@ -25,40 +27,77 @@ using google::protobuf::Message;
 class Service;
 class ServiceStub;
 
+///@brief Rpc Server class.
+/// It should be singleton.
+/// It's just a skeleton class, manage the event loop threads
+/// and services & service stubs.
 class Server {
 public:
     Server();
     static Server& Instance();
 
-    // base loop
+    ///@brief Get default event loop
+    ///
+    /// The base event loop. It's created by default.
+    /// If you never call [SetNumOfWorker](@ref SetNumOfWorker), base loop
+    /// will be the only event loop, working for listen&connect
+    /// and network io. But if you have called SetNumOfWorker, base
+    /// loop will only work for listen & connect, real network io will
+    /// happen in other event loops.
+    ///
+    ///@return pointer to default event loop
     EventLoop* BaseLoop();
-    // next loop
+
+    ///@brief Get event loop with round robin
+    ///@return Pointer to event loop
     EventLoop* Next();
 
-    void SetOnInit(std::function<bool (int, char*[])> );
-    void SetOnExit(std::function<void ()> );
+    ///@brief Set init func before running of event loop
+    ///@param init Init function
+    void SetOnInit(std::function<bool (int, char*[])> init);
 
-    // nameserver
+    ///@brief Set exit func after running of event loop
+    ///@param onExit Exit function
+    void SetOnExit(std::function<void ()> onExit);
+
+    ///@brief Name server for service register and discovery.
+    ///@param url The url for name server, like "tcp://127.0.0.1:6379",
+    /// multi addresses are sperated by comma.
     void SetNameServer(const std::string& url);
-    void SetOnCreateNameServerChannel(std::function<void (ClientChannel*)> );
 
-    // health service
+    ///@brief Set callback for init name server channel.
+    ///@param cb The default is `OnCreateRedisChannel`, you could use redis as
+    /// name server by default.
+    void SetOnCreateNameServerChannel(std::function<void (ClientChannel*)> cb);
+
+    ///@brief Health service, you can visit this url by your favorite web brower.
     void SetHealthService(const std::string& url);
 
-    // server-side
+    ///@brief The server side.
     bool AddService(Service* service);
     bool AddService(std::unique_ptr<Service>&& service);
 
-    // client-side
+    ///@brief Stub for the client side.
+    ///@param service It's returned by new, will transfer ownership to ananas.
     bool AddServiceStub(ServiceStub* service);
+
+    ///@brief Stub for the client side.
+    ///@param service It's returned by make_unique, will transfer ownership to ananas.
     bool AddServiceStub(std::unique_ptr<ServiceStub>&& service);
-    // We don't add stubs during runtime, so need not to be thread-safe
+
+    ///@brief Get service stub by name. It's used by library internal, so
+    /// you needn't worry about it. It needn't to be thread-safe, because
+    /// we never add stubs during runtime.
     ServiceStub* GetServiceStub(const StringView& name) const;
 
-    // both
+    ///@brief Set work threads
     void SetNumOfWorker(size_t n);
     size_t NumOfWorker() const;
+
+    ///@brief Start the rpc server, it should be called after AddService, AddServiceStub
     void Start(int argc, char* argv[]);
+
+    ///@brief Stop the rpc server
     void Shutdown();
 
 private:
@@ -92,10 +131,12 @@ Future<Try<RSP>> _InnerCall(ServiceStub* stub,
 } // end namespace
 
 
-// The entry point for initiate a rpc call.
-// `service` is the full name of a service, eg. "test.videoservice"
-// `method` is one of the `service`'s method's name, eg. "changeVideoQuality"
-// `RSP` is the type of response. why use `Try` type? Because may throw exception value
+///@brief The entry point for initiate a rpc call.
+///@param service The full name of a service, eg. "test.videoservice"
+///@param method One of the `service`'s method's name, eg. "changeVideoQuality"
+///@param reqCopy The request self
+///@param ep The server address, it's optional if you have name server
+///@return A future for rpc call. `RSP` is the type of response. why use `Try` type? Because may throw exception value.
 
 template <typename RSP>
 Future<Try<RSP>> Call(const StringView& service,

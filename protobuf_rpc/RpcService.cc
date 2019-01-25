@@ -93,7 +93,7 @@ size_t Service::_OnMessage(ananas::Connection* conn, const char* data, size_t le
             } catch (const std::system_error& e) {
                 auto code = e.code();
                 assert (code.category() == AnanasCategory());
-                channel->OnError(e, code.value());
+                channel->_OnError(e, code.value());
                 switch (code.value()) {
                     case static_cast<int>(ErrorCode::NoSuchService):
                     case static_cast<int>(ErrorCode::NoSuchMethod):
@@ -172,7 +172,7 @@ std::shared_ptr<Message> ServerChannel::OnData(const char*& data, size_t len) {
     return decoder_.b2mDecoder_(data, len);
 }
 
-bool ServerChannel::OnMessage(std::shared_ptr<Message> req) {
+bool ServerChannel::OnMessage(std::shared_ptr<Message>&& req) {
     std::string method;
     RpcMessage* frame = dynamic_cast<RpcMessage*>(req.get());
     if (frame) {
@@ -205,7 +205,7 @@ bool ServerChannel::OnMessage(std::shared_ptr<Message> req) {
     return true;
 }
 
-void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<Message> req) {
+void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<Message>&& req) {
     const auto googServ = service_->GetService();
     auto method = googServ->GetDescriptor()->FindMethodByName(methodName);
     if (!method) {
@@ -272,7 +272,7 @@ void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
     }
 }
 
-void ServerChannel::OnError(const std::exception& err, int code) {
+void ServerChannel::_OnError(const std::exception& err, int code) {
     assert (conn_->GetLoop()->InThisLoop());
 
     RpcMessage frame;

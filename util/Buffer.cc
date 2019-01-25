@@ -20,7 +20,7 @@ inline static std::size_t RoundUp2Power(std::size_t size) {
 
 const std::size_t Buffer::kMaxBufferSize = std::numeric_limits<std::size_t>::max() / 2;
 const std::size_t Buffer::kHighWaterMark = 1 * 1024;
-const std::size_t Buffer::kDefaultSize = 64;
+const std::size_t Buffer::kDefaultSize = 256;
 
 std::size_t Buffer::PushData(const void* data, std::size_t size) {
     std::size_t bytes = PushDataAt(data, size);
@@ -115,15 +115,18 @@ void Buffer::AssureSpace(std::size_t needsize) {
 
 void Buffer::Shrink() {
     if (IsEmpty()) {
-        Clear();
-        capacity_ = 0;
-        buffer_.reset();
+        if (capacity_ > 8 * 1024) {
+            Clear();
+            capacity_ = 0;
+            buffer_.reset();
+        }
+
         return;
     }
 
     std::size_t oldCap = capacity_;
     std::size_t dataSize = ReadableSize();
-    if (dataSize > oldCap / 2)
+    if (dataSize > oldCap / 4)
         return;
 
     std::size_t newCap = RoundUp2Power(dataSize);
