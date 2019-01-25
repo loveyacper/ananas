@@ -5,10 +5,39 @@
 #include <list>
 
 
+///@file Delegate.h
+///@brief A delegate class like C#
 namespace ananas {
 
 template <typename T>
 class Delegate;
+
+///@brief A delegate class like C# delegate
+/// Usage
+///@code
+///  //三个函数的定义
+///  void Inc(int& n) { ++n; }
+///  void Print(int& n) { cout << n << endl; }
+///
+///  class Test {
+///  public:
+///      void MInc(int& n) { ++n; }
+///  };
+///
+///  //测试委托
+///  int n = 0;
+///  ananas::Delegate<void (int& )> cb;
+///  cb += Inc;
+///  cb += Print;
+///  cb(n);  // 先执行Inc,再执行print打印1
+///  cb -= Inc;
+///  cb(n);  // Inc函数被从委托中删除了,现在只执行print,还是打印1
+///
+///  Test obj;
+///  cb += std::bind(&Test::MInc, &obj, std::placeholders::_1); //也可以注册成员函数
+///  //注册lambda也没问题,只要签名一致
+///  cb += [](int& b) { ++b; };
+///@endcode
 
 template <typename... Args>
 class Delegate<void (Args...)> {

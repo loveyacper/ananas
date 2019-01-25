@@ -1,7 +1,8 @@
 #ifndef BERT_STRINGVIEW_H
 #define BERT_STRINGVIEW_H
 
-// simply simulate C++17 std::StringView
+///@file StringView.h
+///@brief Simply simulate C++17 std::string_view
 
 #include <functional>
 #include <string>
