@@ -7,7 +7,7 @@
 
 std::shared_ptr<ananas::Logger> logger;
 
-ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, ananas::PacketLen_t len) {
+size_t OnMessage(ananas::Connection* conn, const char* data, size_t len) {
     // echo package
     std::string rsp(data, len);
     conn->SendPacket(rsp.data(), rsp.size());

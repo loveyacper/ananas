@@ -15,7 +15,7 @@ const int totalCount = 200 * 10000;
 
 std::shared_ptr<ananas::Logger> logger;
 
-ananas::PacketLen_t OnMessage(ananas::Connection* conn, const char* data, size_t len) {
+size_t OnMessage(ananas::Connection* conn, const char* data, size_t len) {
     ++ nowCount;
     if (nowCount == totalCount) {
         end.Now();
