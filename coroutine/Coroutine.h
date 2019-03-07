@@ -92,7 +92,7 @@ private:
     State state_;
     AnyPointer yieldValue_;
 
-    typedef ucontext HANDLE;
+    typedef ucontext_t HANDLE;
 
     static const std::size_t kDefaultStackSize = 8 * 1024;
     std::vector<char> stack_;
