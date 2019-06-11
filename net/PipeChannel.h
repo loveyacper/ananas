@@ -27,6 +27,7 @@ private:
     int writeFd_;
 };
 
+void SetPipeNonBlock(int sock, bool nonBlock = true);
 } // end namespace internal
 
 } // end namespace ananas
