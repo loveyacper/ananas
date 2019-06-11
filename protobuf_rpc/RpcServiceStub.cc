@@ -141,7 +141,7 @@ Future<ClientChannel* > ServiceStub::_Connect(EventLoop* loop, const Endpoint& e
     return fut;
 }
 
-void ServiceStub::_OnConnFail(ananas::EventLoop* loop, const ananas::SocketAddr& peer) {
+void ServiceStub::_OnConnFail(EventLoop* loop, const SocketAddr& peer) {
     assert (loop->InThisLoop());
     const int id = loop->Id();
     auto& pendingConns = pendingConns_[id];
@@ -158,11 +158,11 @@ void ServiceStub::SetOnCreateChannel(std::function<void (ClientChannel* )> cb) {
     onCreateChannel_ = std::move(cb);
 }
 
-void ServiceStub::_OnNewConnection(ananas::Connection* conn) {
+void ServiceStub::_OnNewConnection(Connection* conn) {
     assert (conn->GetLoop()->InThisLoop());
 
-    auto _ = std::static_pointer_cast<ananas::Connection>(conn->shared_from_this());
-    auto channel = std::make_shared<ClientChannel>(_, this);
+    auto _ = std::static_pointer_cast<Connection>(conn->shared_from_this());
+    auto channel = std::make_shared<ClientChannel>(std::move(_), this);
     conn->SetUserData(channel);
 
     {
@@ -178,11 +178,9 @@ void ServiceStub::_OnNewConnection(ananas::Connection* conn) {
     if (onCreateChannel_)
         onCreateChannel_(channel.get());
 
-    conn->SetBatchSend(true);
     conn->SetOnConnect(std::bind(&ServiceStub::_OnConnect, this, std::placeholders::_1));
     conn->SetOnDisconnect(std::bind(&ServiceStub::_OnDisconnect, this, std::placeholders::_1));
     conn->SetOnMessage(&ServiceStub::_OnMessage);
-    conn->SetMinPacketSize(kPbHeaderLen);
 }
 
 void ServiceStub::OnRegister() {
@@ -190,7 +188,7 @@ void ServiceStub::OnRegister() {
     pendingConns_.resize(Application::Instance().NumOfWorker());
 }
 
-void ServiceStub::_OnConnect(ananas::Connection* conn) {
+void ServiceStub::_OnConnect(Connection* conn) {
     // It's called in conn's EventLoop, see `ananas::Connector::_OnSuccess`
     assert (conn->GetLoop()->InThisLoop());
 
@@ -206,7 +204,7 @@ void ServiceStub::_OnConnect(ananas::Connection* conn) {
         prom.SetValue(conn->GetUserData<ClientChannel>().get());
 }
 
-void ServiceStub::_OnDisconnect(ananas::Connection* conn) {
+void ServiceStub::_OnDisconnect(Connection* conn) {
     Endpoint ep;
     ep.set_proto(TCP);
     ep.set_ip(conn->Peer().GetIP());
@@ -226,7 +224,7 @@ Future<ServiceStub::EndpointsPtr> ServiceStub::_GetEndpoints() {
     // rpc::Call() can be called everywhere, so protect these code
     std::unique_lock<std::mutex> guard(endpointsMutex_);
     if (endpoints_ && !endpoints_->empty()) {
-        ananas::Time now;
+        Time now;
         if (now - refreshTime_ < 60 * 1000) {
             return MakeReadyFuture(endpoints_);
         } else {
@@ -246,7 +244,7 @@ Future<ServiceStub::EndpointsPtr> ServiceStub::_GetEndpoints() {
 
     if (needVisit) {
         // call NameServer for GetEndpoints
-        ananas::rpc::ServiceName name;
+        ServiceName name;
         name.set_name(this->FullName());
         auto scheduler = EventLoop::Self();
         if (!scheduler)
@@ -321,7 +319,7 @@ const Endpoint& ServiceStub::_SelectEndpoint(EndpointsPtr eps) {
 }
 
 
-size_t ServiceStub::_OnMessage(ananas::Connection* conn, const char* data, size_t len) {
+size_t ServiceStub::_OnMessage(Connection* conn, const char* data, size_t len) {
     const char* const start = data;
     size_t offset = 0;
 
@@ -343,12 +341,12 @@ size_t ServiceStub::_OnMessage(ananas::Connection* conn, const char* data, size_
 }
 
 
-ClientChannel::ClientChannel(std::shared_ptr<Connection> conn,
-                             ananas::rpc::ServiceStub* service) :
-    conn_(conn),
+ClientChannel::ClientChannel(std::shared_ptr<Connection>&& conn,
+                             ServiceStub* service) :
+    conn_(std::move(conn)),
     service_(service),
     encoder_(PbToFrameRequestEncoder) {
-    pendingTimeoutId_ = conn->GetLoop()->ScheduleAfterWithRepeat<ananas::kForever>(
+    pendingTimeoutId_ = conn->GetLoop()->ScheduleAfterWithRepeat<kForever>(
                             std::chrono::seconds(1),
                             std::bind(&ClientChannel::_CheckPendingTimeout, this)
                         );
@@ -365,7 +363,7 @@ int ClientChannel::GenId() {
     return ++ reqIdGen_;
 }
 
-ananas::Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method, const Message& request) {
+Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method, const Message& request) {
     RpcMessage rpcMsg;
     encoder_.m2fEncoder_(&request, rpcMsg);
 
@@ -384,7 +382,7 @@ ananas::Buffer ClientChannel::_MessageToBytesEncoder(std::string&& method, const
     } else {
         // if no f2bEncoder_, then send the serialized_request directly
         // eg. The text protocol
-        ananas::Buffer bytes;
+        Buffer bytes;
         const auto& data = req->serialized_request();
         bytes.PushData(data.data(), data.size());
         return bytes;
@@ -443,7 +441,7 @@ void ClientChannel::OnDestroy() {
 
 void ClientChannel::_CheckPendingTimeout() {
     // TODO set max timeout, default 60s
-    ananas::Time now;
+    Time now;
     for (auto it(pendingCalls_.begin()); it != pendingCalls_.end(); ) {
         if (now < it->second.timestamp + 60 * 1000)
             return;

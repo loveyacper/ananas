@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <cassert>
 
+#include "Socket.h"
 #include "PipeChannel.h"
 
 namespace ananas {
@@ -13,6 +14,8 @@ PipeChannel::PipeChannel() {
     assert (ret == 0);
     readFd_ = fd[0];
     writeFd_ = fd[1];
+    SetNonBlock(readFd_, true);
+    SetNonBlock(writeFd_, true);
 }
 
 PipeChannel::~PipeChannel() {

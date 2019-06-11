@@ -23,11 +23,11 @@ std::shared_ptr<Message> BytesToPbDecoder(const char*& data, size_t len) {
     const int totalLen = TotalPbLength(data);
 
     // TODO totalLen limit
-    if (totalLen <= kPbHeaderLen || totalLen >= 64 * 1024 * 1024)
+    if (totalLen <= kPbHeaderLen || totalLen >= 256 * 1024 * 1024)
         throw Exception(ErrorCode::TooLongFrame, "abnormal totalLen:" + std::to_string(totalLen));
 
     if (static_cast<int>(len) < totalLen)
-        return nullptr; // wait more data
+        return nullptr;
 
     RpcMessage* frame =  nullptr;
     std::shared_ptr<Message> res(frame = new RpcMessage);
@@ -39,8 +39,8 @@ std::shared_ptr<Message> BytesToPbDecoder(const char*& data, size_t len) {
     return res;
 }
 
-void PbToMessageDecoder(const Message& pbMsg, Message& msg) {
-    const RpcMessage& frame = reinterpret_cast<const RpcMessage& >(pbMsg);
+DecodeState PbToMessageDecoder(const Message& rpcMsg, Message& msg) {
+    const RpcMessage& frame = dynamic_cast<const RpcMessage& >(rpcMsg);
     if (frame.has_request()) {
         msg.ParseFromString(frame.request().serialized_request());
     } else if (frame.has_response()) {
@@ -57,6 +57,8 @@ void PbToMessageDecoder(const Message& pbMsg, Message& msg) {
     } else {
         throw Exception(ErrorCode::DecodeFail, "PbToMessageDecoder failed.");
     }
+
+    return DecodeState::Ok;
 }
 
 
@@ -76,11 +78,11 @@ bool PbToFrameResponseEncoder(const Message* msg, RpcMessage& frame) {
         return true;
 }
 
-ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& rpcMsg) {
+Buffer PBFrameToBytesEncoder(const RpcMessage& rpcMsg) {
     const int bodyLen = rpcMsg.ByteSize();
     const int totalLen = kPbHeaderLen + bodyLen;
 
-    ananas::Buffer bytes;
+    Buffer bytes;
     bytes.AssureSpace(sizeof totalLen + bodyLen);
     bytes.PushData(&totalLen, sizeof totalLen);
 

@@ -146,14 +146,13 @@ void Connector::_OnSuccess() {
 
     auto loop = dstLoop_ ? dstLoop_ : Application::Instance().Next();
     int connfd = localSock_;
-    auto onFail = std::move(onConnectFail_);
     auto newCb = std::move(newConnCallback_);
     auto peer = peer_;
     // unregister connector
     if (oldState == ConnectState::connecting)
         this->loop_->Unregister(eET_Write, shared_from_this());
 
-    auto func = [loop, connfd, peer, newCb, onFail]() {
+    auto func = [loop, connfd, peer, newCb]() {
         assert (loop->InThisLoop());
         // create new conn
         auto c = std::make_shared<Connection>(loop);
@@ -161,7 +160,6 @@ void Connector::_OnSuccess() {
 
         // register new conn
         if (loop->Register(eET_Read, c)) {
-            c->SetFailCallback(std::move(onFail));
             newCb(c.get());
             c->_OnConnect();
         } else {

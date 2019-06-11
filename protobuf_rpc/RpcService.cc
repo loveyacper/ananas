@@ -35,7 +35,7 @@ bool Service::Start() {
     if (endpoint_.ip().empty())
         return false;
 
-    auto& app = ananas::Application::Instance();
+    auto& app = Application::Instance();
     SocketAddr bindAddr(endpoint_.ip(), endpoint_.port());
     app.Listen(bindAddr, std::bind(&Service::OnNewConnection,
                                    this,
@@ -47,7 +47,7 @@ const std::string& Service::FullName() const {
     return name_;
 }
 
-void Service::OnNewConnection(ananas::Connection* conn) {
+void Service::OnNewConnection(Connection* conn) {
     auto channel = std::make_shared<ServerChannel>(conn, this);
     conn->SetUserData(channel);
     conn->SetBatchSend(true);
@@ -77,7 +77,7 @@ void Service::SetOnCreateChannel(std::function<void (ServerChannel* )> occ) {
     onCreateChannel_ = std::move(occ);
 }
 
-size_t Service::_OnMessage(ananas::Connection* conn, const char* data, size_t len) {
+size_t Service::_OnMessage(Connection* conn, const char* data, size_t len) {
     const char* const start = data;
     size_t offset = 0;
 
@@ -133,13 +133,13 @@ size_t Service::_OnMessage(ananas::Connection* conn, const char* data, size_t le
     return data - start;
 }
 
-void Service::_OnDisconnect(ananas::Connection* conn) {
+void Service::_OnDisconnect(Connection* conn) {
     auto& channelMap = channels_[conn->GetLoop()->Id()];
     bool succ = channelMap.erase(conn->GetUniqueId());
     assert (succ);
 }
 
-ServerChannel::ServerChannel(ananas::Connection* conn, ananas::rpc::Service* service) :
+ServerChannel::ServerChannel(ananas::Connection* conn, rpc::Service* service) :
     conn_(conn),
     service_(service),
     encoder_(PbToFrameResponseEncoder) {
@@ -152,11 +152,11 @@ void ServerChannel::SetContext(std::shared_ptr<void> ctx) {
     ctx_ = std::move(ctx);
 }
 
-ananas::rpc::Service* ServerChannel::Service() const {
+rpc::Service* ServerChannel::Service() const {
     return service_;
 }
 
-ananas::Connection* ServerChannel::Connection() const {
+Connection* ServerChannel::Connection() const {
     return conn_;
 }
 
@@ -231,20 +231,12 @@ void ServerChannel::_Invoke(const std::string& methodName, std::shared_ptr<Messa
     std::shared_ptr<Message> response(googServ->GetResponsePrototype(method).New());
 
     std::weak_ptr<ananas::Connection> wconn(std::static_pointer_cast<ananas::Connection>(conn_->shared_from_this()));
-    auto done = new ananas::rpc::Closure(&ServerChannel::_OnServDone, this, wconn, currentId_, response);
-    bool hasException = false;
-
-    ANANAS_DEFER {
-        if (hasException)
-            delete done;
-
-        // !!! Because done can be async, we can't execute done on behalf of user
-    };
+    auto done = new Closure(&ServerChannel::_OnServDone, this, wconn, currentId_, response);
 
     try {
         googServ->CallMethod(method, nullptr, req.get(), response.get(), done);
     } catch (const std::exception& e) {
-        hasException = true;
+        delete done;
         // U should never throw exception in rpc call!
         throw Exception(ErrorCode::ThrowInMethod, methodName + ", detail:" + e.what());
     }
@@ -264,7 +256,7 @@ void ServerChannel::_OnServDone(std::weak_ptr<ananas::Connection> wconn,
 
     // may be called from other thread, so use SafeSend
     if (encoder_.f2bEncoder_) {
-        ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
+        Buffer bytes = encoder_.f2bEncoder_(frame);
         conn->SafeSend(bytes.ReadAddr(), bytes.ReadableSize());
     } else {
         const auto& bytes = rsp->serialized_response();
@@ -285,7 +277,7 @@ void ServerChannel::_OnError(const std::exception& err, int code) {
     assert (succ);
 
     if (encoder_.f2bEncoder_) {
-        ananas::Buffer bytes = encoder_.f2bEncoder_(frame);
+        Buffer bytes = encoder_.f2bEncoder_(frame);
         conn_->SendPacket(bytes);
     } else {
         const auto& bytes = rsp->serialized_response();

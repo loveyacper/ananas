@@ -74,8 +74,8 @@ private:
     friend class ServerChannel;
     friend class HealthServiceImpl;
 
-    static size_t _OnMessage(ananas::Connection* conn, const char* data, size_t len);
-    void _OnDisconnect(ananas::Connection* conn);
+    static size_t _OnMessage(Connection* conn, const char* data, size_t len);
+    void _OnDisconnect(Connection* conn);
 
     std::unique_ptr<GoogleService> service_;
     Endpoint endpoint_;
@@ -93,7 +93,7 @@ private:
 class ServerChannel {
     friend class Service;
 public:
-    ServerChannel(ananas::Connection* conn, ananas::rpc::Service* service);
+    ServerChannel(Connection* conn, rpc::Service* service);
     ~ServerChannel();
 
     ///@brief Set user context
@@ -104,9 +104,9 @@ public:
     std::shared_ptr<T> GetContext() const;
 
     ///@brief Get rpc Service which this channel based on
-    ananas::rpc::Service* Service() const;
+    rpc::Service* Service() const;
     ///@brief Get connection attached by this channel
-    ananas::Connection* Connection() const;
+    Connection* Connection() const;
 
     ///@brief Special encoder for this chanel, see [Encoder](@ref Encoder).
     void SetEncoder(Encoder enc);
@@ -127,7 +127,7 @@ private:
     void _OnError(const std::exception& err, int code = 0);
 
     ananas::Connection* const conn_;
-    ananas::rpc::Service* const service_;
+    rpc::Service* const service_;
 
     std::shared_ptr<void> ctx_;
 

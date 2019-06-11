@@ -254,9 +254,6 @@ void  Connection::HandleErrorEvent() {
     if (onDisconnect_)
         onDisconnect_(this);
 
-    if (onConnFail_)
-        onConnFail_(loop_, peer_);
-
     loop_->Unregister(eET_Read | eET_Write, shared_from_this());
 }
 
@@ -499,10 +496,6 @@ void Connection::_OnConnect() {
 
     if (onConnect_)
         onConnect_(this);
-}
-
-void Connection::SetFailCallback(TcpConnFailCallback cb) {
-    onConnFail_ = std::move(cb);
 }
 
 void Connection::SetOnWriteComplete(TcpWriteCompleteCallback wccb) {

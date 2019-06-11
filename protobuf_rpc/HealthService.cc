@@ -19,8 +19,8 @@ std::string ColorWord(const std::string& text, const std::string& color) {
 #define NEWLINE "<br>"
 
 void HealthServiceImpl::GetSummary(::google::protobuf::RpcController*,
-                                   const ::ananas::rpc::HttpRequestMsg* request,
-                                   ::ananas::rpc::Summary* response,
+                                   const rpc::HttpRequestMsg* request,
+                                   rpc::Summary* response,
                                    ::google::protobuf::Closure* done) {
 
     std::string* summary = response->mutable_summary();
@@ -37,23 +37,27 @@ void HealthServiceImpl::GetSummary(::google::protobuf::RpcController*,
                                 <style> div{display:inline} </style> \n \
                             </head>\n \
                             <body>\n \
-                                To be continued <br><br>");
+                                ANANAS: To be continued <br><br>");
     // workers;
     html += ColorWord("<b>Worker threads: " + std::to_string(RPC_SERVER.NumOfWorker()) + "</b>", "maroon");
     html += NEWLINE, html += NEWLINE;
     html += ColorWord("<b>Services:</b>", "fuchsia");
     html += NEWLINE;
+
+    // service table
+    html += "<table border=\"1\"> <tr> <th>Service</th> <th>Address</th> <th>Connections</th>";
     for (const auto& kv : RPC_SERVER.services_) {
-        std::string name(kv.first.ToString(), 0, 30);
-        name.resize(30);
-        html += ColorWord(name, "teal");
-        html += " @ " + ColorWord(EndpointToString(kv.second->GetEndpoint()), "Blue");
         size_t connections = 0;
         for (const auto& cmap : kv.second->channels_)
             connections += cmap.size();
-        html += ColorWord("  Connections: " + std::to_string(connections), "green");
-        html += NEWLINE;
+
+        std::string name(kv.first.ToString(), 0, 30);
+        html += "<tr> <td>" + ColorWord(name, "teal") + "</td>" +
+                 "<td>" + ColorWord(EndpointToString(kv.second->GetEndpoint()), "Blue") + "</td>" +
+                 "<td>" + ColorWord(std::to_string(connections), "Green") + "</td>" +
+                 "</tr>";
     }
+    html += "</table>";
 
     html += "</body>\n</html>";
     clen += std::to_string(html.size());
@@ -69,8 +73,8 @@ void HealthServiceImpl::GetSummary(::google::protobuf::RpcController*,
     done->Run();
 }
 
-static 
-bool M2FEncode(const google::protobuf::Message* msg, ananas::rpc::RpcMessage& frame) {
+static
+bool M2FEncode(const google::protobuf::Message* msg, rpc::RpcMessage& frame) {
     // msg is Summary
     auto summary = dynamic_cast<const Summary*>(msg);
     assert (summary);
@@ -82,9 +86,8 @@ bool M2FEncode(const google::protobuf::Message* msg, ananas::rpc::RpcMessage& fr
 
 static
 std::shared_ptr<google::protobuf::Message> B2MDecode(HttpRequestParser* parser, const char*& data, size_t len) {
-    const char* const end = data + len;
     while (!parser->Done()) {
-        if (!parser->ParseRequest(data, end))
+        if (!parser->ParseRequest(data, data+len))
             throw Exception(ErrorCode::DecodeFail);
         else if (parser->WaitMore())
             return std::shared_ptr<google::protobuf::Message>();
@@ -104,15 +107,15 @@ std::shared_ptr<google::protobuf::Message> B2MDecode(HttpRequestParser* parser, 
     return msg;
 }
 
-void OnCreateHealthChannel(ananas::rpc::ServerChannel* c) {
+void OnCreateHealthChannel(rpc::ServerChannel* c) {
     auto ctx = std::make_shared<HttpRequestParser>();
     c->SetContext(ctx);
 
-    ananas::rpc::Encoder encoder;
+    rpc::Encoder encoder;
     encoder.SetMessageToFrameEncoder(M2FEncode);
     c->SetEncoder(std::move(encoder));
 
-    ananas::rpc::Decoder decoder;
+    rpc::Decoder decoder;
     decoder.SetBytesToMessageDecoder(std::bind(B2MDecode,
                                      ctx.get(),
                                      std::placeholders::_1,
