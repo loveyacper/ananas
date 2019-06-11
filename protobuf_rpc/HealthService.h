@@ -21,12 +21,12 @@ class ServerChannel;
 class HealthServiceImpl : public HealthHttpService {
 public:
     void GetSummary(::google::protobuf::RpcController*,
-                    const ::ananas::rpc::HttpRequestMsg* request,
-                    ::ananas::rpc::Summary* response,
+                    const rpc::HttpRequestMsg* request,
+                    rpc::Summary* response,
                     ::google::protobuf::Closure* done) override final;
 };
 
-extern void OnCreateHealthChannel(ananas::rpc::ServerChannel* c);
+extern void OnCreateHealthChannel(rpc::ServerChannel* c);
 extern std::string DispatchHealthMethod(const ::google::protobuf::Message* m);
 
 } // end namespace rpc

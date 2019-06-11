@@ -22,6 +22,14 @@ namespace rpc {
 
 class RpcMessage;
 
+enum class DecodeState {
+    None,
+    Waiting,
+    Error,
+    Ok,
+};
+
+
 extern const int kPbHeaderLen;
 
 ///@brief Bytes to Message Decoder type, it may throw exception.
@@ -30,8 +38,8 @@ using BytesToMessageDecoder = std::function<std::shared_ptr<google::protobuf::Me
 std::shared_ptr<google::protobuf::Message> BytesToPbDecoder(const char*& data, size_t len);
 
 ///@brief Message to Message Decoder type, it may throw exception.
-using MessageToMessageDecoder = std::function<void (const google::protobuf::Message&, google::protobuf::Message& )>;
-void PbToMessageDecoder(const google::protobuf::Message&, google::protobuf::Message& );
+using MessageToMessageDecoder = std::function<DecodeState (const google::protobuf::Message&, google::protobuf::Message& )>;
+DecodeState PbToMessageDecoder(const google::protobuf::Message&, google::protobuf::Message& );
 
 
 ///@brief Message to Frame Encoder type, return true if encode success.
@@ -40,8 +48,8 @@ bool PbToFrameRequestEncoder(const google::protobuf::Message*, RpcMessage& );
 bool PbToFrameResponseEncoder(const google::protobuf::Message*, RpcMessage& );
 
 ///@brief Frame to Bytes Encoder type, it may throw exception
-using FrameToBytesEncoder = std::function<ananas::Buffer (const RpcMessage& )>;
-ananas::Buffer PBFrameToBytesEncoder(const RpcMessage& );
+using FrameToBytesEncoder = std::function<Buffer (const RpcMessage& )>;
+Buffer PBFrameToBytesEncoder(const RpcMessage& );
 
 
 // helper function

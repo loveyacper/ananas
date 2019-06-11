@@ -23,6 +23,7 @@
 ///  type of your_heavy_work.
 namespace ananas {
 
+///@brief A powerful ThreadPool implementation with Future interface.
 class ThreadPool final {
 public:
     ThreadPool();

@@ -107,9 +107,6 @@ public:
     void SetOnDisconnect(std::function<void (Connection* )> cb);
     ///@brief Callback when recv data stream.
     void SetOnMessage(TcpMessageCallback cb);
-    ///@brief Callback when connection disconnected, usually for reconnect
-    void SetFailCallback(TcpConnFailCallback cb);
-
     ///@brief Callback when send data without EAGAIN, kernel sendbuffer is enough
     void SetOnWriteComplete(TcpWriteCompleteCallback wccb);
 
@@ -161,7 +158,6 @@ private:
     std::function<void (Connection* )> onDisconnect_;
 
     TcpMessageCallback onMessage_;
-    TcpConnFailCallback onConnFail_;
     TcpWriteCompleteCallback onWriteComplete_;
 
     std::shared_ptr<void> userData_;

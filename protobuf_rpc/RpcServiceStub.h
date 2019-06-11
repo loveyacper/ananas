@@ -119,14 +119,14 @@ private:
 
     EndpointsPtr endpoints_;
     std::vector<Promise<EndpointsPtr>> pendingEndpoints_;
-    ananas::Time refreshTime_;
+    Time refreshTime_;
 };
 
 ///@brief Rpc ClientChannel, wrap for protobuf rpc call.
 class ClientChannel {
     friend class ServiceStub;
 public:
-    ClientChannel(std::shared_ptr<Connection> conn, ServiceStub* service);
+    ClientChannel(std::shared_ptr<Connection>&& conn, ServiceStub* service);
     ~ClientChannel();
 
     ///@brief Set user context
@@ -141,7 +141,7 @@ public:
     ///
     /// It's used for rpc library internal.
     template <typename RSP>
-    Future<Try<RSP>> Invoke(const ananas::StringView& method,
+    Future<Try<RSP>> Invoke(const StringView& method,
                             const std::shared_ptr<Message>& request);
 
     ///@brief Special encoder for this chanel, see [Encoder](@ref Encoder).
@@ -164,11 +164,11 @@ public:
 
 private:
     template <typename RSP>
-    Future<Try<RSP>> _Invoke(const ananas::StringView& method,
+    Future<Try<RSP>> _Invoke(const StringView& method,
                              const std::shared_ptr<Message>& request);
 
     void _CheckPendingTimeout();
-    std::weak_ptr<ananas::Connection> conn_;
+    std::weak_ptr<Connection> conn_;
     ServiceStub* const service_;
 
     std::shared_ptr<void> ctx_;
@@ -179,7 +179,7 @@ private:
     struct RequestContext {
         Promise<std::shared_ptr<Message>> promise;
         std::shared_ptr<Message> response;
-        ananas::Time timestamp;
+        Time timestamp;
     };
 
     std::map<int, RequestContext> pendingCalls_;
@@ -200,7 +200,7 @@ std::shared_ptr<T> ClientChannel::GetContext() const {
 }
 
 template <typename RSP>
-Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
+Future<Try<RSP>> ClientChannel::Invoke(const StringView& method,
                                        const std::shared_ptr<Message>& request) {
     auto sc = conn_.lock();
     if (!sc) {
@@ -222,7 +222,7 @@ Future<Try<RSP>> ClientChannel::Invoke(const ananas::StringView& method,
 
 
 template <typename RSP>
-Future<Try<RSP>> ClientChannel::_Invoke(const ananas::StringView& method,
+Future<Try<RSP>> ClientChannel::_Invoke(const StringView& method,
                                         const std::shared_ptr<Message>& request) {
     auto sc = conn_.lock();
     assert (sc);

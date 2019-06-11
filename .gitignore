@@ -4,3 +4,7 @@
 #
 build/
 bin/
+ananas.html
+api_docs/
+*.pb.h
+*.pb.cc
