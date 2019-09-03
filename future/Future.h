@@ -237,6 +237,11 @@ public:
         state_(std::move(state)) {
     }
 
+    bool
+    valid() const {
+        return state_ != nullptr;
+    }
+
     // The blocking interface
     // PAY ATTENTION to deadlock: Wait thread must NOT be same as promise thread!!!
     typename State<T>::ValueType
@@ -443,6 +448,10 @@ public:
                     innerFuture = f(res.template Get<Args>()...);
                 }
 
+                if (!innerFuture.valid()) {
+                    return;
+                }
+
                 std::unique_lock<std::mutex> guard(innerFuture.state_->thenLock_);
                 if (innerFuture.state_->progress_ == Progress::Timeout) {
                     throw std::runtime_error("Wrong state : Timeout");
@@ -483,6 +492,9 @@ public:
                         innerFuture = func(t.template Get<Args>()...);
                     }
 
+                    if (!innerFuture.valid()) {
+                        return;
+                    }
                     std::unique_lock<std::mutex> guard(innerFuture.state_->thenLock_);
                     if (innerFuture.state_->progress_ == Progress::Timeout) {
                         throw std::runtime_error("Wrong state : Timeout");
@@ -691,7 +703,7 @@ WhenN(size_t N, InputIterator first, InputIterator last) {
     using TryT = typename TryWrapper<T>::Type;
 
     size_t nFutures = std::distance(first, last);
-    const size_t needCollect = std::min(nFutures, N);
+    const size_t needCollect = std::min<size_t>(nFutures, N);
 
     if (needCollect == 0) {
         return MakeReadyFuture(std::vector<std::pair<size_t, TryT>>());
@@ -796,7 +808,7 @@ WhenIfN(size_t N, InputIterator first, InputIterator last,
     using TryT = typename TryWrapper<T>::Type;
 
     size_t nFutures = std::distance(first, last);
-    const size_t needCollect = std::min(nFutures, N);
+    const size_t needCollect = std::min<size_t>(nFutures, N);
 
     if (needCollect == 0) {
         return MakeReadyFuture(std::vector<std::pair<size_t, TryT>>());
