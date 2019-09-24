@@ -610,6 +610,7 @@ void LogManager::AddBusyLog(Logger* log) {
 
 void LogManager::Run() {
     const std::chrono::milliseconds kFlushInterval(1);
+    static auto lastFlushTime = std::chrono::steady_clock::now();
 
     bool run = true;
     while (run) {
@@ -617,7 +618,18 @@ void LogManager::Run() {
 
         {
             std::unique_lock<std::mutex> guard(mutex_);
-            cond_.wait_for(guard, kFlushInterval);
+            cond_.wait(guard, [this, &kFlushInterval] {
+                if (shutdown_) return true;
+
+                auto now = std::chrono::steady_clock::now();
+                if (!busyLogs_.empty() && now - lastFlushTime >= kFlushInterval) {
+                    lastFlushTime = now;
+                    return true;
+                }
+
+                return false;
+            });
+
             if (!busyLogs_.empty()) {
                 tmpBusy.assign(busyLogs_.begin(), busyLogs_.end());
                 busyLogs_.clear();
