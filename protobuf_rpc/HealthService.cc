@@ -1,4 +1,5 @@
 #include "HealthService.h"
+#include "ananas/util/Buffer.h"
 #include "codec/HttpProtocol.h"
 #include "ProtobufCoder.h"
 #include "RpcService.h"
@@ -13,7 +14,7 @@ namespace rpc {
 //navy, olive, purple, red, silver, teal, white, yellow
 static
 std::string ColorWord(const std::string& text, const std::string& color) {
-    return "<div style=\"color:" + color + "\">" + text + "</div>";  
+    return "<div style=\"color:" + color + "\">" + text + "</div>";
 }
 
 #define NEWLINE "<br>"
