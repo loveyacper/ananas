@@ -45,7 +45,14 @@ void Connection::ActiveClose() {
     if (localSock_ == kInvalid)
         return;
 
-    state_ = State::eS_ActiveClose;
+    if (sendBuf_.Empty()) {
+        Shutdown(ShutdownMode::eSM_Both);
+        state_ = State::eS_ActiveClose;
+    } else {
+        state_ = State::eS_CloseWaitWrite;
+        Shutdown(ShutdownMode::eSM_Read); // disable read
+    }
+
     loop_->Modify(eET_Write, shared_from_this());
 }
 
@@ -109,7 +116,8 @@ bool Connection::HandleReadEvent() {
             if (EINTR == errno)
                 continue; // restart ::recv
 
-            ANANAS_ERR << localSock_ << " HandleReadEvent Error";
+            ANANAS_ERR << localSock_ << " HandleReadEvent Error " << errno;
+            Shutdown(ShutdownMode::eSM_Both);
             state_ = State::eS_Error;
             return false;
         }
@@ -117,9 +125,11 @@ bool Connection::HandleReadEvent() {
         if (bytes == 0) {
             ANANAS_WRN << localSock_ << " HandleReadEvent EOF ";
             if (sendBuf_.Empty()) {
+                Shutdown(ShutdownMode::eSM_Both);
                 state_ = State::eS_PassiveClose;
             } else {
                 state_ = State::eS_CloseWaitWrite;
+                Shutdown(ShutdownMode::eSM_Read);
                 loop_->Modify(eET_Write, shared_from_this()); // disable read
             }
 
@@ -170,7 +180,6 @@ int Connection::_Send(const void* data, size_t len) {
 
     if (kError == bytes) {
         ANANAS_ERR << localSock_ << " _Send Error";
-        state_ = State::eS_Error;
     }
 
     return bytes;
@@ -208,6 +217,7 @@ bool Connection::HandleWriteEvent() {
     int ret = WriteV(localSock_, iovecs);
     if (ret == kError) {
         ANANAS_ERR << localSock_ << " HandleWriteEvent ERROR ";
+        Shutdown(ShutdownMode::eSM_Both);
         state_ = State::eS_Error;
         return false;
     }
@@ -297,6 +307,7 @@ bool Connection::SendPacket(const void* data, std::size_t size) {
 
     auto bytes = _Send(data, size);
     if (bytes == kError) {
+        Shutdown(ShutdownMode::eSM_Both);
         state_ = State::eS_Error;
         loop_->Modify(eET_Write, shared_from_this());
         return false;
@@ -455,6 +466,7 @@ bool Connection::SendPacket(const SliceVector& slices) {
 
     int ret = WriteV(localSock_, iovecs);
     if (ret == kError) {
+        Shutdown(ShutdownMode::eSM_Both);
         state_ = State::eS_Error;
         loop_->Modify(eET_Write, shared_from_this());
         return false;

@@ -112,10 +112,5 @@ int Kqueue::Poll(std::size_t maxEvent, int timeoutMs) {
 } // end namespace internal
 } // end namespace ananas
 
-#else
-
-void __Dummy__() {
-}
-
 #endif
 

@@ -20,7 +20,7 @@ class EventLoopGroup;
 
 /// @file Application.h
 
-///@brief Abstract for stream socket
+///@brief Abstract for a process.
 ///
 /// It's the app template class, should be singleton.
 /// Usage:

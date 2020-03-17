@@ -66,7 +66,7 @@ bool Server::AddServiceStub(ServiceStub* service) {
 bool Server::AddServiceStub(std::unique_ptr<ServiceStub>&& service) {
     auto srv = service.get();
     auto googleService = service->GetService();
-    const auto name = googleService->GetDescriptor()->full_name();
+    const auto& name = googleService->GetDescriptor()->full_name();
 
     if (stubs_.insert(std::make_pair(StringView(name), std::move(service))).second)
         srv->OnRegister();

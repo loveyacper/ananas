@@ -128,11 +128,11 @@ private:
     enum State {
         eS_None,
         eS_Connected,
-        eS_CloseWaitWrite, // peer close or shutdown write, but I have data to send
-        eS_PassiveClose, // should close
-        eS_ActiveClose, // should close
-        eS_Error,
-        eS_Closed,
+        eS_CloseWaitWrite,  // passive or active close, but I still have data to send
+        eS_PassiveClose,    // should close
+        eS_ActiveClose,     // should close
+        eS_Error,           // waiting to handle error
+        eS_Closed,          // final state being to destroy
     };
 
     friend class internal::Acceptor;

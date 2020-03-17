@@ -217,6 +217,8 @@ void ServiceStub::_OnDisconnect(Connection* conn) {
     channelMap.erase(it);
 }
 
+// FIXME: This function is not good, or very bad.
+// Fix it is obvious, but will take time...
 Future<ServiceStub::EndpointsPtr> ServiceStub::_GetEndpoints() {
     if (hardCodedUrls_ && !hardCodedUrls_->empty())
         return MakeReadyFuture(hardCodedUrls_);

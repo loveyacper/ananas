@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <stdexcept>
+#include "ananas/util/Buffer.h"
 
 ///@file ProtobufCoder.h
 ///@brief Default coders use protobuf
@@ -15,8 +16,6 @@ class Message;
 }
 
 namespace ananas {
-
-class Buffer;
 
 namespace rpc {
 
