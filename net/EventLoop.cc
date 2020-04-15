@@ -204,7 +204,7 @@ bool EventLoop::Cancel(TimerId id) {
 }
 
 void EventLoop::Run() {
-    const DurationMs kDefaultPollTime(10);
+    const DurationMs kDefaultPollTime(1000);
     const DurationMs kMinPollTime(1);
 
     Register(internal::eET_Read, notifier_);
