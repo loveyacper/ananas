@@ -21,7 +21,6 @@ A C++11 RPC framework and toolbox for server-side development.
     * [tests](#tests)
     * [examples](#examples)
 * 教程待补全,暂没时间,有兴趣可先加
-QQ群讨论784231426
 
 <!-- vim-markdown-toc -->
 
