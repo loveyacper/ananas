@@ -1,5 +1,3 @@
-INCLUDE(${PROJECT_SOURCE_DIR}/CMakeCommon)
-
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
 
 ADD_EXECUTABLE(tryvoid_test TestTryVoid.cc)
@@ -18,6 +16,12 @@ TARGET_LINK_LIBRARIES(future_timeout ananas_net)
 TARGET_LINK_LIBRARIES(future_test ananas_net)
 TARGET_LINK_LIBRARIES(future_exception ananas_net)
 TARGET_LINK_LIBRARIES(future_whenall_test ananas_net)
+TARGET_LINK_LIBRARIES(future_whenall_iter_test pthread)
+TARGET_LINK_LIBRARIES(future_whenany_test pthread)
+TARGET_LINK_LIBRARIES(future_whenany_if_test pthread)
+TARGET_LINK_LIBRARIES(future_whenN_test pthread)
+TARGET_LINK_LIBRARIES(future_whenN_if_test pthread)
+TARGET_LINK_LIBRARIES(future_blocking pthread)
 ADD_DEPENDENCIES(future_timeout ananas_net)
 ADD_DEPENDENCIES(future_test ananas_net)
 

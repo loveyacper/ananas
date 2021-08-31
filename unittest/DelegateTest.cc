@@ -13,10 +13,6 @@ TEST_CASE(c_func) {
     cb += Inc;
     cb(n);
     EXPECT_TRUE(n == 1);
-
-    cb -= Inc;
-    cb(n);
-    EXPECT_TRUE(n == 1);
 }
 
 class Test {
@@ -58,10 +54,6 @@ TEST_CASE(copy_f) {
     ananas::Delegate<void (int )> cb;
 
     cb += IncCopy;
-    cb(n);
-    EXPECT_TRUE(n == 0);
-
-    cb -= IncCopy;
     cb(n);
     EXPECT_TRUE(n == 0);
 }

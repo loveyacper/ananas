@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <sstream>
+#include <functional>
 #include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>

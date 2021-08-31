@@ -2,10 +2,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/ananas_rpc.pb.h ${CMAKE_CURRENT_SOURCE_DIR}/ananas_rpc.pb.cc
     COMMAND protoc
-    ARGS --cpp_out ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/ananas_rpc.proto -I${CMAKE_CURRENT_SOURCE_DIR} 
+    ARGS --cpp_out ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/ananas_rpc.proto -I${CMAKE_CURRENT_SOURCE_DIR}
     DEPENDS ananas_rpc.proto)
-
-INCLUDE(${PROJECT_SOURCE_DIR}/CMakeCommon)
 
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/protobuf_rpc/name_service_protocol)
@@ -32,7 +30,7 @@ set(HEADERS
     ananas_rpc.pb.h
     name_service_protocol/RedisClientContext.h
    )
-                      
+
 INSTALL(FILES ${HEADERS} DESTINATION include/ananas/rpc)
 
 

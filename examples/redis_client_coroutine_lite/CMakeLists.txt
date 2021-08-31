@@ -1,5 +1,3 @@
-INCLUDE(${PROJECT_SOURCE_DIR}/CMakeCommon)
-
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
 
 ADD_EXECUTABLE(rediscli_coroutine_test RedisContext.cc;main.cc)

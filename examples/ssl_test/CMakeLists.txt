@@ -1,5 +1,3 @@
-INCLUDE(${PROJECT_SOURCE_DIR}/CMakeCommon)
-
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     INCLUDE_DIRECTORIES(/usr/local/Cellar/openssl/1.0.2l/include/)
     LINK_DIRECTORIES(/usr/local/Cellar/openssl/1.0.2l/lib/)

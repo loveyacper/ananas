@@ -1,5 +1,3 @@
-INCLUDE(${PROJECT_SOURCE_DIR}/CMakeCommon)
-
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
 
 ADD_EXECUTABLE(redis_server_lite RedisContext.cc;Protocol.cc;main.cc)
