@@ -4,7 +4,7 @@
 #include "RpcService.h"
 #include "RpcClosure.h"
 #include "RpcException.h"
-#include "ananas_rpc.pb.h"
+#include "protobuf_rpc/ananas_rpc.pb.h"
 #include "ananas/net/Connection.h"
 #include "ananas/net/Application.h"
 #include "ananas/net/AnanasDebug.h"
@@ -156,7 +156,7 @@ rpc::Service* ServerChannel::Service() const {
     return service_;
 }
 
-Connection* ServerChannel::Connection() const {
+Connection* ServerChannel::GetConnection() const {
     return conn_;
 }
 
@@ -188,7 +188,7 @@ bool ServerChannel::OnMessage(std::shared_ptr<Message>&& req) {
         } else {
             throw Exception(ErrorCode::EmptyRequest,
                             "Service  [" + Service()->FullName() + \
-                            "] expect request from " + Connection()->Peer().ToString());
+                            "] expect request from " + GetConnection()->Peer().ToString());
         }
     } else {
         currentId_ = -1;

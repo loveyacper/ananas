@@ -2,7 +2,7 @@
 #define BERT_HEALTHSERVICE_H
 
 #include <string>
-#include "ananas_rpc.pb.h"
+#include "protobuf_rpc/ananas_rpc.pb.h"
 
 namespace google {
 namespace protobuf {

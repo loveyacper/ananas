@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 set(HEADERS
     Future.h
     Try.h

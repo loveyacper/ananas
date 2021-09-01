@@ -1,5 +1,3 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     INCLUDE_DIRECTORIES(/usr/local/Cellar/openssl/1.0.2l/include/)
 ENDIF()

@@ -1,6 +1,6 @@
 #include "ProtobufCoder.h"
 #include "RpcException.h"
-#include "ananas_rpc.pb.h"
+#include "protobuf_rpc/ananas_rpc.pb.h"
 
 using google::protobuf::Message;
 

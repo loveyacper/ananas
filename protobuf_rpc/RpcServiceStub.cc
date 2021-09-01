@@ -11,7 +11,7 @@
 #include "ananas/net/Application.h"
 #include "ananas/util/Util.h"
 
-#include "ananas_rpc.pb.h"
+#include "protobuf_rpc/ananas_rpc.pb.h"
 
 namespace ananas {
 

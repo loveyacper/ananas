@@ -106,7 +106,7 @@ public:
     ///@brief Get rpc Service which this channel based on
     rpc::Service* Service() const;
     ///@brief Get connection attached by this channel
-    Connection* Connection() const;
+    Connection* GetConnection() const;
 
     ///@brief Special encoder for this chanel, see [Encoder](@ref Encoder).
     void SetEncoder(Encoder enc);
