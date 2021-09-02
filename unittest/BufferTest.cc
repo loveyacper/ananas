@@ -1,22 +1,22 @@
 
-#include "UnitTest.h"
+#include "gtest/gtest.h"
 #include "util/Buffer.h"
 
 using namespace ananas;
 
 
-TEST_CASE(push) {
+TEST(buffer, push) {
     Buffer buf;
 
     size_t ret = buf.PushData("hello", 5);
-    EXPECT_TRUE(ret == 5);
+    EXPECT_EQ(ret, 5);
 
     ret = buf.PushData("world\n", 6);
-    EXPECT_TRUE(ret == 6);
+    EXPECT_EQ(ret, 6);
 }
 
 
-TEST_CASE(peek) {
+TEST(buffer, peek) {
     Buffer buf;
 
     {
@@ -26,19 +26,19 @@ TEST_CASE(peek) {
 
     char tmp[12];
     size_t ret = buf.PeekDataAt(tmp, 5, 0);
-    EXPECT_TRUE(ret == 5);
-    EXPECT_TRUE(tmp[0] == 'h');
-    EXPECT_TRUE(tmp[4] == 'o');
+    EXPECT_EQ(ret, 5);
+    EXPECT_EQ(tmp[0], 'h');
+    EXPECT_EQ(tmp[4], 'o');
 
     ret = buf.PeekDataAt(tmp, 2, 6);
-    EXPECT_TRUE(ret == 2);
-    EXPECT_TRUE(tmp[0] == 'w');
-    EXPECT_TRUE(tmp[1] == 'o');
+    EXPECT_EQ(ret, 2);
+    EXPECT_EQ(tmp[0], 'w');
+    EXPECT_EQ(tmp[1], 'o');
 
-    EXPECT_TRUE(buf.ReadableSize() == 12);
+    EXPECT_EQ(buf.ReadableSize(), 12);
 }
 
-TEST_CASE(pop) {
+TEST(buffer, pop) {
     Buffer buf;
 
     {
@@ -50,22 +50,22 @@ TEST_CASE(pop) {
 
     char tmp[12];
     size_t ret = buf.PopData(tmp, 6);
-    EXPECT_TRUE(ret == 6);
-    EXPECT_TRUE(tmp[0] == 'h');
-    EXPECT_TRUE(tmp[5] == ' ');
+    EXPECT_EQ(ret, 6);
+    EXPECT_EQ(tmp[0], 'h');
+    EXPECT_EQ(tmp[5], ' ');
 
-    EXPECT_TRUE(buf.ReadableSize() == 6);
+    EXPECT_EQ(buf.ReadableSize(), 6);
 
     ret = buf.PopData(tmp, 6);
-    EXPECT_TRUE(ret == 6);
-    EXPECT_TRUE(tmp[0] == 'w');
-    EXPECT_TRUE(tmp[5] == '\n');
+    EXPECT_EQ(ret, 6);
+    EXPECT_EQ(tmp[0], 'w');
+    EXPECT_EQ(tmp[5], '\n');
 
     EXPECT_TRUE(buf.IsEmpty());
-    EXPECT_TRUE(buf.Capacity() == cap); // pop does not change capacity
+    EXPECT_EQ(buf.Capacity(), cap); // pop does not change capacity
 }
 
-TEST_CASE(shrink) {
+TEST(buffer, shrink) {
     Buffer buf;
 
     {
@@ -73,24 +73,21 @@ TEST_CASE(shrink) {
         buf.PushData("world\n", 6);
     }
 
-    EXPECT_FALSE(buf.Capacity() == 12);
+    EXPECT_NE(buf.Capacity(), 12);
 
     buf.Shrink();
-    EXPECT_TRUE(buf.Capacity() == 16);
+    EXPECT_EQ(buf.Capacity(), 16);
 
     buf.PushData("abcd", 4);
-    EXPECT_TRUE(buf.Capacity() == 16);
+    EXPECT_EQ(buf.Capacity(), 16);
 
     char tmp[16];
     buf.PopData(tmp, sizeof tmp);
 
-    EXPECT_TRUE(buf.Capacity() == 16);
-
-    buf.Shrink();
-    EXPECT_TRUE(buf.Capacity() == 0);
+    EXPECT_EQ(buf.Capacity(), 16);
 }
 
-TEST_CASE(push_pop) {
+TEST(buffer, push_pop) {
     Buffer buf;
 
     buf.PushData("hello ", 6);
@@ -98,15 +95,10 @@ TEST_CASE(push_pop) {
     char tmp[8];
     size_t ret = buf.PopData(tmp, 5);
 
-    EXPECT_TRUE(ret == 5);
-    EXPECT_TRUE(buf.Capacity() == Buffer::kDefaultSize);
+    EXPECT_EQ(ret, 5);
+    EXPECT_EQ(buf.Capacity(), Buffer::kDefaultSize);
 
     buf.Shrink();
-    EXPECT_TRUE(buf.Capacity() == 1);
-}
-
-int main() {
-    RUN_ALL_TESTS();
-    return 0;
+    EXPECT_EQ(buf.Capacity(), 1);
 }
 

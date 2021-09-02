@@ -1,6 +1,6 @@
 #include <typeinfo>
 #include "future/Helper.h"
-#include "UnitTest.h"
+#include "gtest/gtest.h"
 
 using namespace ananas::internal;
 
@@ -20,7 +20,7 @@ void f_rvalue_int(int&& a) {
     ++a;
 }
 
-TEST_CASE(CallableResult) {
+TEST(call, CallableResult) {
     EXPECT_TRUE(typeid(long) == typeid(CallableResult<decltype(f_void), int>::Arg::Type));
     EXPECT_TRUE(typeid(int) == typeid(CallableResult<decltype(f_int), int>::Arg::Type));
 
@@ -32,7 +32,7 @@ TEST_CASE(CallableResult) {
     EXPECT_TRUE(typeid(int) == typeid(CallableResult<decltype(lbd), int>::Arg::Type));
 }
 
-TEST_CASE(CanCallWith) {
+TEST(call, CanCallWith) {
     auto vlbd = []() {};
     EXPECT_TRUE((CanCallWith<decltype(vlbd)>::value));
     EXPECT_FALSE((CanCallWith<decltype(vlbd), int>::value));
@@ -55,10 +55,3 @@ TEST_CASE(CanCallWith) {
     EXPECT_FALSE((CanCallWith<decltype(f_rvalue_int), int&>::value));
     EXPECT_TRUE((CanCallWith<decltype(f_rvalue_int), int&&>::value));
 }
-
-
-int main() {
-    RUN_ALL_TESTS();
-    return 0;
-}
-

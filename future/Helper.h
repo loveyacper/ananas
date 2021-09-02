@@ -71,6 +71,9 @@ struct CanCallWith {
     static constexpr bool value = type::value; // the integral_constant's value
 };
 
+template<typename F, typename... Args>
+constexpr bool CanCallWith<F, Args...>::value;
+
 // simple traits
 template <typename T>
 struct IsFuture : std::false_type {

@@ -1,12 +1,12 @@
 
-#include "UnitTest.h"
+#include "gtest/gtest.h"
 #include "util/Delegate.h"
 
 void Inc(int& b) {
     ++ b;
 }
 
-TEST_CASE(c_func) {
+TEST(delegate, c_func) {
     int n = 0;
     ananas::Delegate<void (int& )> cb;
 
@@ -15,26 +15,26 @@ TEST_CASE(c_func) {
     EXPECT_TRUE(n == 1);
 }
 
-class Test {
+class Context {
 public:
     void MInc(int& b) {
         ++ b;
     }
 };
 
-TEST_CASE(mem_func) {
-    Test t;
+TEST(delegate, mem_func) {
+    Context t;
     int n = 0;
     ananas::Delegate<void (int& )> cb;
 
-    cb += std::bind(&Test::MInc, &t, std::placeholders::_1);
+    cb += std::bind(&Context::MInc, &t, std::placeholders::_1);
     cb(n);
     cb(n);
     EXPECT_TRUE(n == 2);
 }
 
 
-TEST_CASE(lambda) {
+TEST(delegate, lambda) {
     int n = 0;
     ananas::Delegate<void (int& )> cb;
 
@@ -49,18 +49,12 @@ void IncCopy(int b) {
     ++ b;
 }
 
-TEST_CASE(copy_f) {
+TEST(delegate, copy_f) {
     int n = 0;
     ananas::Delegate<void (int )> cb;
 
     cb += IncCopy;
     cb(n);
     EXPECT_TRUE(n == 0);
-}
-
-
-int main() {
-    RUN_ALL_TESTS();
-    return 0;
 }
 

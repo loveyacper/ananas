@@ -4,7 +4,6 @@
 #include <deque>
 #include <thread>
 #include <memory>
-#include <atomic>
 #include <mutex>
 #include <condition_variable>
 #include "ananas/future/Future.h"
@@ -63,49 +62,32 @@ public:
 
     ///@brief Stop thread pool and wait all threads terminate
     void JoinAll();
-    ///@brief Set max size of idle threads
+
+    ///@brief Set number of threads
     ///
-    /// Details about threads in pool:
-    /// Busy threads, they are doing work on behalf of us.
-    /// Idle threads, they are waiting on a queue for new work.
-    /// Monitor thread, the internal thread, only one, it'll check
-    /// the size of idle threads periodly, if there are too many idle
-    /// threads, they will be recycled by monitor thread.
-    void SetMaxIdleThreads(unsigned int );
-    ///@brief Set max size of idle threads
-    ///
-    /// Max threads size is the total of idle threads and busy threads,
-    /// not include monitor thread.
-    /// Default value is 1024
-    /// Example: if you SetMaxThreads(8), SetMaxIdleThreads(2)
-    /// and now execute 8 long working, there will be 8 busy threads,
-    /// 0 idle thread, when all work done, will be 0 busy thread, 2 idle
-    /// threads, other 6 threads are recycled by monitor thread.
-    void SetMaxThreads(unsigned int );
+    /// Num of threads is fixed after start thread pool
+    /// Default value is 1
+    void SetNumOfThreads(int );
+
+    // ---- below are for unittest ----
+    // num of workers
+    size_t WorkerThreads() const;
+    // num of waiting tasks
+    size_t Tasks() const;
 
 private:
-    void _SpawnWorker();
     void _WorkerRoutine();
-    void _MonitorRoutine();
+    void _Start();
 
-    // Recycle redundant threads
-    std::thread monitor_;
-
-    std::atomic<unsigned> maxThreads_;
-    std::atomic<unsigned> currentThreads_;
-    std::atomic<unsigned> maxIdleThreads_;
-    std::atomic<unsigned> pendingStopSignal_;
-
-    static thread_local bool working_;
+    int numThreads_ {1};
     std::deque<std::thread> workers_;
 
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     std::condition_variable cond_;
-    unsigned waiters_;
-    bool shutdown_;
+    bool shutdown_ {false};
     std::deque<std::function<void ()> > tasks_;
 
-    static const int kMaxThreads = 1024;
+    static const int kMaxThreads = 512;
     static std::thread::id s_mainThread;
 };
 
@@ -117,7 +99,11 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_o
 
     std::unique_lock<std::mutex> guard(mutex_);
     if (shutdown_)
-        return MakeReadyFuture<resultType>(resultType());
+        throw std::runtime_error("execute on closed thread pool");
+
+    if (workers_.empty()) {
+      _Start();
+    }
 
     Promise<resultType> promise;
     auto future = promise.GetFuture();
@@ -132,9 +118,6 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<typename std::result_o
     };
 
     tasks_.emplace_back(std::move(task));
-    if (waiters_ == 0 && currentThreads_ < maxThreads_)
-        _SpawnWorker();
-
     cond_.notify_one();
 
     return future;
@@ -150,6 +133,10 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void> {
     if (shutdown_)
         return MakeReadyFuture();
 
+    if (workers_.empty()) {
+      _Start();
+    }
+
     Promise<resultType> promise;
     auto future = promise.GetFuture();
 
@@ -164,9 +151,6 @@ auto ThreadPool::Execute(F&& f, Args&&... args) -> Future<void> {
     };
 
     tasks_.emplace_back(std::move(task));
-    if (waiters_ == 0 && currentThreads_ < maxThreads_)
-        _SpawnWorker();
-
     cond_.notify_one();
 
     return future;

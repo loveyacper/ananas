@@ -34,7 +34,7 @@ void EventLoopGroup::Start() {
     // only called by main thread
     assert (state_ == eS_None);
 
-    pool_.SetMaxThreads(numLoop_);
+    pool_.SetNumOfThreads(numLoop_);
     for (size_t i = 0; i < numLoop_; ++i) {
         pool_.Execute([this]() {
             EventLoop* loop = new EventLoop(this);

@@ -1,6 +1,6 @@
 #include "HealthService.h"
 #include "ananas/util/Buffer.h"
-#include "codec/HttpProtocol.h"
+#include "ananas/util/HttpProtocol.h"
 #include "ProtobufCoder.h"
 #include "RpcService.h"
 #include "RpcServer.h"
