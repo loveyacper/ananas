@@ -20,7 +20,6 @@ struct SocketAddr;
 
 namespace internal {
 class Connector;
-class EventLoopGroup;
 }
 
 ///@brief EventLoop class
@@ -29,9 +28,7 @@ class EventLoopGroup;
 class EventLoop : public Scheduler {
 public:
     ///@brief Constructor
-    ///@param group The group belong to
-    explicit
-    EventLoop(internal::EventLoopGroup* group);
+    EventLoop();
     ~EventLoop();
 
     EventLoop(const EventLoop& ) = delete;
@@ -118,7 +115,7 @@ public:
 
     ///@brief Run application
     ///
-    /// It's a infinite loop, until belonging EventLoopGroup stopped
+    /// It's a infinite loop, until Application stopped
     void Run();
 
     bool Register(int events, std::shared_ptr<internal::Channel> src);
@@ -155,7 +152,6 @@ public:
 private:
     bool _Loop(DurationMs timeout);
 
-    internal::EventLoopGroup* group_;
     std::unique_ptr<internal::Poller> poller_;
 
     std::shared_ptr<internal::PipeChannel> notifier_;

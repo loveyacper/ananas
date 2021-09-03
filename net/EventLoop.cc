@@ -3,7 +3,7 @@
 #include <thread>
 
 #include "EventLoop.h"
-#include "EventLoopGroup.h"
+#include "Application.h"
 
 #include "Acceptor.h"
 #include "Connection.h"
@@ -34,8 +34,7 @@ void EventLoop::SetMaxOpenFd(rlim_t maxfdPlus1) {
         s_maxOpenFdPlus1 = maxfdPlus1;
 }
 
-EventLoop::EventLoop(internal::EventLoopGroup* group) :
-    group_(group) {
+EventLoop::EventLoop() {
     assert (!g_thisLoop && "There must be only one EventLoop per thread");
     g_thisLoop = this;
 
@@ -204,12 +203,14 @@ bool EventLoop::Cancel(TimerId id) {
 }
 
 void EventLoop::Run() {
+    assert (this->InThisLoop());
+
     const DurationMs kDefaultPollTime(10);
     const DurationMs kMinPollTime(1);
 
     Register(internal::eET_Read, notifier_);
 
-    while (!group_->IsStopped()) {
+    while (!Application::Instance().IsExit()) {
         auto timeout = std::min(kDefaultPollTime, timers_.NearestTimer());
         timeout = std::max(kMinPollTime, timeout);
 

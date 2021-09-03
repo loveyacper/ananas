@@ -10,14 +10,10 @@
 #include "Typedefs.h"
 #include "Poller.h"
 #include "ananas/util/Timer.h"
+#include "ananas/util/ThreadPool.h"
 
 ///@brief Namespace ananas
 namespace ananas {
-
-namespace internal {
-class EventLoopGroup;
-}
-
 /// @file Application.h
 
 ///@brief Abstract for a process.
@@ -137,13 +133,16 @@ public:
 private:
     Application();
 
-    // baseGroup_ is empty, just a placeholder container for base_.
-    std::unique_ptr<internal::EventLoopGroup> baseGroup_;
+    void _StartWorkers();
 
-    // The default loop for accept/connect, or as worker if workerGroup_ is empty
+    // The default loop for accept/connect, or as worker if empty worker pool
     EventLoop base_;
 
-    std::unique_ptr<internal::EventLoopGroup> workerGroup_;
+    // worker thread pool
+    ThreadPool pool_;
+    std::vector<std::unique_ptr<EventLoop>> loops_;
+    size_t numLoop_ {0};
+    mutable std::atomic<size_t> currentLoop_ {0};
 
     enum class State {
         eS_None,

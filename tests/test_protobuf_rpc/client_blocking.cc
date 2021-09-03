@@ -11,7 +11,6 @@
 #include "util/Logger.h"
 #include "util/TimeUtil.h"
 #include "util/ThreadPool.h"
-#include "util/ConfigParser.h"
 #include "net/EventLoop.h"
 #include "net/Application.h"
 #include "net/Connection.h"

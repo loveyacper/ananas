@@ -3,11 +3,14 @@
 #include <cstring>
 #include <cstdio>
 
+#include <memory>
+#include <mutex>
+#include <condition_variable>
+
 #include "util/Util.h"
 #include "Application.h"
 #include "AnanasLogo.h"
 #include "Socket.h"
-#include "EventLoopGroup.h"
 #include "AnanasDebug.h"
 
 static void SignalHandler(int num) {
@@ -24,11 +27,6 @@ static void InitSignal() {
     // ignore sigpipe
     sig.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &sig, NULL);
-
-#ifdef ANANAS_LOGO
-    // logo
-    printf("%s\n", ananas::internal::logo);
-#endif
 }
 
 
@@ -44,12 +42,14 @@ Application& Application::Instance() {
 
 void Application::SetNumOfWorker(size_t num) {
     assert (state_ == State::eS_None);
-    workerGroup_->SetNumOfEventLoop(num);
+    assert (num <= 512);
+
+    numLoop_ = num;
 }
 
 size_t Application::NumOfWorker() const {
     // plus one : the baseLoop
-    return 1 + workerGroup_->Size();
+    return 1 + numLoop_;
 }
 
 void Application::Run(int ac, char* av[]) {
@@ -71,16 +71,16 @@ void Application::Run(int ac, char* av[]) {
         }
     }
 
-    state_ = State::eS_Started;
-    workerGroup_->Start();
-
+    // start loops in thread pool
+    _StartWorkers();
     BaseLoop()->Run();
 
-    baseGroup_->Wait();
-    printf("Stopped BaseEventLoopGroup ...\n");
+    printf("Stopped BaseEventLoop...\n");
 
-    workerGroup_->Wait();
-    printf("Stopped WorkerEventLoopGroup...\n");
+    pool_.JoinAll();
+    loops_.clear();
+    numLoop_ = 0;
+    printf("Stopped WorkerEventLoops...\n");
 }
 
 void Application::Exit() {
@@ -88,8 +88,6 @@ void Application::Exit() {
         return;
 
     state_ = State::eS_Stopped;
-    baseGroup_->Stop();
-    workerGroup_->Stop();
 }
 
 bool Application::IsExit() const {
@@ -184,20 +182,55 @@ void Application::Connect(const char* ip,
 
 
 EventLoop* Application::Next() {
-    //assert (BaseLoop()->IsInSameLoop());
-    auto loop = workerGroup_->Next();
-    if (loop)
-        return loop;
+    if (state_ != State::eS_Started)
+        return BaseLoop();
 
-    return BaseLoop();
+    if (loops_.empty())
+        return BaseLoop();
+
+    auto& loop = loops_[currentLoop_++ % loops_.size()];
+    return loop.get();
+}
+
+void Application::_StartWorkers() {
+    // only called by main thread
+    assert (state_ == State::eS_None);
+
+    std::mutex mutex;
+    std::condition_variable cond;
+
+    pool_.SetNumOfThreads(numLoop_);
+    for (size_t i = 0; i < numLoop_; ++i) {
+        pool_.Execute([this, &mutex, &cond]() {
+            EventLoop* loop(new EventLoop);
+
+            {
+                std::unique_lock<std::mutex> guard(mutex);
+                loops_.push_back(std::unique_ptr<EventLoop>(loop));
+                if (loops_.size() == numLoop_)
+                    cond.notify_one();
+            }
+
+            loop->Run();
+        });
+    }
+
+    std::unique_lock<std::mutex> guard(mutex);
+    cond.wait(guard, [this] () {
+        return loops_.size() == numLoop_;
+    });
+
+    state_ = State::eS_Started;
 }
 
 Application::Application() :
-    baseGroup_(new internal::EventLoopGroup(0)),
-    base_(baseGroup_.get()),
-    workerGroup_(new internal::EventLoopGroup(0)),
     state_ {State::eS_None} {
     InitSignal();
+
+    // logo
+    fprintf(stdout, "%s", "\033[1;36;40m");
+    printf("%s\n", ananas::internal::logo);
+    fprintf(stdout, "%s", "\033[0m");
 }
 
 void Application::_DefaultBindCallback(bool succ, const SocketAddr& listenAddr) {

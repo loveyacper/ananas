@@ -11,7 +11,6 @@
 #include "util/Logger.h"
 #include "util/TimeUtil.h"
 #include "util/ThreadPool.h"
-#include "util/ConfigParser.h"
 #include "net/EventLoop.h"
 #include "net/Application.h"
 #include "net/Connection.h"
@@ -71,26 +70,21 @@ int main(int ac, char* av[]) {
     using namespace ananas;
     using namespace ananas::rpc;
 
+    int threads = 6;
+    if (ac > 1)
+        threads = std::stoi(av[1]);
+
     // init log
     LogManager::Instance().Start();
     logger = LogManager::Instance().CreateLog(logALL, logALL, "logger_rpcclient_test");
-
-    // try init config
-    ConfigParser config;
-    if (ac > 1) {
-        if (!config.Load(av[1])) {
-            ERR(logger) << "Load config failed:" << av[1];
-        }
-    }
 
     // init service
     auto teststub = new ServiceStub(new test::TestService_Stub(nullptr));
     teststub->SetOnCreateChannel(OnCreateChannel);
 
-    const int threads = 4;
     // init server
     Server server;
-    server.SetNumOfWorker(config.GetData<int>("threads", threads));
+    server.SetNumOfWorker(threads);
     server.AddServiceStub(teststub);
     server.SetNameServer("tcp://127.0.0.1:6379");
 

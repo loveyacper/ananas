@@ -34,7 +34,7 @@ int main(int ac, char* av[]) {
 
     auto& app = ananas::Application::Instance();
     app.SetNumOfWorker(workers);
-    app.Listen("localhost", 9987, OnNewConnection);
+    app.Listen("127.0.0.1", 9987, OnNewConnection);
 
     app.Run(ac, av);
 
