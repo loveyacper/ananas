@@ -1,6 +1,6 @@
 #include "HealthService.h"
 #include "ananas/util/Buffer.h"
-#include "ananas/util/HttpProtocol.h"
+#include "ananas/net/http/HttpParser.h"
 #include "ProtobufCoder.h"
 #include "RpcService.h"
 #include "RpcServer.h"
@@ -86,30 +86,30 @@ bool M2FEncode(const google::protobuf::Message* msg, rpc::RpcMessage& frame) {
 }
 
 static
-std::shared_ptr<google::protobuf::Message> B2MDecode(HttpRequestParser* parser, const char*& data, size_t len) {
-    while (!parser->Done()) {
-        if (!parser->ParseRequest(data, data+len))
-            throw Exception(ErrorCode::DecodeFail);
-        else if (parser->WaitMore())
-            return std::shared_ptr<google::protobuf::Message>();
+std::shared_ptr<google::protobuf::Message> B2MDecode(HttpParser* parser, const char*& data, size_t len) {
+    bool ok = parser->Execute(data, len);
+    if (!ok) {
+      //ERROR("failed parse http rsp: {}", data);
+      throw Exception(ErrorCode::DecodeFail);
     }
+
+    data += len;
+
+    if (!parser->IsComplete())
+      return nullptr;
 
     auto msg = std::make_shared<HttpRequestMsg>();
-    if (parser->Done()) {
-        const auto& req = parser->Request();
+    const auto& req = parser->Request();
 
-        msg->mutable_method()->append(req.MethodString());
-        msg->mutable_path()->append(req.Path());
-        // TODO headers
-        msg->mutable_body()->append(req.Body());
-        parser->Reset();
-    }
-
+    msg->mutable_method()->append(req.MethodString());
+    msg->mutable_path()->append(req.Url());
+    // TODO headers
+    msg->mutable_body()->append(req.Body());
     return msg;
 }
 
 void OnCreateHealthChannel(rpc::ServerChannel* c) {
-    auto ctx = std::make_shared<HttpRequestParser>();
+    auto ctx = std::make_shared<HttpParser>(HTTP_REQUEST);
     c->SetContext(ctx);
 
     rpc::Encoder encoder;

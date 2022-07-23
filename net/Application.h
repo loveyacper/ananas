@@ -11,6 +11,8 @@
 #include "Poller.h"
 #include "ananas/util/Timer.h"
 #include "ananas/util/ThreadPool.h"
+#include "http/HttpClient.h"
+#include "http/HttpServer.h"
 
 ///@brief Namespace ananas
 namespace ananas {
@@ -129,6 +131,13 @@ public:
     void SetNumOfWorker(size_t n);
     ///@brief Get worker threads's size
     size_t NumOfWorker() const;
+
+    // HTTP server
+    std::shared_ptr<HttpServer> ListenHTTP(const char* ip, int port,
+                                           HttpServer::OnNewClient cb = HttpServer::OnNewClient());
+
+    // HTTP client
+    std::shared_ptr<HttpClient> ConnectHTTP(const char* ip, int port, EventLoop* loop = nullptr);
 
 private:
     Application();

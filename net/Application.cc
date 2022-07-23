@@ -223,6 +223,34 @@ void Application::_StartWorkers() {
     state_ = State::eS_Started;
 }
 
+std::shared_ptr<HttpServer> Application::ListenHTTP(const char* ip, int port, HttpServer::OnNewClient cb) {
+  auto server = std::make_shared<HttpServer>();
+  server->SetOnNewHttpContext(std::move(cb));
+
+  // capture server to make it long live with TcpListener
+  auto ncb = [server](Connection* conn) { server->OnNewConnection(conn); };
+  Listen(ip, port, ncb);
+
+  return server;
+}
+
+std::shared_ptr<HttpClient> Application::ConnectHTTP(const char* ip, int port, EventLoop* loop) {
+  auto client = std::make_shared<HttpClient>();
+
+  // capture client to make it long live with TcpObject
+  auto ncb = [client](Connection* conn) { client->OnConnect(conn); };
+  auto fcb = [client](EventLoop*, const SocketAddr& peer) { client->OnConnectFail(peer.GetIP().c_str(), peer.GetPort()); };
+
+  if (!loop) {
+    loop = Next();
+  }
+  client->SetLoop(loop);
+  Connect(ip, port, std::move(ncb), std::move(fcb), DurationMs::max(), loop);
+
+  return client;
+}
+
+
 Application::Application() :
     state_ {State::eS_None} {
     InitSignal();

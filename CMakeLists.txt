@@ -22,6 +22,25 @@ ELSE()
     message("${CMAKE_BUILD_TYPE}")
 ENDIF()
 
+include(FetchContent)
+
+# nodejs/llhttp
+FetchContent_Declare(
+    llhttp
+    URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v6.0.5.tar.gz"
+)
+FetchContent_MakeAvailable(llhttp)
+
+# gtest
+FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/47f819c3ca54fb602f432904443e00a0a1fe2f42.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/../)
 
 SUBDIRS(net)

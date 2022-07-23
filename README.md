@@ -26,6 +26,7 @@ A C++11 RPC framework and toolbox for server-side development.
 
 * [教程目录](#dummy)
     * [整体overview](docs/01_overview.md)
+    * [http](docs/07_http.md)
     * [util库使用](docs/02_util.md)
     * [网络库使用](docs/03_networking.md)
     * [协程介绍](docs/04_coroutine.md)
@@ -43,6 +44,7 @@ A C++11 RPC framework and toolbox for server-side development.
 ## Features
 * Protobuf-based rpc.
 * `Future` & `Promise`, see [future](docs/05_future.md).
+* `HttpServer` & `HttpClient`, see [http](docs/07_http.md).
 * Http health service for inspect, enabled by `SetHealthService()`.
 * Network(`udp`&`tcp`,`kqueue`&`epoll`), support ssl.
 * Pythonic generator style coroutine, see [Intro](coroutine/README.md).

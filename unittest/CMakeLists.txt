@@ -17,7 +17,6 @@ TARGET_SOURCES(${TEST_TARGET}
   BufferTest.cc
   CallUnitTests.cc
   DelegateTest.cc
-  HttpParserTest.cc
   ThreadPoolTest.cc
 )
 
