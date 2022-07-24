@@ -270,5 +270,10 @@ void Application::_DefaultBindCallback(bool succ, const SocketAddr& listenAddr) 
     }
 }
 
+void Application::Reset() {
+    state_ = State::eS_None;
+    BaseLoop()->Reset();
+}
+
 } // end namespace ananas
 

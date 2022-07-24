@@ -15,13 +15,17 @@ SET(EXECUTABLE_OUTPUT_PATH  ${PROJECT_SOURCE_DIR}/bin/unittests)
 TARGET_SOURCES(${TEST_TARGET}
   PRIVATE
   BufferTest.cc
-  CallUnitTests.cc
+  CallUnitTest.cc
   DelegateTest.cc
   ThreadPoolTest.cc
+  # EventLoopTest.cc FIXME
+  HttpParserTest.cc
+  # HttpTest.cc FIXME
 )
 
 TARGET_LINK_LIBRARIES(${TEST_TARGET}
   PRIVATE
+  ananas_net
   ananas_util
   gtest_main
 )

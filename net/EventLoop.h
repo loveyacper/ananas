@@ -149,6 +149,9 @@ public:
 
     static void SetMaxOpenFd(rlim_t maxfdPlus1);
 
+    // for unittest only
+    void Reset();
+
 private:
     bool _Loop(DurationMs timeout);
 

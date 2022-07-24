@@ -139,6 +139,9 @@ public:
     // HTTP client
     std::shared_ptr<HttpClient> ConnectHTTP(const char* ip, int port, EventLoop* loop = nullptr);
 
+    // for unittest only
+    void Reset();
+
 private:
     Application();
 

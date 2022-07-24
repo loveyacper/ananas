@@ -301,5 +301,27 @@ void EventLoop::Schedule(std::function<void()> f) {
     Execute(std::move(f));
 }
 
+void EventLoop::Reset() {
+    for (auto& kv : channelSet_) {
+        Unregister(0, kv.second); // FIXME: in mac os
+    }
+    channelSet_.clear();
+
+    {
+        std::unique_lock<std::mutex> guard(fctrMutex_);
+        functors_.clear();
+    }
+
+#if defined(__APPLE__)
+    poller_.reset(new internal::Kqueue);
+#elif defined(__gnu_linux__)
+    poller_.reset(new internal::Epoller);
+#else
+#error "Only support mac os and linux"
+#endif
+    notifier_ = std::make_shared<internal::PipeChannel>();
+}
+
+
 } // end namespace ananas
 

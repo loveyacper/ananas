@@ -21,6 +21,7 @@ public:
     void operator= (const DatagramSocket& ) = delete;
 
     void SetMaxPacketSize(std::size_t s);
+    std::size_t GetMaxPacketSize() const { return maxPacketSize_; }
     bool Bind(const SocketAddr* addr);
 
     int Identifier() const override;
