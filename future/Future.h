@@ -45,6 +45,10 @@ struct State {
 
     std::function<void (TimeoutCallback&& )> onTimeout_;
     std::atomic<bool> retrieved_;
+
+    bool IsRoot() const {
+        return !onTimeout_;
+    }
 };
 
 } // end namespace internal
@@ -72,7 +76,8 @@ public:
 
     void SetException(std::exception_ptr exp) {
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ != Progress::None)
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != Progress::None)
             return;
 
         state_->progress_ = Progress::Done;
@@ -90,7 +95,8 @@ public:
         // After set then_, ThenImp will release lock.
         // And this func got lock, definitely will call then_.
         std::unique_lock<std::mutex> guard(state_->thenLock_);
-        if (state_->progress_ != Progress::None)
+        bool isRoot = state_->IsRoot();
+        if (isRoot && state_->progress_ != Progress::None)
             return;
 
         state_->progress_ = Progress::Done;
@@ -309,7 +315,27 @@ public:
                 pm.SetValue(std::move(result));
             }
         } else {
-            // set this future's then callback
+            // 1. set pm's timeout callback
+            nextFuture._SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
+                auto parent = weak_parent.lock();
+                if (!parent)
+                    return;
+
+                {
+                    std::unique_lock<std::mutex> guard(parent->thenLock_);
+                    // if parent future is Done, let it go down
+                    if (parent->progress_ != Progress::None)
+                        return;
+
+                    parent->progress_ = Progress::Timeout;
+                }
+
+                if (!parent->IsRoot())
+                    parent->onTimeout_(std::move(cb)); // propogate to the root
+                else
+                    cb();
+            });
+            // 2. set this future's then callback
             _SetCallback([sched,
                          func = std::forward<FuncType>(f),
                          prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
@@ -401,7 +427,27 @@ public:
             else
                 cb();
         } else {
-            // set this future's then callback
+            // 1. set pm's timeout callback
+            nextFuture._SetOnTimeout([weak_parent = std::weak_ptr<State<T>>(state_)](TimeoutCallback&& cb) {
+                auto parent = weak_parent.lock();
+                if (!parent)
+                    return;
+
+                {
+                    std::unique_lock<std::mutex> guard(parent->thenLock_);
+                    if (parent->progress_ != Progress::None)
+                        return;
+
+                    parent->progress_ = Progress::Timeout;
+                }
+
+                if (!parent->IsRoot())
+                    parent->onTimeout_(std::move(cb)); // propogate to the root
+                else
+                    cb();
+
+            });
+            // 2. set this future's then callback
             _SetCallback([sched = sched,
                          func = std::forward<FuncType>(f),
                          prom = std::move(pm)](typename TryWrapper<T>::Type&& t) mutable {
@@ -474,16 +520,20 @@ public:
     void OnTimeout(std::chrono::milliseconds duration,
                    TimeoutCallback f,
                    Scheduler* scheduler) {
-
         scheduler->ScheduleLater(duration, [state = state_, cb = std::move(f)]() mutable {
-            std::unique_lock<std::mutex> guard(state->thenLock_);
-            if (state->progress_ != Progress::None)
-                return;
+            {
+                std::unique_lock<std::mutex> guard(state->thenLock_);
 
-            state->progress_ = Progress::Timeout;
-            guard.unlock();
+                if (state->progress_ != Progress::None)
+                    return;
 
-            cb();
+                state->progress_ = Progress::Timeout;
+            }
+
+            if (!state->IsRoot())
+                state->onTimeout_(std::move(cb)); // propogate to the root future
+            else
+                cb();
         });
     }
 
@@ -788,4 +838,3 @@ WhenIfN(size_t N, InputIterator first, InputIterator last,
 } // end namespace ananas
 
 #endif
-
