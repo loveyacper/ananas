@@ -392,8 +392,7 @@ public:
                 // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
                 decltype(f(res.template Get<Args>()...)) innerFuture;
                 if (res.HasException()) {
-                    // Failed if Args... is void
-                    innerFuture = f(typename TryWrapper<typename std::decay<Args...>::type>::Type(res.Exception()));
+                    innerFuture = f(typename TryWrapper<typename std::decay<Args...>::type>::Type(res.Exception()).template Get<Args>()...);
                 } else {
                     innerFuture = f(res.template Get<Args>()...);
                 }
@@ -456,8 +455,7 @@ public:
                     // because func return another future: innerFuture, when innerFuture is done, nextFuture can be done
                     decltype(func(t.template Get<Args>()...)) innerFuture;
                     if (t.HasException()) {
-                        // Failed if Args... is void
-                        innerFuture = func(typename TryWrapper<typename std::decay<Args...>::type>::Type(t.Exception()));
+                        innerFuture = func(typename TryWrapper<typename std::decay<Args...>::type>::Type(t.Exception()).template Get<Args>()...);
                     } else {
                         innerFuture = func(t.template Get<Args>()...);
                     }
